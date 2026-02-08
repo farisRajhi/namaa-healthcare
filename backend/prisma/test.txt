@@ -1,0 +1,19 @@
+﻿generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Org {
+  orgId           String           @id @default(dbgenerated("gen_random_uuid()")) @map("org_id") @db.Uuid
+  name            String
+  defaultTimezone String           @default("UTC") @map("default_timezone")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  phoneNumbers    OrgPhoneNumber[]
+
+  @@map("orgs")
+}

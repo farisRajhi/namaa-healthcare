@@ -1,0 +1,200 @@
+{
+  "common": {
+    "signIn": "Sign in",
+    "signUp": "Sign up",
+    "signOut": "Logout",
+    "getStarted": "Get Started",
+    "save": "Save Changes",
+    "cancel": "Cancel",
+    "loading": "Loading...",
+    "organization": "Organization",
+    "features": "Features"
+  },
+  "landing": {
+    "brand": "Namaa",
+    "badge": "AI-Powered Healthcare Automation",
+    "hero": {
+      "title": "Transform Patient Booking with",
+      "highlight": "WhatsApp AI",
+      "subtitle": "Automate appointment scheduling, reduce no-shows, and grow your healthcare practice with intelligent WhatsApp conversations that work 24/7."
+    },
+    "cta": {
+      "trial": "Start Free Trial",
+      "howItWorks": "See How It Works",
+      "getStartedFree": "Get Started for Free"
+    },
+    "stats": {
+      "noShows": "Reduction in No-Shows",
+      "availability": "Availability",
+      "bookings": "More Bookings",
+      "responseTime": "Response Time"
+    },
+    "features": {
+      "title": "Everything You Need to Grow",
+      "subtitle": "A complete suite of tools to automate patient communication and streamline your operations.",
+      "whatsapp": {
+        "title": "WhatsApp Integration",
+        "description": "Connect with patients on their favorite messaging app. Send reminders, confirmations, and updates automatically."
+      },
+      "scheduling": {
+        "title": "Smart Scheduling",
+        "description": "AI-powered appointment booking that understands natural language and finds the perfect time slot."
+      },
+      "patients": {
+        "title": "Patient Management",
+        "description": "Keep track of patient records, preferences, and history all in one centralized dashboard."
+      },
+      "analytics": {
+        "title": "Analytics Dashboard",
+        "description": "Track bookings, monitor trends, and gain insights to optimize your practice performance."
+      },
+      "reminders": {
+        "title": "Automated Reminders",
+        "description": "Reduce no-shows with smart appointment reminders sent at the right time."
+      },
+      "multiLocation": {
+        "title": "Multi-Location Support",
+        "description": "Manage multiple facilities, departments, and providers from a single platform."
+      }
+    },
+    "howItWorks": {
+      "title": "How It Works",
+      "subtitle": "Get started in minutes with our simple setup process.",
+      "step1": {
+        "title": "Connect WhatsApp",
+        "description": "Link your business WhatsApp number to start receiving messages from patients."
+      },
+      "step2": {
+        "title": "Configure AI Agent",
+        "description": "Set up your services, providers, and availability. The AI learns your preferences."
+      },
+      "step3": {
+        "title": "Go Live",
+        "description": "Start accepting bookings automatically. Monitor and manage everything from your dashboard."
+      }
+    },
+    "benefits": {
+      "title": "Why Healthcare Providers Choose Us",
+      "subtitle": "Join hundreds of clinics and hospitals that have transformed their patient experience with our WhatsApp automation platform.",
+      "list": {
+        "workload": "Reduce administrative workload by 60%",
+        "satisfaction": "Increase patient satisfaction scores",
+        "slots": "Fill more appointment slots automatically",
+        "hipaa": "HIPAA-compliant secure messaging",
+        "integration": "Seamless integration with existing systems"
+      },
+      "security": {
+        "title": "Enterprise Security",
+        "subtitle": "Your data is protected",
+        "encryption": "End-to-end encryption",
+        "hipaa": "HIPAA compliance ready",
+        "audits": "Regular security audits",
+        "residency": "Data residency options"
+      }
+    },
+    "finalCta": {
+      "title": "Ready to Transform Your Practice?",
+      "subtitle": "Start your free trial today. No credit card required."
+    },
+    "footer": {
+      "copyright": "Namaa. All rights reserved."
+    }
+  },
+  "auth": {
+    "welcomeBack": "Welcome back",
+    "signInSubtitle": "Sign in to your account to continue",
+    "createAccount": "Create your account",
+    "registerSubtitle": "Start managing your bookings with AI",
+    "email": "Email address",
+    "emailPlaceholder": "you@example.com",
+    "password": "Password",
+    "passwordPlaceholder": "••••••••",
+    "passwordHint": "At least 6 characters",
+    "orgName": "Organization Name",
+    "orgPlaceholder": "Your Clinic or Business Name",
+    "signingIn": "Signing in...",
+    "creatingAccount": "Creating account...",
+    "noAccount": "Don't have an account?",
+    "haveAccount": "Already have an account?",
+    "invalidCredentials": "Invalid email or password",
+    "registrationFailed": "Registration failed"
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "subtitle": "Overview of your business performance",
+    "stats": {
+      "totalPatients": "Total Patients",
+      "activeProviders": "Active Providers",
+      "todayAppointments": "Today's Appointments",
+      "thisMonth": "This Month"
+    },
+    "charts": {
+      "appointments": "Appointments (Last 14 Days)",
+      "bookingChannels": "Booking Channels",
+      "total": "Total",
+      "completed": "Completed"
+    },
+    "quickActions": {
+      "title": "Quick Actions",
+      "newAppointment": "New Appointment",
+      "newAppointmentDesc": "Book a new appointment",
+      "addPatient": "Add Patient",
+      "addPatientDesc": "Register a new patient",
+      "viewMessages": "View Messages",
+      "viewMessagesDesc": "Check WhatsApp conversations"
+    },
+    "statusBreakdown": "This Month's Status Breakdown"
+  },
+  "nav": {
+    "dashboard": "Dashboard",
+    "appointments": "Appointments",
+    "patients": "Patients",
+    "services": "Services",
+    "management": "Management",
+    "settings": "Settings"
+  },
+  "demoChat": {
+    "openChat": "Try AI Assistant",
+    "title": "Try AI Assistant",
+    "newChat": "New conversation",
+    "welcome": "Experience our AI booking assistant. Try asking:",
+    "remaining": "{{count}} demo messages remaining",
+    "limitReached": "Demo limit reached!",
+    "signUp": "Sign up for unlimited access",
+    "cta": "Sign up to book real appointments"
+  },
+  "settings": {
+    "title": "Settings",
+    "subtitle": "Manage your organization settings",
+    "organization": {
+      "title": "Organization",
+      "name": "Organization Name",
+      "timezone": "Default Timezone"
+    },
+    "n8n": {
+      "title": "n8n Integration",
+      "apiKey": "Webhook API Key",
+      "regenerate": "Regenerate",
+      "apiKeyHint": "Use this key in your n8n workflows to authenticate API calls",
+      "endpoints": "Webhook Endpoints"
+    },
+    "whatsapp": {
+      "title": "WhatsApp Business",
+      "notice": "WhatsApp Business API integration is configured through n8n workflows. Make sure you have set up the WhatsApp nodes in your n8n instance.",
+      "phoneNumber": "Business Phone Number"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "newBooking": "New Booking Alerts",
+      "newBookingDesc": "Get notified when a new booking is made",
+      "negativeFeedback": "Negative Feedback Alerts",
+      "negativeFeedbackDesc": "Get notified when a customer leaves negative feedback"
+    },
+    "language": {
+      "title": "Language",
+      "select": "Select Language",
+      "english": "English",
+      "arabic": "العربية (Arabic)"
+    }
+  }
+}

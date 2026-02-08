@@ -1,0 +1,59 @@
+version: "3.8"
+
+services:
+  # Database for n8n
+  postgres:
+    image: postgres:16
+    container_name: n8n_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: n8n
+      POSTGRES_PASSWORD: faris2002
+      POSTGRES_DB: n8n
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Database for the application
+  app_postgres:
+    image: postgres:16
+    container_name: app_postgres
+    restart: unless-stopped
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: faris2002
+      POSTGRES_DB: hospital_booking
+    volumes:
+      - app_postgres_data:/var/lib/postgresql/data
+      - ./hospital_booking.sql:/docker-entrypoint-initdb.d/init.sql
+
+  # n8n workflow automation
+  n8n:
+    image: n8nio/n8n:latest
+    command: ["start", "--tunnel"]
+    container_name: n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_PORT: 5432
+      DB_POSTGRESDB_DATABASE: n8n
+      DB_POSTGRESDB_USER: n8n
+      DB_POSTGRESDB_PASSWORD: faris2002
+      N8N_HOST: localhost
+      N8N_PORT: 5678
+      N8N_PROTOCOL: http
+      WEBHOOK_URL: http://localhost:5678/
+      N8N_PROXY_HOPS: 1
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      - postgres
+
+volumes:
+  n8n_data:
+  postgres_data:
+  app_postgres_data:
