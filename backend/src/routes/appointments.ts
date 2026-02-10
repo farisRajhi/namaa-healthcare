@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import { getWaitlistAutoFill } from '../services/pipelines/waitlistAutoFill.js';
 
 const createAppointmentSchema = z.object({
   providerId: z.string().uuid(),
@@ -181,6 +182,19 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
         service: true,
       },
     });
+
+    // Trigger waitlist auto-fill when appointment is cancelled
+    if (body.status === 'cancelled') {
+      try {
+        const waitlistAutoFill = getWaitlistAutoFill(app.prisma, app.twilio ?? null);
+        // Fire-and-forget — don't block the response
+        waitlistAutoFill.onAppointmentCancelled(id).catch((err) => {
+          app.log.error(`Waitlist auto-fill error for appointment ${id}: ${err?.message}`);
+        });
+      } catch (err: any) {
+        app.log.error(`Failed to trigger waitlist auto-fill: ${err?.message}`);
+      }
+    }
 
     return appointment;
   });

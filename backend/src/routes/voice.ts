@@ -3,6 +3,7 @@ import twilio from 'twilio';
 import { callSessionManager } from '../services/voice/callSession.js';
 import { TwilioVoiceWebhook, TwilioStatusCallback } from '../types/voice.js';
 import { getGreetingMessage } from '../services/voicePrompt.js';
+import { getOutboundVoiceHandler } from '../services/outbound/outboundVoiceHandler.js';
 
 const VoiceResponse = twilio.twiml.VoiceResponse;
 
@@ -71,7 +72,7 @@ export default async function voiceRoutes(app: FastifyInstance) {
       app.log.error(`No org configured for phone number: ${body.To}`);
       const response = new VoiceResponse();
       response.say({
-        language: 'ar-SA',
+        language: 'ar-AE',
         voice: 'Google.ar-XA-Standard-A',
       }, 'عذراً، هذا الرقم غير مفعل. مع السلامة.');
       response.hangup();
@@ -229,7 +230,7 @@ export default async function voiceRoutes(app: FastifyInstance) {
 
     const response = new VoiceResponse();
     response.say({
-      language: 'ar-SA',
+      language: 'ar-AE',
       voice: 'Google.ar-XA-Standard-A',
     }, 'عذراً، حدث خطأ تقني. يرجى الاتصال مرة أخرى لاحقاً. شكراً لك.');
     response.hangup();
@@ -323,7 +324,8 @@ export default async function voiceRoutes(app: FastifyInstance) {
 
   /**
    * POST /api/voice/outbound-response
-   * TwiML response for outbound calls - plays pre-recorded Abu Salem voice
+   * TwiML response for outbound calls — connects to AI voice stream
+   * for bidirectional conversation (similar to inbound calls).
    */
   app.post('/outbound-response', async (request: FastifyRequest, reply: FastifyReply) => {
     const body = request.body as TwilioVoiceWebhook;
@@ -336,7 +338,7 @@ export default async function voiceRoutes(app: FastifyInstance) {
       app.log.error(`No org configured for phone number: ${body.From}`);
       const response = new VoiceResponse();
       response.say({
-        language: 'ar-SA',
+        language: 'ar-AE',
         voice: 'Google.ar-XA-Standard-A',
       }, 'عذراً، حدث خطأ تقني.');
       response.hangup();
@@ -344,6 +346,22 @@ export default async function voiceRoutes(app: FastifyInstance) {
       reply.type('text/xml');
       return response.toString();
     }
+
+    // Extract campaign context from query params (set by outboundCaller)
+    const query = request.query as Record<string, string>;
+    const campaignId = query.campaignId;
+    const targetId = query.targetId;
+    const patientId = query.patientId;
+
+    // Build outbound call context
+    const outboundHandler = getOutboundVoiceHandler(app.prisma);
+    const callContext = await outboundHandler.buildCallContext({
+      campaignId,
+      targetId,
+      patientId,
+      orgId,
+      lang: query.lang,
+    });
 
     // Create messaging user for the recipient
     const messagingUser = await app.prisma.messagingUser.upsert({
@@ -363,6 +381,122 @@ export default async function voiceRoutes(app: FastifyInstance) {
       update: {},
     });
 
+    // Create conversation with campaign context
+    const conversation = await app.prisma.conversation.create({
+      data: {
+        orgId,
+        messagingUserId: messagingUser.messagingUserId,
+        channel: 'phone',
+        externalThreadId: body.CallSid,
+        status: 'active',
+        currentStep: 'voice_greeting',
+        context: {
+          callSid: body.CallSid,
+          callerPhone: body.To,
+          direction: 'outbound',
+          campaignId: callContext.campaignId,
+          campaignType: callContext.campaignType,
+          targetId: callContext.targetId,
+          patientId: callContext.patientId,
+        },
+      },
+    });
+
+    // Create session
+    const session = callSessionManager.createSession(body.CallSid, orgId, body.To);
+    callSessionManager.setConversationId(body.CallSid, conversation.conversationId);
+
+    // Create VoiceCall record with campaign context
+    await app.prisma.voiceCall.create({
+      data: {
+        callId: session.callId,
+        orgId,
+        conversationId: conversation.conversationId,
+        twilioCallSid: body.CallSid,
+        callerPhone: body.From,
+        calledPhone: body.To,
+        direction: 'outbound',
+        status: 'in_progress',
+        context: {
+          campaignId: callContext.campaignId,
+          targetId: callContext.targetId,
+          patientId: callContext.patientId,
+          campaignType: callContext.campaignType,
+        },
+      },
+    });
+
+    // Generate TwiML — connect to AI voice stream (same as inbound)
+    const response = new VoiceResponse();
+
+    const useGemini = process.env.USE_GEMINI_VOICE === 'true' && process.env.GEMINI_API_KEY;
+    const streamPath = useGemini ? '/api/voice/stream-gemini' : '/api/voice/stream';
+    const wsUrl = process.env.VOICE_WS_URL || `wss://${request.hostname}${streamPath}`;
+
+    // Pass outbound context via custom parameters so the WS handler
+    // can build the right system prompt
+    const connect = response.connect();
+    const stream = connect.stream({
+      url: wsUrl,
+      name: body.CallSid,
+    });
+    stream.parameter({ name: 'direction', value: 'outbound' });
+    stream.parameter({ name: 'orgId', value: orgId });
+    if (campaignId) stream.parameter({ name: 'campaignId', value: campaignId });
+    if (targetId) stream.parameter({ name: 'targetId', value: targetId });
+    if (patientId) stream.parameter({ name: 'patientId', value: patientId });
+    if (callContext.campaignType) stream.parameter({ name: 'campaignType', value: callContext.campaignType });
+
+    // Log the outcome as 'answered'
+    await outboundHandler.logCallOutcome(body.CallSid, 'answered', callContext);
+
+    reply.type('text/xml');
+    return response.toString();
+  });
+
+  /**
+   * POST /api/voice/outbound-script
+   * TwiML handler for campaign-initiated outbound calls via OutboundCaller.
+   * Connects to AI voice stream with campaign-specific context.
+   */
+  app.post('/outbound-script', async (request: FastifyRequest, reply: FastifyReply) => {
+    const body = request.body as TwilioVoiceWebhook;
+    const query = request.query as Record<string, string>;
+
+    app.log.info(`Outbound script call answered: ${body.CallSid}`);
+
+    const orgId = query.orgId || await getOrgByPhone(app, body.From);
+    if (!orgId) {
+      const response = new VoiceResponse();
+      response.say({ language: 'ar-AE', voice: 'Google.ar-XA-Standard-A' }, 'عذراً، حدث خطأ تقني.');
+      response.hangup();
+      reply.type('text/xml');
+      return response.toString();
+    }
+
+    // Build context from query params
+    const outboundHandler = getOutboundVoiceHandler(app.prisma);
+    const callContext = await outboundHandler.buildCallContext({
+      campaignId: query.campaignId,
+      targetId: query.targetId,
+      patientId: query.patientId,
+      orgId,
+      lang: query.lang,
+    });
+
+    // Create messaging user
+    const messagingUser = await app.prisma.messagingUser.upsert({
+      where: {
+        orgId_channel_externalUserId: {
+          orgId,
+          channel: 'phone',
+          externalUserId: body.To,
+        },
+      },
+      create: { orgId, channel: 'phone', externalUserId: body.To, phoneE164: body.To },
+      update: {},
+    });
+
     // Create conversation
     const conversation = await app.prisma.conversation.create({
       data: {
@@ -376,15 +510,16 @@ export default async function voiceRoutes(app: FastifyInstance) {
           callSid: body.CallSid,
           callerPhone: body.To,
           direction: 'outbound',
+          campaignId: callContext.campaignId,
+          campaignType: callContext.campaignType,
+          targetId: callContext.targetId,
         },
       },
     });
 
-    // Create session
     const session = callSessionManager.createSession(body.CallSid, orgId, body.To);
     callSessionManager.setConversationId(body.CallSid, conversation.conversationId);
 
-    // Create VoiceCall record
     await app.prisma.voiceCall.create({
       data: {
         callId: session.callId,
@@ -395,21 +530,31 @@ export default async function voiceRoutes(app: FastifyInstance) {
         calledPhone: body.To,
         direction: 'outbound',
         status: 'in_progress',
+        context: {
+          campaignId: callContext.campaignId,
+          targetId: callContext.targetId,
+          patientId: callContext.patientId,
+          campaignType: callContext.campaignType,
+        },
       },
     });
 
-    // Generate TwiML response - play pre-recorded audio
+    // Connect to AI voice stream
     const response = new VoiceResponse();
+    const useGemini = process.env.USE_GEMINI_VOICE === 'true' && process.env.GEMINI_API_KEY;
+    const streamPath = useGemini ? '/api/voice/stream-gemini' : '/api/voice/stream';
+    const wsUrl = process.env.VOICE_WS_URL || `wss://${request.hostname}${streamPath}`;
 
-    // Get base URL for audio file
-    const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
-    const audioUrl = `${baseUrl}/public/audio/abu-salem-greeting.mp3`;
+    const connect = response.connect();
+    const stream = connect.stream({ url: wsUrl, name: body.CallSid });
+    stream.parameter({ name: 'direction', value: 'outbound' });
+    stream.parameter({ name: 'orgId', value: orgId });
+    if (query.campaignId) stream.parameter({ name: 'campaignId', value: query.campaignId });
+    if (query.targetId) stream.parameter({ name: 'targetId', value: query.targetId });
+    if (query.patientId) stream.parameter({ name: 'patientId', value: query.patientId });
+    if (callContext.campaignType) stream.parameter({ name: 'campaignType', value: callContext.campaignType });
 
-    // Play the Abu Salem pre-recorded message
-    response.play(audioUrl);
-
-    // After audio finishes, hang up
-    response.hangup();
+    await outboundHandler.logCallOutcome(body.CallSid, 'answered', callContext);
 
     reply.type('text/xml');
     return response.toString();

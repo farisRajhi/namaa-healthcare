@@ -13,7 +13,7 @@ const twilioPlugin: FastifyPluginAsync = async (fastify) => {
   const accountSid = process.env.TWILIO_ACCOUNT_SID;
   const authToken = process.env.TWILIO_AUTH_TOKEN;
 
-  if (!accountSid || !authToken) {
+  if (!accountSid || !authToken || !accountSid.startsWith('AC') || accountSid.includes('your-')) {
     fastify.log.warn('Twilio credentials not configured - voice features disabled');
     fastify.decorate('twilio', null);
     fastify.decorate('twilioConfigured', false);

@@ -6,9 +6,35 @@
     "getStarted": "ابدأ الآن",
     "save": "حفظ التغييرات",
     "cancel": "إلغاء",
+    "close": "إغلاق",
     "loading": "جاري التحميل...",
     "organization": "المؤسسة",
-    "features": "المميزات"
+    "features": "المميزات",
+    "add": "إضافة",
+    "edit": "تعديل",
+    "delete": "حذف",
+    "update": "تحديث",
+    "search": "بحث",
+    "filter": "تصفية",
+    "yes": "نعم",
+    "no": "لا",
+    "active": "نشط",
+    "inactive": "غير نشط",
+    "all": "الكل",
+    "noData": "لا توجد بيانات حتى الآن",
+    "previous": "السابق",
+    "next": "التالي",
+    "saving": "جاري الحفظ...",
+    "creating": "جاري الإنشاء...",
+    "adding": "جاري الإضافة...",
+    "live": "مباشر",
+    "quickSearch": "بحث سريع...",
+    "showing": "عرض {{from}} إلى {{to}} من {{total}}",
+    "page": "صفحة {{page}} من {{totalPages}}",
+    "minutes": "دقيقة",
+    "providers": "طبيب",
+    "services": "خدمة",
+    "total": "الإجمالي"
   },
   "landing": {
     "brand": "نماء",
@@ -92,6 +118,17 @@
         "residency": "خيارات إقامة البيانات"
       }
     },
+    "demo": {
+      "badge": "جرب الآن مجاناً",
+      "title": "جرب المساعد الذكي",
+      "subtitle": "تفاعل مع مساعدنا الذكي عبر المحادثة النصية أو الصوتية",
+      "tryNow": "جرب الآن",
+      "features": {
+        "dialects": "يفهم اللهجات العربية",
+        "booking": "حجز المواعيد",
+        "availability": "متاح 24/7"
+      }
+    },
     "finalCta": {
       "title": "هل أنت مستعد لتحويل عيادتك؟",
       "subtitle": "ابدأ تجربتك المجانية اليوم. لا حاجة لبطاقة ائتمان."
@@ -122,11 +159,16 @@
   "dashboard": {
     "title": "لوحة التحكم",
     "subtitle": "نظرة عامة على أداء عملك",
+    "loadingData": "جاري تحميل البيانات...",
+    "lastUpdate": "آخر تحديث: {{time}}",
+    "last14Days": "آخر 14 يوم",
+    "channelDistribution": "توزيع قنوات الحجز",
     "stats": {
       "totalPatients": "إجمالي المرضى",
-      "activeProviders": "مقدمي الخدمة النشطين",
+      "activeProviders": "الأطباء النشطون",
       "todayAppointments": "مواعيد اليوم",
-      "thisMonth": "هذا الشهر"
+      "thisMonth": "هذا الشهر",
+      "aiCallsToday": "مكالمات AI اليوم"
     },
     "charts": {
       "appointments": "المواعيد (آخر 14 يوم)",
@@ -151,7 +193,32 @@
     "patients": "المرضى",
     "services": "الخدمات",
     "management": "الإدارة",
-    "settings": "الإعدادات"
+    "settings": "الإعدادات",
+    "callCenter": "مركز الاتصال",
+    "prescriptions": "الوصفات الطبية",
+    "faq": "الأسئلة الشائعة",
+    "campaigns": "الحملات",
+    "reminders": "التذكيرات",
+    "analyticsDashboard": "لوحة التحليلات",
+    "fleet": "إدارة الفروع",
+    "quality": "مراقبة الجودة",
+    "integrations": "التكاملات",
+    "audit": "سجل المراجعة",
+    "providers": "الأطباء",
+    "departments": "الأقسام",
+    "facilities": "المنشآت",
+    "smsTemplates": "قوالب الرسائل",
+    "waitlist": "قائمة الانتظار",
+    "agentBuilder": "بناء المحادثات",
+    "generalManagement": "إدارة عامة",
+    "groups": {
+      "main": "الرئيسية",
+      "operations": "العمليات",
+      "management": "إدارة",
+      "marketing": "تسويق",
+      "analytics": "تحليلات",
+      "system": "النظام"
+    }
   },
   "demoChat": {
     "openChat": "جرب المساعد الذكي",

@@ -1,23 +1,18 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../../lib/api'
-import { MessageSquare, MessageSquareOff, X, Plus, Loader2 } from 'lucide-react'
+import { MessageSquare, MessageSquareOff, X, Plus, Loader2, Wifi, WifiOff } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import { ChatMessage } from './ChatMessage'
 import { ChatInput } from './ChatInput'
 import { ChatRequirements } from './ChatRequirements'
+import { useWebSocketChat, WsChatMessage } from '../../hooks/useWebSocketChat'
 
-interface Message {
+interface RestMessage {
   messageId: string
   direction: 'in' | 'out'
   bodyText: string
   createdAt: string
-}
-
-interface Conversation {
-  conversationId: string
-  messages: Message[]
-  lastActivityAt: string
 }
 
 interface ReadinessResponse {
@@ -37,97 +32,140 @@ export default function TestChatWidget() {
   const [isOpen, setIsOpen] = useState(false)
   const [inputValue, setInputValue] = useState('')
   const [conversationId, setConversationId] = useState<string | null>(null)
-  const [messages, setMessages] = useState<Message[]>([])
+  const [useWs, setUseWs] = useState(true) // try WebSocket first
+  const [restMessages, setRestMessages] = useState<RestMessage[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const queryClient = useQueryClient()
 
-  // Check readiness
+  // ── WebSocket chat hook ──
+  const {
+    messages: wsMessages,
+    sendMessage: wsSendMessage,
+    isTyping,
+    isConnected,
+    disconnect: wsDisconnect,
+    resetMessages,
+  } = useWebSocketChat({
+    conversationId: isOpen && useWs ? conversationId : undefined,
+    onConversationId: (id) => {
+      if (!conversationId) setConversationId(id)
+    },
+  })
+
+  // Fall back to REST if WS never connects after 5 seconds
+  useEffect(() => {
+    if (!isOpen || !useWs) return
+    const timer = setTimeout(() => {
+      if (!isConnected) {
+        setUseWs(false)
+      }
+    }, 5000)
+    return () => clearTimeout(timer)
+  }, [isOpen, useWs, isConnected])
+
+  // ── Check readiness ──
   const { data: readiness, isLoading: isLoadingReadiness } = useQuery<ReadinessResponse>({
     queryKey: ['chat-readiness'],
     queryFn: () => api.get('/api/chat/readiness').then((r) => r.data),
-    refetchInterval: 10000, // Refresh every 10 seconds to detect changes
+    refetchInterval: 10000,
   })
 
-  // Fetch conversation when we have an ID
-  const { data: conversation, isLoading: isLoadingConversation } = useQuery<Conversation>({
+  // ── REST fallback: Fetch conversation ──
+  const { data: conversation, isLoading: isLoadingConversation } = useQuery({
     queryKey: ['chat-conversation', conversationId],
     queryFn: () =>
-      api.get(`/api/chat/conversation/${conversationId}`).then((r) => r.data),
-    enabled: !!conversationId,
+      api.get(`/api/chat/conversation/${conversationId}`).then((r) => r.data as { messages: RestMessage[] }),
+    enabled: !!conversationId && !useWs,
   })
 
-  // Update messages when conversation loads
   useEffect(() => {
-    if (conversation?.messages) {
-      setMessages(conversation.messages)
+    if (!useWs && conversation?.messages) {
+      setRestMessages(conversation.messages)
     }
-  }, [conversation])
+  }, [conversation, useWs])
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [wsMessages, restMessages, isTyping])
 
-  // Send message mutation
+  // ── REST fallback: Send message ──
   const sendMessageMutation = useMutation({
     mutationFn: async (message: string) => {
-      const response = await api.post('/api/chat/message', {
-        conversationId,
-        message,
-      })
-      return response.data
+      const response = await api.post('/api/chat/message', { conversationId, message })
+      return response.data as { conversationId: string; response: string }
     },
     onMutate: (message) => {
-      // Optimistically add user message
-      const tempMessage: Message = {
+      const temp: RestMessage = {
         messageId: `temp-${Date.now()}`,
         direction: 'in',
         bodyText: message,
         createdAt: new Date().toISOString(),
       }
-      setMessages((prev) => [...prev, tempMessage])
+      setRestMessages((prev) => [...prev, temp])
     },
     onSuccess: (data) => {
-      // Update conversation ID if new
-      if (!conversationId && data.conversationId) {
-        setConversationId(data.conversationId)
-      }
-      // Add AI response
-      const aiMessage: Message = {
+      if (!conversationId && data.conversationId) setConversationId(data.conversationId)
+      const aiMsg: RestMessage = {
         messageId: `ai-${Date.now()}`,
         direction: 'out',
         bodyText: data.response,
         createdAt: new Date().toISOString(),
       }
-      setMessages((prev) => [...prev, aiMessage])
+      setRestMessages((prev) => [...prev, aiMsg])
     },
     onError: () => {
-      // Remove optimistic message on error
-      setMessages((prev) => prev.filter((m) => !m.messageId.startsWith('temp-')))
+      setRestMessages((prev) => prev.filter((m) => !m.messageId.startsWith('temp-')))
     },
   })
 
-  // Start new conversation mutation
+  // ── Start new conversation ──
   const newConversationMutation = useMutation({
-    mutationFn: () => api.post('/api/chat/new').then((r) => r.data),
+    mutationFn: () => api.post('/api/chat/new').then((r) => r.data as { conversationId: string }),
     onSuccess: (data) => {
+      wsDisconnect()
+      resetMessages()
+      setRestMessages([])
       setConversationId(data.conversationId)
-      setMessages([])
+      setUseWs(true) // try WS again for new conv
       queryClient.invalidateQueries({ queryKey: ['chat-conversations'] })
     },
   })
 
-  const handleSend = () => {
-    if (!inputValue.trim() || sendMessageMutation.isPending) return
-    sendMessageMutation.mutate(inputValue)
+  // ── Unified message list ──
+  const displayMessages: { id: string; direction: 'in' | 'out'; content: string; createdAt: string }[] =
+    useWs
+      ? wsMessages.map((m: WsChatMessage) => ({
+          id: m.id,
+          direction: m.sender === 'user' ? ('in' as const) : ('out' as const),
+          content: m.content,
+          createdAt: m.timestamp,
+        }))
+      : restMessages.map((m) => ({
+          id: m.messageId,
+          direction: m.direction,
+          content: m.bodyText,
+          createdAt: m.createdAt,
+        }))
+
+  // ── Send handler ──
+  const handleSend = useCallback(() => {
+    if (!inputValue.trim()) return
+    if (useWs && isConnected) {
+      wsSendMessage(inputValue)
+    } else {
+      if (sendMessageMutation.isPending) return
+      sendMessageMutation.mutate(inputValue)
+    }
     setInputValue('')
-  }
+  }, [inputValue, useWs, isConnected, wsSendMessage, sendMessageMutation])
 
   const handleNewChat = () => {
     newConversationMutation.mutate()
   }
 
   const isReady = readiness?.isReady ?? false
+  const isSending = !useWs && sendMessageMutation.isPending
 
   return (
     <>
@@ -158,6 +196,19 @@ export default function TestChatWidget() {
             <div className="flex items-center gap-2">
               <MessageSquare className="h-5 w-5" />
               <span className="font-medium">Test Chat</span>
+              {/* Connection status indicator */}
+              {useWs && (
+                <span
+                  title={isConnected ? 'متصل (WebSocket)' : 'غير متصل'}
+                  className="flex items-center"
+                >
+                  {isConnected ? (
+                    <Wifi className="h-3.5 w-3.5 text-green-300" />
+                  ) : (
+                    <WifiOff className="h-3.5 w-3.5 text-red-300" />
+                  )}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-1">
               {isReady && (
@@ -186,21 +237,25 @@ export default function TestChatWidget() {
           {/* Content */}
           {!isReady ? (
             <div className="flex-1 p-4 overflow-y-auto">
-              <ChatRequirements requirements={readiness?.requirements || {
-                hasDepartment: false,
-                hasFacility: false,
-                hasProviderWithAvailability: false,
-              }} />
+              <ChatRequirements
+                requirements={
+                  readiness?.requirements || {
+                    hasDepartment: false,
+                    hasFacility: false,
+                    hasProviderWithAvailability: false,
+                  }
+                }
+              />
             </div>
           ) : (
             <>
               {/* Messages */}
               <div className="flex-1 p-4 overflow-y-auto space-y-3 bg-gray-50">
-                {isLoadingConversation ? (
+                {!useWs && isLoadingConversation ? (
                   <div className="flex justify-center py-4">
                     <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
                   </div>
-                ) : messages.length === 0 ? (
+                ) : displayMessages.length === 0 && !isTyping ? (
                   <div className="text-center py-8 text-gray-500 text-sm">
                     <MessageSquare className="h-10 w-10 mx-auto mb-2 text-gray-300" />
                     <p>Start a conversation to test your AI assistant.</p>
@@ -209,14 +264,29 @@ export default function TestChatWidget() {
                     </p>
                   </div>
                 ) : (
-                  messages.map((message) => (
-                    <ChatMessage
-                      key={message.messageId}
-                      direction={message.direction}
-                      content={message.bodyText}
-                      createdAt={message.createdAt}
-                    />
-                  ))
+                  <>
+                    {displayMessages.map((message) => (
+                      <ChatMessage
+                        key={message.id}
+                        direction={message.direction}
+                        content={message.content}
+                        createdAt={message.createdAt}
+                      />
+                    ))}
+                    {/* Typing indicator */}
+                    {isTyping && (
+                      <div className="flex justify-start">
+                        <div className="bg-gray-100 text-gray-600 px-4 py-2 rounded-2xl rounded-bl-md text-sm flex items-center gap-2">
+                          <span className="flex gap-1">
+                            <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+                            <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+                            <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                          </span>
+                          <span>نماء تكتب...</span>
+                        </div>
+                      </div>
+                    )}
+                  </>
                 )}
                 <div ref={messagesEndRef} />
               </div>
@@ -226,7 +296,7 @@ export default function TestChatWidget() {
                 value={inputValue}
                 onChange={setInputValue}
                 onSend={handleSend}
-                isLoading={sendMessageMutation.isPending}
+                isLoading={isSending || isTyping}
               />
             </>
           )}

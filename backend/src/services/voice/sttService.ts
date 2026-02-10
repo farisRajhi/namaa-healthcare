@@ -20,7 +20,7 @@ export class STTService {
    */
   async transcribe(audioBuffer: Buffer): Promise<STTResult> {
     // Create a File object from the buffer for the API
-    const file = new File([audioBuffer], 'audio.wav', { type: 'audio/wav' });
+    const file = new File([new Uint8Array(audioBuffer)], 'audio.wav', { type: 'audio/wav' });
 
     const response = await this.client.audio.transcriptions.create({
       model: 'whisper-1',
@@ -46,7 +46,7 @@ export class STTService {
    * Useful when caller might speak English or Arabic
    */
   async transcribeAutoDetect(audioBuffer: Buffer): Promise<STTResult> {
-    const file = new File([audioBuffer], 'audio.wav', { type: 'audio/wav' });
+    const file = new File([new Uint8Array(audioBuffer)], 'audio.wav', { type: 'audio/wav' });
 
     const response = await this.client.audio.transcriptions.create({
       model: 'whisper-1',

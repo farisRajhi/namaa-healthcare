@@ -1,4 +1,4 @@
-import { FastifyInstance, FastifyRequest } from 'fastify';
+import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 
 const createDepartmentSchema = z.object({
@@ -48,18 +48,25 @@ export default async function departmentsRoutes(app: FastifyInstance) {
   });
 
   // Create department
-  app.post('/', async (request: FastifyRequest) => {
+  app.post('/', async (request: FastifyRequest, reply) => {
     const { orgId } = request.user;
     const body = createDepartmentSchema.parse(request.body);
 
-    const department = await app.prisma.department.create({
-      data: {
-        orgId,
-        name: body.name,
-      },
-    });
+    try {
+      const department = await app.prisma.department.create({
+        data: {
+          orgId,
+          name: body.name,
+        },
+      });
 
-    return department;
+      return department;
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        return reply.code(409).send({ error: 'القسم موجود مسبقاً', errorEn: 'Department already exists' });
+      }
+      throw err;
+    }
   });
 
   // Update department

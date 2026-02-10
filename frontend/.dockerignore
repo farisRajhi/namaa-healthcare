@@ -1,0 +1,17 @@
+node_modules
+dist
+dist-widget
+.env
+.env.local
+.env.*.local
+*.log
+npm-debug.log*
+.git
+.gitignore
+.idea
+.vscode
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+*.local

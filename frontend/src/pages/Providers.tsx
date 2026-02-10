@@ -1,8 +1,12 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
-import { Plus, User, Building, Briefcase, Pencil, Trash2, X } from 'lucide-react'
-import { cn } from '../lib/utils'
+import { Plus, User, Building, Briefcase, Pencil, Trash2 } from 'lucide-react'
+import Modal from '../components/ui/Modal'
+import EmptyState from '../components/ui/EmptyState'
+import LoadingSpinner from '../components/ui/LoadingSpinner'
+import Badge from '../components/ui/Badge'
 
 interface Provider {
   providerId: string
@@ -11,30 +15,9 @@ interface Provider {
   active: boolean
   departmentId: string | null
   facilityId: string | null
-  department: {
-    departmentId: string
-    name: string
-  } | null
-  facility: {
-    facilityId: string
-    name: string
-  } | null
-  services: Array<{
-    service: {
-      serviceId: string
-      name: string
-    }
-  }>
-}
-
-interface Department {
-  departmentId: string
-  name: string
-}
-
-interface Facility {
-  facilityId: string
-  name: string
+  department: { departmentId: string; name: string } | null
+  facility: { facilityId: string; name: string } | null
+  services: Array<{ service: { serviceId: string; name: string } }>
 }
 
 interface ProviderForm {
@@ -59,7 +42,8 @@ export default function Providers() {
   const [editingProvider, setEditingProvider] = useState<Provider | null>(null)
   const [form, setForm] = useState<ProviderForm>(defaultForm)
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null)
-
+  const { i18n } = useTranslation()
+  const isAr = i18n.language === 'ar'
   const queryClient = useQueryClient()
 
   const { data, isLoading } = useQuery({
@@ -74,65 +58,46 @@ export default function Providers() {
 
   const { data: departmentsData } = useQuery({
     queryKey: ['departments'],
-    queryFn: async () => {
-      const response = await api.get('/api/departments')
-      return response.data
-    },
+    queryFn: async () => (await api.get('/api/departments')).data,
   })
 
   const { data: facilitiesData } = useQuery({
     queryKey: ['facilities'],
-    queryFn: async () => {
-      const response = await api.get('/api/facilities')
-      return response.data
-    },
+    queryFn: async () => (await api.get('/api/facilities')).data,
   })
 
   const createMutation = useMutation({
-    mutationFn: async (data: ProviderForm) => {
-      return api.post('/api/providers', {
+    mutationFn: (data: ProviderForm) =>
+      api.post('/api/providers', {
         displayName: data.displayName,
         credentials: data.credentials || undefined,
         departmentId: data.departmentId || undefined,
         facilityId: data.facilityId || undefined,
         active: data.active,
-      })
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['providers'] })
-      handleCloseModal()
-    },
+      }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['providers'] }); handleCloseModal() },
   })
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id, data }: { id: string; data: Partial<ProviderForm> }) => {
-      return api.put(`/api/providers/${id}`, {
+    mutationFn: ({ id, data }: { id: string; data: Partial<ProviderForm> }) =>
+      api.put(`/api/providers/${id}`, {
         displayName: data.displayName,
         credentials: data.credentials || undefined,
         departmentId: data.departmentId || undefined,
         facilityId: data.facilityId || undefined,
         active: data.active,
-      })
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['providers'] })
-      handleCloseModal()
-    },
+      }),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['providers'] }); handleCloseModal() },
   })
 
   const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return api.delete(`/api/providers/${id}`)
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['providers'] })
-      setDeleteConfirm(null)
-    },
+    mutationFn: (id: string) => api.delete(`/api/providers/${id}`),
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['providers'] }); setDeleteConfirm(null) },
   })
 
   const providers: Provider[] = data?.data || []
-  const departments: Department[] = departmentsData?.data || []
-  const facilities: Facility[] = facilitiesData?.data || []
+  const departments = departmentsData?.data || []
+  const facilities = facilitiesData?.data || []
 
   const handleOpenModal = (provider?: Provider) => {
     if (provider) {
@@ -160,7 +125,6 @@ export default function Providers() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.displayName.trim()) return
-
     if (editingProvider) {
       updateMutation.mutate({ id: editingProvider.providerId, data: form })
     } else {
@@ -168,158 +132,99 @@ export default function Providers() {
     }
   }
 
-  const handleDelete = (id: string) => {
-    deleteMutation.mutate(id)
-  }
-
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 animate-fade-in">
+      {/* Header */}
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Providers</h1>
-          <p className="text-gray-500">Manage doctors and staff</p>
+          <h1 className="page-title">{isAr ? 'الأطباء' : 'Providers'}</h1>
+          <p className="page-subtitle">{isAr ? 'إدارة الأطباء والكوادر الطبية' : 'Manage doctors and staff'}</p>
         </div>
-        <button
-          onClick={() => handleOpenModal()}
-          className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700"
-        >
-          <Plus className="h-5 w-5" />
-          Add Provider
+        <button onClick={() => handleOpenModal()} className="btn-primary">
+          <Plus className="h-4 w-4" />
+          {isAr ? 'إضافة طبيب' : 'Add Provider'}
         </button>
       </div>
 
       {/* Filter */}
       <div className="flex gap-2">
-        <button
-          onClick={() => setShowActive(true)}
-          className={cn(
-            'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
-            showActive
-              ? 'bg-primary-100 text-primary-700'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          )}
-        >
-          Active
+        <button onClick={() => setShowActive(true)} className={showActive ? 'chip-active' : 'chip'}>
+          {isAr ? 'النشطون' : 'Active'}
         </button>
-        <button
-          onClick={() => setShowActive(false)}
-          className={cn(
-            'px-4 py-2 rounded-lg text-sm font-medium transition-colors',
-            !showActive
-              ? 'bg-primary-100 text-primary-700'
-              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-          )}
-        >
-          All
+        <button onClick={() => setShowActive(false)} className={!showActive ? 'chip-active' : 'chip'}>
+          {isAr ? 'الكل' : 'All'}
         </button>
       </div>
 
       {/* Providers Grid */}
       {isLoading ? (
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
-        </div>
+        <div className="flex items-center justify-center h-64"><LoadingSpinner /></div>
       ) : providers.length === 0 ? (
-        <div className="bg-white rounded-xl shadow-sm border p-12 text-center">
-          <User className="h-12 w-12 mx-auto text-gray-300 mb-4" />
-          <p className="text-gray-500">No providers found</p>
-          <button
-            onClick={() => handleOpenModal()}
-            className="mt-4 text-primary-600 hover:text-primary-700 font-medium"
-          >
-            Add your first provider
-          </button>
+        <div className="table-container">
+          <EmptyState
+            icon={User}
+            title={isAr ? 'لا يوجد أطباء' : 'No providers found'}
+            description={isAr ? 'ابدأ بإضافة طبيب جديد' : 'Add your first provider'}
+            action={{ label: isAr ? 'إضافة طبيب' : 'Add Provider', onClick: () => handleOpenModal() }}
+          />
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {providers.map((provider) => (
-            <div
-              key={provider.providerId}
-              className="bg-white rounded-xl shadow-sm border p-6 hover:shadow-md transition-shadow"
-            >
-              <div className="flex items-start justify-between">
-                <div className="flex items-start gap-4">
-                  <div className="w-12 h-12 rounded-full bg-primary-100 flex items-center justify-center">
+            <div key={provider.providerId} className="card p-5 group">
+              <div className="flex items-start justify-between mb-3">
+                <div className="flex items-start gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-primary-100 flex items-center justify-center flex-shrink-0">
                     <User className="h-6 w-6 text-primary-600" />
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-medium text-gray-900 truncate">
-                        {provider.displayName}
-                      </h3>
-                      {!provider.active && (
-                        <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 text-gray-600">
-                          Inactive
-                        </span>
-                      )}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-semibold text-healthcare-text truncate">{provider.displayName}</h3>
+                      {!provider.active && <Badge variant="neutral">{isAr ? 'غير نشط' : 'Inactive'}</Badge>}
                     </div>
                     {provider.credentials && (
-                      <p className="text-sm text-gray-500">{provider.credentials}</p>
+                      <p className="text-xs text-healthcare-muted mt-0.5">{provider.credentials}</p>
                     )}
                   </div>
                 </div>
                 {deleteConfirm === provider.providerId ? (
                   <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleDelete(provider.providerId)}
-                      className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700"
-                    >
-                      Yes
-                    </button>
-                    <button
-                      onClick={() => setDeleteConfirm(null)}
-                      className="px-2 py-1 text-xs bg-gray-200 text-gray-700 rounded hover:bg-gray-300"
-                    >
-                      No
-                    </button>
+                    <button onClick={() => deleteMutation.mutate(provider.providerId)} className="btn-danger btn-sm px-2 py-1 min-h-0 text-xs">{isAr ? 'نعم' : 'Yes'}</button>
+                    <button onClick={() => setDeleteConfirm(null)} className="btn-ghost btn-sm px-2 py-1 min-h-0 text-xs">{isAr ? 'لا' : 'No'}</button>
                   </div>
                 ) : (
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => handleOpenModal(provider)}
-                      className="p-1.5 text-gray-400 hover:text-primary-600 rounded hover:bg-gray-100"
-                    >
-                      <Pencil className="h-4 w-4" />
+                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => handleOpenModal(provider)} className="btn-icon btn-ghost p-1.5 min-w-[32px] min-h-[32px]">
+                      <Pencil className="h-3.5 w-3.5" />
                     </button>
-                    <button
-                      onClick={() => setDeleteConfirm(provider.providerId)}
-                      className="p-1.5 text-gray-400 hover:text-red-600 rounded hover:bg-gray-100"
-                    >
-                      <Trash2 className="h-4 w-4" />
+                    <button onClick={() => setDeleteConfirm(provider.providerId)} className="btn-icon btn-ghost p-1.5 min-w-[32px] min-h-[32px] hover:text-danger-500">
+                      <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 )}
               </div>
-
-              <div className="mt-4 space-y-2">
+              <div className="space-y-1.5">
                 {provider.department && (
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Building className="h-4 w-4" />
+                  <div className="flex items-center gap-2 text-xs text-healthcare-muted">
+                    <Building className="h-3.5 w-3.5 text-primary-400" />
                     {provider.department.name}
                   </div>
                 )}
                 {provider.facility && (
-                  <div className="flex items-center gap-2 text-sm text-gray-600">
-                    <Building className="h-4 w-4" />
+                  <div className="flex items-center gap-2 text-xs text-healthcare-muted">
+                    <Building className="h-3.5 w-3.5 text-primary-400" />
                     {provider.facility.name}
                   </div>
                 )}
                 {provider.services.length > 0 && (
-                  <div className="flex items-start gap-2 text-sm text-gray-600">
-                    <Briefcase className="h-4 w-4 mt-0.5" />
+                  <div className="flex items-start gap-2 text-xs text-healthcare-muted">
+                    <Briefcase className="h-3.5 w-3.5 text-primary-400 mt-0.5" />
                     <div className="flex flex-wrap gap-1">
                       {provider.services.slice(0, 3).map((ps, i) => (
-                        <span
-                          key={i}
-                          className="px-2 py-0.5 bg-gray-100 rounded text-xs"
-                        >
-                          {ps.service.name}
-                        </span>
+                        <span key={i} className="badge-info text-[10px] px-1.5 py-0.5">{ps.service.name}</span>
                       ))}
                       {provider.services.length > 3 && (
-                        <span className="px-2 py-0.5 bg-gray-100 rounded text-xs">
-                          +{provider.services.length - 3} more
-                        </span>
+                        <span className="badge-neutral text-[10px] px-1.5 py-0.5">+{provider.services.length - 3}</span>
                       )}
                     </div>
                   </div>
@@ -331,127 +236,51 @@ export default function Providers() {
       )}
 
       {/* Add/Edit Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 overflow-y-auto">
-          <div className="flex items-center justify-center min-h-screen px-4 py-8">
-            <div
-              className="fixed inset-0 bg-gray-500 bg-opacity-75"
-              onClick={handleCloseModal}
-            />
-            <div className="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-gray-900">
-                  {editingProvider ? 'Edit Provider' : 'Add Provider'}
-                </h2>
-                <button
-                  onClick={handleCloseModal}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={form.displayName}
-                    onChange={(e) => setForm({ ...form, displayName: e.target.value })}
-                    placeholder="e.g., Dr. Ahmed Mohammed"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Credentials
-                  </label>
-                  <input
-                    type="text"
-                    value={form.credentials}
-                    onChange={(e) => setForm({ ...form, credentials: e.target.value })}
-                    placeholder="e.g., MD, FACP"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Section
-                  </label>
-                  <select
-                    value={form.departmentId}
-                    onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  >
-                    <option value="">Select a section</option>
-                    {departments.map((dept) => (
-                      <option key={dept.departmentId} value={dept.departmentId}>
-                        {dept.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Clinic
-                  </label>
-                  <select
-                    value={form.facilityId}
-                    onChange={(e) => setForm({ ...form, facilityId: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  >
-                    <option value="">Select a clinic</option>
-                    {facilities.map((facility) => (
-                      <option key={facility.facilityId} value={facility.facilityId}>
-                        {facility.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="active"
-                    checked={form.active}
-                    onChange={(e) => setForm({ ...form, active: e.target.checked })}
-                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="active" className="text-sm text-gray-700">
-                    Active provider
-                  </label>
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={handleCloseModal}
-                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={createMutation.isPending || updateMutation.isPending}
-                    className="flex-1 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:opacity-50"
-                  >
-                    {createMutation.isPending || updateMutation.isPending
-                      ? 'Saving...'
-                      : editingProvider
-                      ? 'Update'
-                      : 'Add'}
-                  </button>
-                </div>
-              </form>
+      <Modal
+        open={showModal}
+        onClose={handleCloseModal}
+        title={editingProvider ? (isAr ? 'تعديل الطبيب' : 'Edit Provider') : (isAr ? 'إضافة طبيب' : 'Add Provider')}
+        size="lg"
+      >
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="input-label">{isAr ? 'الاسم *' : 'Name *'}</label>
+            <input type="text" value={form.displayName} onChange={(e) => setForm({ ...form, displayName: e.target.value })}
+              placeholder={isAr ? 'مثال: د. أحمد محمد' : 'e.g., Dr. Ahmed Mohammed'} className="input" required />
+          </div>
+          <div>
+            <label className="input-label">{isAr ? 'المؤهلات' : 'Credentials'}</label>
+            <input type="text" value={form.credentials} onChange={(e) => setForm({ ...form, credentials: e.target.value })}
+              placeholder="e.g., MD, FACP" className="input" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="input-label">{isAr ? 'القسم' : 'Section'}</label>
+              <select value={form.departmentId} onChange={(e) => setForm({ ...form, departmentId: e.target.value })} className="select">
+                <option value="">{isAr ? 'اختر القسم' : 'Select section'}</option>
+                {departments.map((d: any) => <option key={d.departmentId} value={d.departmentId}>{d.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="input-label">{isAr ? 'العيادة' : 'Clinic'}</label>
+              <select value={form.facilityId} onChange={(e) => setForm({ ...form, facilityId: e.target.value })} className="select">
+                <option value="">{isAr ? 'اختر العيادة' : 'Select clinic'}</option>
+                {facilities.map((f: any) => <option key={f.facilityId} value={f.facilityId}>{f.name}</option>)}
+              </select>
             </div>
           </div>
-        </div>
-      )}
+          <div className="flex items-center gap-2">
+            <input type="checkbox" id="active" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} className="checkbox" />
+            <label htmlFor="active" className="text-sm text-healthcare-text">{isAr ? 'طبيب نشط' : 'Active provider'}</label>
+          </div>
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={handleCloseModal} className="btn-outline flex-1">{isAr ? 'إلغاء' : 'Cancel'}</button>
+            <button type="submit" disabled={createMutation.isPending || updateMutation.isPending} className="btn-primary flex-1">
+              {(createMutation.isPending || updateMutation.isPending) ? (isAr ? 'جاري الحفظ...' : 'Saving...') : editingProvider ? (isAr ? 'تحديث' : 'Update') : (isAr ? 'إضافة' : 'Add')}
+            </button>
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }

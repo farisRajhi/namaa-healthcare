@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { useTranslation } from 'react-i18next'
 import axios from 'axios'
 import { MessageSquare, RotateCcw, Loader2, Send, ArrowRight } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -32,7 +31,9 @@ function getSessionId(): string {
   const key = 'demo_chat_session_id'
   let sessionId = localStorage.getItem(key)
   if (!sessionId) {
-    sessionId = crypto.randomUUID()
+    sessionId = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : 'xxxx-xxxx-xxxx-xxxx'.replace(/x/g, () => Math.floor(Math.random() * 16).toString(16))
     localStorage.setItem(key, sessionId)
   }
   return sessionId
@@ -47,9 +48,6 @@ const EXAMPLE_PROMPTS: Record<Dialect, string[]> = {
 }
 
 export default function DemoChatEmbed() {
-  const { t, i18n } = useTranslation()
-  const isRTL = i18n.dir() === 'rtl'
-
   const [inputValue, setInputValue] = useState('')
   const [messages, setMessages] = useState<Message[]>([])
   const [isLoading, setIsLoading] = useState(false)

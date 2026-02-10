@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Phone, PhoneOff, Mic, MicOff, X, Volume2, Loader2, Wifi, WifiOff } from 'lucide-react'
+import { Phone, PhoneOff, Mic, MicOff, X, Volume2, Loader2, Wifi } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 type Dialect = 'gulf' | 'egyptian' | 'levantine' | 'msa'

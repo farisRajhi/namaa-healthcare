@@ -2,11 +2,12 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
-import { MessageSquare } from 'lucide-react'
+import { Eye, EyeOff, ArrowRight } from 'lucide-react'
 
 export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const { login } = useAuth()
@@ -29,30 +30,67 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div className="text-center">
-          <div className="flex justify-center">
-            <MessageSquare className="h-12 w-12 text-primary-600" />
-          </div>
-          <h2 className="mt-4 text-3xl font-bold text-gray-900">
-            {t('auth.welcomeBack')}
-          </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            {t('auth.signInSubtitle')}
-          </p>
+    <div className="min-h-screen flex bg-healthcare-bg">
+      {/* Left side — Branding */}
+      <div className="hidden lg:flex lg:w-1/2 bg-teal-gradient relative overflow-hidden items-center justify-center p-12">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-20 start-20 w-64 h-64 bg-white rounded-full blur-3xl" />
+          <div className="absolute bottom-40 end-10 w-96 h-96 bg-white rounded-full blur-3xl" />
         </div>
-
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
-              {error}
+        <div className="relative z-10 max-w-md">
+          <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-8">
+            <span className="text-white font-bold text-3xl">✚</span>
+          </div>
+          <h1 className="text-4xl font-heading font-bold text-white mb-4">نماء</h1>
+          <p className="text-xl text-white/80 mb-2">مساعد الذكاء الاصطناعي الطبي</p>
+          <p className="text-white/60 leading-relaxed">
+            منصة ذكية لإدارة المواعيد والتواصل مع المرضى بكفاءة عالية
+          </p>
+          <div className="mt-12 flex items-center gap-4">
+            <div className="flex -space-s-3">
+              {['🏥', '👨‍⚕️', '📋'].map((emoji, i) => (
+                <div key={i} className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center text-lg border-2 border-white/30">
+                  {emoji}
+                </div>
+              ))}
             </div>
-          )}
+            <p className="text-sm text-white/70">+500 منشأة صحية تثق بنا</p>
+          </div>
+        </div>
+      </div>
 
-          <div className="space-y-4">
+      {/* Right side — Form */}
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-12">
+        <div className="w-full max-w-md animate-fade-in">
+          {/* Mobile brand */}
+          <div className="lg:hidden flex items-center gap-3 mb-10">
+            <div className="w-12 h-12 bg-teal-gradient rounded-xl flex items-center justify-center shadow-btn">
+              <span className="text-white font-bold text-xl">✚</span>
+            </div>
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              <h1 className="font-heading font-bold text-xl text-healthcare-text">نماء</h1>
+              <p className="text-xs text-healthcare-muted">NAMAA HEALTH AI</p>
+            </div>
+          </div>
+
+          <div className="mb-8">
+            <h2 className="text-2xl font-heading font-bold text-healthcare-text">
+              {t('auth.welcomeBack')}
+            </h2>
+            <p className="mt-2 text-sm text-healthcare-muted">
+              {t('auth.signInSubtitle')}
+            </p>
+          </div>
+
+          <form className="space-y-5" onSubmit={handleSubmit}>
+            {error && (
+              <div className="bg-danger-50 border border-danger-200 text-danger-700 px-4 py-3 rounded-lg text-sm animate-slide-up">
+                {error}
+              </div>
+            )}
+
+            <div>
+              <label htmlFor="email" className="input-label">
                 {t('auth.email')}
               </label>
               <input
@@ -63,44 +101,61 @@ export default function Login() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500"
+                className="input"
                 placeholder={t('auth.emailPlaceholder')}
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="password" className="input-label">
                 {t('auth.password')}
               </label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="current-password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-primary-500 focus:border-primary-500"
-                placeholder={t('auth.passwordPlaceholder')}
-              />
+              <div className="relative">
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="input pe-12"
+                  placeholder={t('auth.passwordPlaceholder')}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute end-3 top-1/2 -translate-y-1/2 p-1 text-healthcare-muted hover:text-healthcare-text transition-colors"
+                  tabIndex={-1}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
             </div>
-          </div>
 
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-primary-600 hover:bg-primary-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-500 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isLoading ? t('auth.signingIn') : t('common.signIn')}
-          </button>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="btn-primary w-full"
+            >
+              {isLoading ? (
+                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              ) : (
+                <>
+                  {t('common.signIn')}
+                  <ArrowRight className="w-4 h-4 rtl:rotate-180" />
+                </>
+              )}
+            </button>
 
-          <p className="text-center text-sm text-gray-600">
-            {t('auth.noAccount')}{' '}
-            <Link to="/register" className="font-medium text-primary-600 hover:text-primary-500">
-              {t('common.signUp')}
-            </Link>
-          </p>
-        </form>
+            <p className="text-center text-sm text-healthcare-muted">
+              {t('auth.noAccount')}{' '}
+              <Link to="/register" className="font-semibold text-primary-500 hover:text-primary-600 transition-colors">
+                {t('common.signUp')}
+              </Link>
+            </p>
+          </form>
+        </div>
       </div>
     </div>
   )

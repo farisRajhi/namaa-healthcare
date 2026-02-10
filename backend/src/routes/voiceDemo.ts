@@ -103,12 +103,12 @@ export default async function voiceDemoRoutes(app: FastifyInstance) {
           userText = result.text;
           // Keep user's selected dialect, don't override from detection
         } catch (sttError) {
-          app.log.warn('STT failed, using fallback:', sttError);
+          app.log.warn(`STT failed, using fallback: ${sttError}`);
           // Fallback - just acknowledge we received audio
           userText = 'مرحبا';
         }
       } catch (err) {
-        app.log.error('Error processing audio:', err);
+        app.log.error(`Error processing audio: ${err}`);
         userText = body.text || 'مرحبا';
       }
     }
@@ -146,7 +146,7 @@ export default async function voiceDemoRoutes(app: FastifyInstance) {
         const audioBuffer = await ttsService.synthesize(response, selectedDialect);
         audioBase64 = audioBuffer.toString('base64');
       } catch (ttsError) {
-        app.log.warn('TTS failed:', ttsError);
+        app.log.warn(`TTS failed: ${ttsError}`);
       }
     }
 
@@ -183,7 +183,7 @@ export default async function voiceDemoRoutes(app: FastifyInstance) {
 
     // Get LLM response
     const llmService = getLLMService();
-    const response = await llmService.chat(history, DEMO_SYSTEM_PROMPT);
+    const response = await llmService.chat(history, buildDemoSystemPrompt(detectedDialect));
 
     return {
       transcription: userText,

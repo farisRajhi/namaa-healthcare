@@ -14,18 +14,26 @@ import {
   Bot,
   Building2,
   PhoneCall,
+  Sparkles,
+  Heart,
+  Globe,
 } from 'lucide-react'
 import VoiceDemoRealtime from '../components/voice/VoiceDemoRealtime'
 import DemoChatEmbed from '../components/chat/DemoChatEmbed'
 
 export default function Landing() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
+
+  const toggleLanguage = () => {
+    const newLang = i18n.language === 'ar' ? 'en' : 'ar'
+    i18n.changeLanguage(newLang)
+  }
 
   const stats = [
-    { value: '50%', label: t('landing.stats.noShows') },
-    { value: '24/7', label: t('landing.stats.availability') },
-    { value: '3x', label: t('landing.stats.bookings') },
-    { value: '< 1min', label: t('landing.stats.responseTime') },
+    { value: '50%', label: t('landing.stats.noShows'), icon: '📉' },
+    { value: '24/7', label: t('landing.stats.availability'), icon: '🕐' },
+    { value: '3x', label: t('landing.stats.bookings'), icon: '📈' },
+    { value: '< 1min', label: t('landing.stats.responseTime'), icon: '⚡' },
   ]
 
   const features = [
@@ -33,31 +41,37 @@ export default function Landing() {
       icon: MessageCircle,
       title: t('landing.features.whatsapp.title'),
       description: t('landing.features.whatsapp.description'),
+      color: 'bg-success-100 text-success-600',
     },
     {
       icon: Calendar,
       title: t('landing.features.scheduling.title'),
       description: t('landing.features.scheduling.description'),
+      color: 'bg-primary-100 text-primary-600',
     },
     {
       icon: Users,
       title: t('landing.features.patients.title'),
       description: t('landing.features.patients.description'),
+      color: 'bg-secondary-100 text-secondary-600',
     },
     {
       icon: BarChart3,
       title: t('landing.features.analytics.title'),
       description: t('landing.features.analytics.description'),
+      color: 'bg-warning-100 text-warning-600',
     },
     {
       icon: Clock,
       title: t('landing.features.reminders.title'),
       description: t('landing.features.reminders.description'),
+      color: 'bg-danger-100 text-danger-600',
     },
     {
       icon: Building2,
       title: t('landing.features.multiLocation.title'),
       description: t('landing.features.multiLocation.description'),
+      color: 'bg-primary-100 text-primary-700',
     },
   ]
 
@@ -98,34 +112,45 @@ export default function Landing() {
   ]
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white overflow-hidden">
       {/* Navigation */}
-      <nav className="fixed top-0 start-0 end-0 bg-white/80 backdrop-blur-md z-50 border-b border-gray-100">
+      <nav className="fixed top-0 start-0 end-0 glass z-50 border-b border-healthcare-border/20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
-                <MessageCircle className="w-6 h-6 text-white" />
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-teal-gradient rounded-xl flex items-center justify-center shadow-btn">
+                <span className="text-white font-bold text-lg">✚</span>
               </div>
-              <span className="text-xl font-bold text-gray-900">{t('landing.brand')}</span>
+              <div>
+                <span className="text-lg font-heading font-bold text-healthcare-text">{t('landing.brand')}</span>
+                <span className="hidden sm:inline text-xs text-healthcare-muted ms-2 font-medium">HEALTH AI</span>
+              </div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
               <a
                 href="#demo"
-                className="text-primary-600 hover:text-primary-700 font-medium transition-colors flex items-center gap-1"
+                className="hidden sm:flex items-center gap-1.5 text-primary-600 hover:text-primary-700 font-medium text-sm transition-colors"
               >
                 <PhoneCall className="w-4 h-4" />
-                جرب الآن
+                {t('landing.demo.tryNow')}
               </a>
+              <button
+                onClick={toggleLanguage}
+                className="flex items-center gap-1.5 text-healthcare-muted hover:text-healthcare-text font-medium text-sm transition-colors"
+                title="Toggle Language"
+              >
+                <Globe className="w-4 h-4" />
+                <span>{i18n.language === 'ar' ? 'EN' : 'AR'}</span>
+              </button>
               <Link
                 to="/login"
-                className="text-gray-600 hover:text-gray-900 font-medium transition-colors"
+                className="text-healthcare-muted hover:text-healthcare-text font-medium text-sm transition-colors"
               >
                 {t('common.signIn')}
               </Link>
               <Link
                 to="/register"
-                className="bg-primary-600 hover:bg-primary-700 text-white px-4 py-2 rounded-lg font-medium transition-colors"
+                className="btn-primary btn-sm"
               >
                 {t('common.getStarted')}
               </Link>
@@ -135,31 +160,31 @@ export default function Landing() {
       </nav>
 
       {/* Hero Section */}
-      <section className="pt-32 pb-20 px-4 sm:px-6 lg:px-8">
+      <section className="pt-28 pb-20 px-4 sm:px-6 lg:px-8 bg-hero-gradient bg-mesh relative">
         <div className="max-w-7xl mx-auto">
           <div className="text-center max-w-4xl mx-auto">
-            <div className="inline-flex items-center gap-2 bg-primary-50 text-primary-700 px-4 py-2 rounded-full text-sm font-medium mb-6">
-              <Bot className="w-4 h-4" />
+            <div className="inline-flex items-center gap-2 bg-white/80 backdrop-blur text-primary-700 px-5 py-2.5 rounded-full text-sm font-semibold mb-8 shadow-card border border-primary-200/50">
+              <Sparkles className="w-4 h-4" />
               {t('landing.badge')}
             </div>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-gray-900 leading-tight mb-6">
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-heading font-bold text-healthcare-text leading-tight mb-6">
               {t('landing.hero.title')}{' '}
-              <span className="text-primary-600">{t('landing.hero.highlight')}</span>
+              <span className="text-gradient">{t('landing.hero.highlight')}</span>
             </h1>
-            <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
+            <p className="text-lg sm:text-xl text-healthcare-muted mb-10 max-w-2xl mx-auto leading-relaxed">
               {t('landing.hero.subtitle')}
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
                 to="/register"
-                className="inline-flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-colors"
+                className="btn-primary btn-lg shadow-lg hover:shadow-xl transition-shadow"
               >
                 {t('landing.cta.trial')}
                 <ArrowRight className="w-5 h-5 rtl:rotate-180" />
               </Link>
               <a
                 href="#features"
-                className="inline-flex items-center justify-center gap-2 bg-gray-100 hover:bg-gray-200 text-gray-900 px-8 py-4 rounded-xl font-semibold text-lg transition-colors"
+                className="btn-outline btn-lg"
               >
                 {t('landing.cta.howItWorks')}
               </a>
@@ -167,11 +192,12 @@ export default function Landing() {
           </div>
 
           {/* Stats */}
-          <div className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-8">
+          <div className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-6">
             {stats.map((stat) => (
-              <div key={stat.label} className="text-center">
-                <div className="text-3xl sm:text-4xl font-bold text-primary-600 mb-2">{stat.value}</div>
-                <div className="text-gray-600">{stat.label}</div>
+              <div key={stat.label} className="card-neu text-center p-6">
+                <span className="text-2xl mb-2 block">{stat.icon}</span>
+                <div className="text-3xl sm:text-4xl font-heading font-bold text-primary-500 mb-1">{stat.value}</div>
+                <div className="text-sm text-healthcare-muted">{stat.label}</div>
               </div>
             ))}
           </div>
@@ -179,28 +205,28 @@ export default function Landing() {
       </section>
 
       {/* Features Section */}
-      <section id="features" className="py-20 bg-gray-50 px-4 sm:px-6 lg:px-8">
+      <section id="features" className="py-20 bg-white px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+            <h2 className="text-3xl sm:text-4xl font-heading font-bold text-healthcare-text mb-4">
               {t('landing.features.title')}
             </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            <p className="text-lg text-healthcare-muted max-w-2xl mx-auto">
               {t('landing.features.subtitle')}
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {features.map((feature) => (
               <div
                 key={feature.title}
-                className="bg-white rounded-2xl p-8 shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
+                className="card-interactive p-8 group"
               >
-                <div className="w-12 h-12 bg-primary-100 rounded-xl flex items-center justify-center mb-6">
-                  <feature.icon className="w-6 h-6 text-primary-600" />
+                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 ${feature.color} transition-transform group-hover:scale-110`}>
+                  <feature.icon className="w-7 h-7" />
                 </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-3">{feature.title}</h3>
-                <p className="text-gray-600">{feature.description}</p>
+                <h3 className="text-xl font-heading font-semibold text-healthcare-text mb-3">{feature.title}</h3>
+                <p className="text-healthcare-muted leading-relaxed">{feature.description}</p>
               </div>
             ))}
           </div>
@@ -208,28 +234,31 @@ export default function Landing() {
       </section>
 
       {/* How It Works */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
+      <section className="py-20 bg-healthcare-bg px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+            <h2 className="text-3xl sm:text-4xl font-heading font-bold text-healthcare-text mb-4">
               {t('landing.howItWorks.title')}
             </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+            <p className="text-lg text-healthcare-muted max-w-2xl mx-auto">
               {t('landing.howItWorks.subtitle')}
             </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            {steps.map((item) => (
-              <div key={item.step} className="text-center">
-                <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-600 rounded-2xl mb-6 relative">
-                  <item.icon className="w-8 h-8 text-white" />
-                  <span className="absolute -top-2 -end-2 w-8 h-8 bg-gray-900 text-white text-sm font-bold rounded-full flex items-center justify-center">
+            {steps.map((item, index) => (
+              <div key={item.step} className="text-center relative">
+                {index < steps.length - 1 && (
+                  <div className="hidden md:block absolute top-8 start-[60%] w-[80%] h-0.5 bg-primary-200 -z-10" />
+                )}
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-teal-gradient rounded-2xl mb-6 shadow-btn relative">
+                  <item.icon className="w-7 h-7 text-white" />
+                  <span className="absolute -top-2 -end-2 w-8 h-8 bg-healthcare-text text-white text-xs font-bold rounded-full flex items-center justify-center shadow-md">
                     {item.step}
                   </span>
                 </div>
-                <h3 className="text-xl font-semibold text-gray-900 mb-3">{item.title}</h3>
-                <p className="text-gray-600">{item.description}</p>
+                <h3 className="text-xl font-heading font-semibold text-healthcare-text mb-3">{item.title}</h3>
+                <p className="text-healthcare-muted leading-relaxed">{item.description}</p>
               </div>
             ))}
           </div>
@@ -237,81 +266,78 @@ export default function Landing() {
       </section>
 
       {/* Demo Section */}
-      <section id="demo" className="py-20 bg-gray-50 px-4 sm:px-6 lg:px-8">
+      <section id="demo" className="py-20 bg-white px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          {/* Section Header */}
           <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 bg-primary-100 text-primary-700 px-4 py-2 rounded-full text-sm font-medium mb-6">
+            <div className="inline-flex items-center gap-2 bg-primary-50 text-primary-700 px-5 py-2.5 rounded-full text-sm font-semibold mb-6 border border-primary-200/50">
               <Bot className="w-4 h-4" />
-              جرب الآن مجاناً
+              {t('landing.demo.badge')}
             </div>
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              جرب المساعد الذكي
+            <h2 className="text-3xl sm:text-4xl font-heading font-bold text-healthcare-text mb-4">
+              {t('landing.demo.title')}
             </h2>
-            <p className="text-xl text-gray-600 max-w-2xl mx-auto">
-              تفاعل مع مساعدنا الذكي عبر المحادثة النصية أو الصوتية
+            <p className="text-lg text-healthcare-muted max-w-2xl mx-auto">
+              {t('landing.demo.subtitle')}
             </p>
           </div>
 
-          {/* Demo Cards - Side by Side */}
           <div className="grid lg:grid-cols-2 gap-8 items-start">
             <DemoChatEmbed />
             <VoiceDemoRealtime />
           </div>
 
-          {/* Features List */}
-          <div className="mt-16 flex flex-wrap justify-center gap-8">
-            <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm">
-              <CheckCircle className="w-5 h-5 text-primary-600" />
-              <span className="text-gray-700">يفهم اللهجات العربية</span>
-            </div>
-            <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm">
-              <CheckCircle className="w-5 h-5 text-primary-600" />
-              <span className="text-gray-700">حجز المواعيد</span>
-            </div>
-            <div className="flex items-center gap-2 bg-white px-4 py-2 rounded-full shadow-sm">
-              <CheckCircle className="w-5 h-5 text-primary-600" />
-              <span className="text-gray-700">متاح 24/7</span>
-            </div>
+          <div className="mt-12 flex flex-wrap justify-center gap-4">
+            {[t('landing.demo.features.dialects'), t('landing.demo.features.booking'), t('landing.demo.features.availability')].map((text) => (
+              <div key={text} className="card flex items-center gap-2 px-5 py-2.5">
+                <CheckCircle className="w-5 h-5 text-success-500" />
+                <span className="text-sm font-medium text-healthcare-text">{text}</span>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
       {/* Benefits */}
-      <section className="py-20 bg-primary-600 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
+      <section className="py-20 bg-teal-gradient px-4 sm:px-6 lg:px-8 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-20 start-20 w-64 h-64 bg-white rounded-full blur-3xl" />
+          <div className="absolute bottom-20 end-20 w-96 h-96 bg-white rounded-full blur-3xl" />
+        </div>
+        <div className="max-w-7xl mx-auto relative z-10">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-              <h2 className="text-3xl sm:text-4xl font-bold text-white mb-6">
+              <h2 className="text-3xl sm:text-4xl font-heading font-bold text-white mb-6">
                 {t('landing.benefits.title')}
               </h2>
-              <p className="text-primary-100 text-lg mb-8">
+              <p className="text-primary-100 text-lg mb-8 leading-relaxed">
                 {t('landing.benefits.subtitle')}
               </p>
               <ul className="space-y-4">
                 {benefits.map((benefit) => (
                   <li key={benefit} className="flex items-center gap-3 text-white">
-                    <CheckCircle className="w-6 h-6 text-primary-200 flex-shrink-0" />
-                    <span>{benefit}</span>
+                    <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+                      <CheckCircle className="w-4 h-4" />
+                    </div>
+                    <span className="text-sm font-medium">{benefit}</span>
                   </li>
                 ))}
               </ul>
             </div>
             <div className="bg-white rounded-2xl p-8 shadow-xl">
               <div className="flex items-center gap-4 mb-6">
-                <div className="w-12 h-12 bg-primary-100 rounded-full flex items-center justify-center">
-                  <Shield className="w-6 h-6 text-primary-600" />
+                <div className="w-14 h-14 bg-primary-50 rounded-2xl flex items-center justify-center">
+                  <Shield className="w-7 h-7 text-primary-600" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-gray-900">{t('landing.benefits.security.title')}</h3>
-                  <p className="text-gray-600 text-sm">{t('landing.benefits.security.subtitle')}</p>
+                  <h3 className="font-heading font-semibold text-healthcare-text text-lg">{t('landing.benefits.security.title')}</h3>
+                  <p className="text-healthcare-muted text-sm">{t('landing.benefits.security.subtitle')}</p>
                 </div>
               </div>
-              <ul className="space-y-3 text-gray-600">
+              <ul className="space-y-3">
                 {securityFeatures.map((feature) => (
-                  <li key={feature} className="flex items-center gap-2">
-                    <CheckCircle className="w-5 h-5 text-primary-600" />
-                    {feature}
+                  <li key={feature} className="flex items-center gap-3 text-healthcare-text">
+                    <CheckCircle className="w-5 h-5 text-success-500 flex-shrink-0" />
+                    <span className="text-sm">{feature}</span>
                   </li>
                 ))}
               </ul>
@@ -321,17 +347,20 @@ export default function Landing() {
       </section>
 
       {/* CTA Section */}
-      <section className="py-20 px-4 sm:px-6 lg:px-8">
+      <section className="py-20 px-4 sm:px-6 lg:px-8 bg-hero-gradient">
         <div className="max-w-4xl mx-auto text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-6">
+          <div className="inline-flex mb-6">
+            <Heart className="w-8 h-8 text-danger-400" />
+          </div>
+          <h2 className="text-3xl sm:text-4xl font-heading font-bold text-healthcare-text mb-6">
             {t('landing.finalCta.title')}
           </h2>
-          <p className="text-xl text-gray-600 mb-8">
+          <p className="text-lg text-healthcare-muted mb-10 max-w-2xl mx-auto">
             {t('landing.finalCta.subtitle')}
           </p>
           <Link
             to="/register"
-            className="inline-flex items-center justify-center gap-2 bg-primary-600 hover:bg-primary-700 text-white px-8 py-4 rounded-xl font-semibold text-lg transition-colors"
+            className="btn-primary btn-lg shadow-lg hover:shadow-xl transition-shadow"
           >
             {t('landing.cta.getStartedFree')}
             <ArrowRight className="w-5 h-5 rtl:rotate-180" />
@@ -340,27 +369,29 @@ export default function Landing() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-gray-400 py-12 px-4 sm:px-6 lg:px-8">
+      <footer className="bg-healthcare-text text-white/70 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 bg-primary-600 rounded-xl flex items-center justify-center">
-                <MessageCircle className="w-6 h-6 text-white" />
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center">
+                <span className="text-white font-bold text-lg">✚</span>
               </div>
-              <span className="text-xl font-bold text-white">{t('landing.brand')}</span>
+              <div>
+                <span className="text-lg font-heading font-bold text-white">{t('landing.brand')}</span>
+                <span className="text-xs text-white/50 ms-2">HEALTH AI</span>
+              </div>
             </div>
-            <div className="flex items-center gap-8">
+            <div className="flex items-center gap-8 text-sm">
               <a href="#features" className="hover:text-white transition-colors">{t('common.features')}</a>
               <Link to="/login" className="hover:text-white transition-colors">{t('common.signIn')}</Link>
               <Link to="/register" className="hover:text-white transition-colors">{t('common.getStarted')}</Link>
             </div>
           </div>
-          <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm">
+          <div className="border-t border-white/10 mt-8 pt-8 text-center text-sm text-white/40">
             &copy; {new Date().getFullYear()} {t('landing.footer.copyright')}
           </div>
         </div>
       </footer>
-
     </div>
   )
 }

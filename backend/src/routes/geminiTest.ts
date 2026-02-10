@@ -61,7 +61,7 @@ export default async function geminiTestRoutes(app: FastifyInstance) {
       });
 
       session.on('error', (error: Error) => {
-        app.log.error('Gemini error:', error);
+        app.log.error(`Gemini error: ${error.message}`);
         resolve({
           success: false,
           error: error.message,
@@ -86,7 +86,7 @@ export default async function geminiTestRoutes(app: FastifyInstance) {
         }, 10000); // 10 second timeout
 
       } catch (error) {
-        app.log.error('Gemini connection error:', error);
+        app.log.error(`Gemini connection error: ${error}`);
         resolve({
           success: false,
           error: error instanceof Error ? error.message : 'Unknown error',

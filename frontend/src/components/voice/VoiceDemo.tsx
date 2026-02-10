@@ -201,7 +201,7 @@ export default function VoiceDemo() {
   }
 
   // Fallback TTS using browser's speech synthesis
-  const playTTS = async (text: string, dialect: string) => {
+  const playTTS = async (text: string, _dialect: string) => {
     setIsPlaying(true)
     try {
       const utterance = new SpeechSynthesisUtterance(text)

@@ -1,8 +1,12 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
-import { Plus, Search, Calendar, Clock, User, Filter } from 'lucide-react'
-import { formatDate, formatTime, cn } from '../lib/utils'
+import { Plus, Calendar, Clock, User } from 'lucide-react'
+import { formatTime, cn } from '../lib/utils'
+import Badge, { getStatusBadgeVariant } from '../components/ui/Badge'
+import LoadingSpinner from '../components/ui/LoadingSpinner'
+import EmptyState from '../components/ui/EmptyState'
 
 interface Appointment {
   appointmentId: string
@@ -10,34 +14,16 @@ interface Appointment {
   endTs: string
   status: string
   reason: string | null
-  provider: {
-    displayName: string
-  }
-  patient: {
-    firstName: string
-    lastName: string
-  } | null
-  service: {
-    name: string
-    durationMin: number
-  }
-}
-
-const statusColors: Record<string, string> = {
-  held: 'bg-gray-100 text-gray-800',
-  booked: 'bg-blue-100 text-blue-800',
-  confirmed: 'bg-green-100 text-green-800',
-  checked_in: 'bg-purple-100 text-purple-800',
-  in_progress: 'bg-yellow-100 text-yellow-800',
-  completed: 'bg-green-100 text-green-800',
-  cancelled: 'bg-red-100 text-red-800',
-  no_show: 'bg-red-100 text-red-800',
-  expired: 'bg-gray-100 text-gray-800',
+  provider: { displayName: string }
+  patient: { firstName: string; lastName: string } | null
+  service: { name: string; durationMin: number }
 }
 
 export default function Appointments() {
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState<string>('')
+  const { i18n } = useTranslation()
+  const isAr = i18n.language === 'ar'
 
   const { data, isLoading } = useQuery({
     queryKey: ['appointments', { page, status: statusFilter }],
@@ -52,106 +38,106 @@ export default function Appointments() {
   const appointments: Appointment[] = data?.data || []
   const pagination = data?.pagination
 
+  const statuses = [
+    { value: '', label: isAr ? 'جميع الحالات' : 'All Statuses' },
+    { value: 'booked', label: isAr ? 'محجوز' : 'Booked' },
+    { value: 'confirmed', label: isAr ? 'مؤكد' : 'Confirmed' },
+    { value: 'checked_in', label: isAr ? 'مسجل الحضور' : 'Checked In' },
+    { value: 'in_progress', label: isAr ? 'قيد التنفيذ' : 'In Progress' },
+    { value: 'completed', label: isAr ? 'مكتمل' : 'Completed' },
+    { value: 'cancelled', label: isAr ? 'ملغي' : 'Cancelled' },
+    { value: 'no_show', label: isAr ? 'لم يحضر' : 'No Show' },
+  ]
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 animate-fade-in">
+      {/* Header */}
+      <div className="page-header">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Appointments</h1>
-          <p className="text-gray-500">Manage and track appointments</p>
+          <h1 className="page-title">{isAr ? 'المواعيد' : 'Appointments'}</h1>
+          <p className="page-subtitle">{isAr ? 'إدارة وتتبع المواعيد' : 'Manage and track appointments'}</p>
         </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700">
-          <Plus className="h-5 w-5" />
-          New Appointment
+        <button className="btn-primary">
+          <Plus className="h-4 w-4" />
+          {isAr ? 'موعد جديد' : 'New Appointment'}
         </button>
       </div>
 
       {/* Filters */}
-      <div className="flex gap-4">
-        <div className="flex items-center gap-2">
-          <Filter className="h-5 w-5 text-gray-400" />
-          <select
-            value={statusFilter}
-            onChange={(e) => {
-              setStatusFilter(e.target.value)
-              setPage(1)
-            }}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-primary-500 focus:border-primary-500"
+      <div className="flex flex-wrap gap-2">
+        {statuses.map((s) => (
+          <button
+            key={s.value}
+            onClick={() => { setStatusFilter(s.value); setPage(1) }}
+            className={cn(statusFilter === s.value ? 'chip-active' : 'chip')}
           >
-            <option value="">All Statuses</option>
-            <option value="booked">Booked</option>
-            <option value="confirmed">Confirmed</option>
-            <option value="checked_in">Checked In</option>
-            <option value="in_progress">In Progress</option>
-            <option value="completed">Completed</option>
-            <option value="cancelled">Cancelled</option>
-            <option value="no_show">No Show</option>
-          </select>
-        </div>
+            {s.label}
+          </button>
+        ))}
       </div>
 
       {/* Appointments List */}
-      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+      <div className="table-container">
         {isLoading ? (
           <div className="flex items-center justify-center h-64">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+            <LoadingSpinner />
           </div>
         ) : appointments.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-gray-500">
-            <Calendar className="h-12 w-12 mb-4 text-gray-300" />
-            <p>No appointments found</p>
-          </div>
+          <EmptyState
+            icon={Calendar}
+            title={isAr ? 'لا توجد مواعيد' : 'No appointments found'}
+            description={isAr ? 'ابدأ بإضافة موعد جديد' : 'Start by adding a new appointment'}
+          />
         ) : (
-          <div className="divide-y divide-gray-200">
+          <div className="divide-y divide-healthcare-border/20">
             {appointments.map((appointment) => (
               <div
                 key={appointment.appointmentId}
-                className="p-4 hover:bg-gray-50 cursor-pointer"
+                className="p-5 hover:bg-primary-50/30 transition-colors cursor-pointer"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex gap-4">
-                    <div className="flex flex-col items-center justify-center w-16 h-16 bg-primary-50 rounded-lg">
-                      <span className="text-xs text-primary-600 font-medium">
-                        {new Date(appointment.startTs).toLocaleDateString('en-US', { month: 'short' })}
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex gap-4 flex-1 min-w-0">
+                    {/* Date badge */}
+                    <div className="flex flex-col items-center justify-center w-14 h-14 bg-primary-50 rounded-xl border border-primary-200/50 flex-shrink-0">
+                      <span className="text-[10px] text-primary-500 font-semibold uppercase">
+                        {new Date(appointment.startTs).toLocaleDateString(isAr ? 'ar-SA' : 'en-US', { month: 'short' })}
                       </span>
-                      <span className="text-xl font-bold text-primary-700">
+                      <span className="text-xl font-bold font-heading text-primary-700 leading-none">
                         {new Date(appointment.startTs).getDate()}
                       </span>
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-medium text-gray-900">
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-semibold text-healthcare-text truncate">
                           {appointment.patient
                             ? `${appointment.patient.firstName} ${appointment.patient.lastName}`
-                            : 'Walk-in'}
+                            : isAr ? 'زائر' : 'Walk-in'}
                         </h3>
-                        <span
-                          className={cn(
-                            'px-2 py-0.5 rounded-full text-xs font-medium capitalize',
-                            statusColors[appointment.status] || 'bg-gray-100 text-gray-800'
-                          )}
-                        >
+                        <Badge variant={getStatusBadgeVariant(appointment.status)}>
                           {appointment.status.replace('_', ' ')}
-                        </span>
+                        </Badge>
                       </div>
-                      <p className="text-sm text-gray-600 mt-1">
+                      <p className="text-sm text-healthcare-muted mt-0.5">
                         {appointment.service.name}
                       </p>
-                      <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-4 w-4" />
+                      <div className="flex items-center gap-4 mt-2 text-xs text-healthcare-muted">
+                        <span className="flex items-center gap-1.5">
+                          <Clock className="h-3.5 w-3.5" />
                           {formatTime(appointment.startTs)} - {formatTime(appointment.endTs)}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <User className="h-4 w-4" />
+                        </span>
+                        <span className="flex items-center gap-1.5">
+                          <User className="h-3.5 w-3.5" />
                           {appointment.provider.displayName}
-                        </div>
+                        </span>
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm text-gray-500">
-                      {appointment.service.durationMin} min
-                    </p>
+
+                  <div className="text-end flex-shrink-0">
+                    <span className="badge-neutral">
+                      {appointment.service.durationMin} {isAr ? 'دقيقة' : 'min'}
+                    </span>
                   </div>
                 </div>
               </div>
@@ -161,24 +147,24 @@ export default function Appointments() {
 
         {/* Pagination */}
         {pagination && pagination.totalPages > 1 && (
-          <div className="px-6 py-4 border-t flex items-center justify-between">
-            <p className="text-sm text-gray-500">
-              Page {pagination.page} of {pagination.totalPages}
+          <div className="px-5 py-4 border-t border-healthcare-border/20 flex items-center justify-between">
+            <p className="text-sm text-healthcare-muted">
+              {isAr ? `صفحة ${pagination.page} من ${pagination.totalPages}` : `Page ${pagination.page} of ${pagination.totalPages}`}
             </p>
             <div className="flex gap-2">
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="px-3 py-1 border rounded text-sm disabled:opacity-50"
+                className="pagination-btn"
               >
-                Previous
+                {isAr ? 'السابق' : 'Previous'}
               </button>
               <button
                 onClick={() => setPage((p) => p + 1)}
                 disabled={page >= pagination.totalPages}
-                className="px-3 py-1 border rounded text-sm disabled:opacity-50"
+                className="pagination-btn"
               >
-                Next
+                {isAr ? 'التالي' : 'Next'}
               </button>
             </div>
           </div>

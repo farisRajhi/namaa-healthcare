@@ -2,6 +2,10 @@ import { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { getLLMService, ChatMessage } from '../services/llm.js';
 import { buildSystemPrompt } from '../services/systemPrompt.js';
+import { GuardrailsService, ValidationContext } from '../services/ai/guardrails.js';
+import { getIdentityVerifier, VerificationLevel } from '../services/patient/identityVerifier.js';
+import { redactPII } from '../services/security/piiRedactor.js';
+import { getContextBuilder } from '../services/patient/contextBuilder.js';
 
 const sendMessageSchema = z.object({
   conversationId: z.string().uuid().nullish(),
@@ -106,18 +110,51 @@ export default async function chatRoutes(app: FastifyInstance) {
       conversationId = conversation.conversationId;
     }
 
-    // Save user message
+    // Save user message (PII redacted for logging)
+    let userMessageRedacted = body.message;
+    try {
+      userMessageRedacted = redactPII(body.message).redactedText;
+    } catch (_) { /* keep original if redaction fails */ }
     await app.prisma.conversationMessage.create({
       data: {
         conversationId,
         direction: 'in',
-        bodyText: body.message,
+        bodyText: userMessageRedacted,
         payload: { source: 'test_chat', userId },
       },
     });
 
     // Build system prompt with org context
-    const systemPrompt = await buildSystemPrompt(app.prisma, orgId);
+    let systemPrompt = await buildSystemPrompt(app.prisma, orgId);
+
+    // ── Patient Context: enrich system prompt with patient memory ──
+    let resolvedPatientId: string | null = conversation.patientId ?? null;
+    try {
+      // If conversation has a linked patient, build context
+      if (!resolvedPatientId) {
+        // Try to resolve patient from messaging user link
+        const patientLink = await app.prisma.messagingUserPatientLink.findFirst({
+          where: { messagingUserId: messagingUser.messagingUserId, isDefault: true },
+        });
+        if (patientLink) {
+          resolvedPatientId = patientLink.patientId;
+          // Link patient to conversation for future messages
+          await app.prisma.conversation.update({
+            where: { conversationId },
+            data: { patientId: resolvedPatientId },
+          });
+        }
+      }
+      if (resolvedPatientId) {
+        const contextBuilder = getContextBuilder(app.prisma);
+        const patientContext = await contextBuilder.buildPatientContext(resolvedPatientId);
+        if (patientContext) {
+          systemPrompt += '\n' + patientContext;
+        }
+      }
+    } catch (ctxErr) {
+      app.log.error({ err: ctxErr }, 'Failed to build patient context — continuing without it');
+    }
 
     // Fetch conversation history (last 20 messages)
     const historyMessages = await app.prisma.conversationMessage.findMany({
@@ -134,15 +171,82 @@ export default async function chatRoutes(app: FastifyInstance) {
 
     // Call LLM
     const llmService = getLLMService();
-    const response = await llmService.chat(chatMessages, systemPrompt);
+    let response = await llmService.chat(chatMessages, systemPrompt);
 
-    // Save assistant response
+    // ── AI Guardrails: validate response before sending ──
+    let guardrailResult = null;
+    try {
+      const guardrails = new GuardrailsService(app.prisma);
+      const validationContext: ValidationContext = {
+        orgId,
+        conversationId,
+        userMessage: body.message,
+        aiResponse: response,
+      };
+      guardrailResult = await guardrails.validateResponse(validationContext);
+
+      if (!guardrailResult.approved && guardrailResult.sanitizedResponse) {
+        app.log.warn(
+          { flags: guardrailResult.flags },
+          'Guardrails blocked AI response — using safe replacement',
+        );
+        response = guardrailResult.sanitizedResponse;
+      }
+    } catch (err) {
+      app.log.error({ err }, 'Guardrails validation failed — using original response');
+    }
+
+    // ── Identity Verification: check context for sensitive requests ──
+    let verificationLevel = VerificationLevel.Anonymous;
+    try {
+      const identityVerifier = getIdentityVerifier(app.prisma);
+      const convContext = (conversation.context as Record<string, unknown>) || {};
+
+      // If the conversation has a caller phone, run verification
+      const callerPhone = (convContext.callerPhone as string) || '';
+      if (callerPhone) {
+        const session = identityVerifier.getOrCreateSession(conversationId, callerPhone);
+        verificationLevel = session.level;
+
+        // Detect sensitive data requests (appointments, prescriptions, medical records)
+        const sensitivePatterns = /\b(موعد|مواعيد|وصفة|دواء|سجل|ملف|appointment|prescription|record|medical)\b/i;
+        if (sensitivePatterns.test(body.message) && session.level < VerificationLevel.PhoneMatched) {
+          // Patient is requesting sensitive data without verification
+          const isArabic = /[\u0600-\u06FF]/.test(body.message);
+          response = isArabic
+            ? 'للوصول إلى بياناتك، أحتاج للتحقق من هويتك أولاً. هل يمكنك تأكيد رقم هاتفك المسجل لدينا؟'
+            : 'To access your data, I need to verify your identity first. Can you confirm the phone number we have on file?';
+        }
+      }
+    } catch (err) {
+      app.log.error({ err }, 'Identity verification check failed — continuing');
+    }
+
+    // ── PII Redaction: redact PII before saving to DB ──
+    let redactedUserMessage = body.message;
+    let redactedResponse = response;
+    try {
+      const userRedaction = redactPII(body.message);
+      redactedUserMessage = userRedaction.redactedText;
+      const responseRedaction = redactPII(response);
+      redactedResponse = responseRedaction.redactedText;
+    } catch (err) {
+      app.log.error({ err }, 'PII redaction failed — saving original text');
+      redactedUserMessage = body.message;
+      redactedResponse = response;
+    }
+
+    // Save assistant response (with PII-redacted text in bodyText, original in payload)
     await app.prisma.conversationMessage.create({
       data: {
         conversationId,
         direction: 'out',
-        bodyText: response,
-        payload: { model: process.env.LLM_MODEL || 'gpt-4-turbo-preview' },
+        bodyText: redactedResponse,
+        payload: {
+          model: process.env.LLM_MODEL || 'gpt-4-turbo-preview',
+          confidence: guardrailResult?.confidence ?? null,
+          guardrailFlags: guardrailResult?.flags?.map(f => f.type) ?? [],
+        },
       },
     });
 
@@ -152,9 +256,26 @@ export default async function chatRoutes(app: FastifyInstance) {
       data: { lastActivityAt: new Date() },
     });
 
+    // ── Memory Extraction: auto-save patient info from conversation ──
+    if (resolvedPatientId) {
+      // Run async — don't block response
+      const contextBuilder = getContextBuilder(app.prisma);
+      contextBuilder
+        .extractMemories(
+          resolvedPatientId,
+          [{ direction: 'in', bodyText: body.message }],
+          conversationId,
+        )
+        .catch((err) => {
+          app.log.error({ err }, 'Failed to extract memories from chat');
+        });
+    }
+
     return {
       conversationId,
-      response,
+      response, // Send the original (or guardrail-replaced) response to user
+      confidence: guardrailResult?.confidence ?? null,
+      verificationLevel,
     };
   });
 

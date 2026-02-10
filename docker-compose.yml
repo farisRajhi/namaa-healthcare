@@ -1,48 +1,154 @@
 version: "3.8"
 
 services:
-  # Database for n8n
-  postgres:
-    image: postgres:16
-    container_name: n8n_postgres
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: n8n
-      POSTGRES_PASSWORD: faris2002
-      POSTGRES_DB: n8n
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-  # Database for the application
+  # ── PostgreSQL (Application) ───────────────────────
   app_postgres:
-    image: postgres:16
-    container_name: app_postgres
+    image: postgres:16-alpine
+    container_name: namaa_postgres
     restart: unless-stopped
     ports:
-      - "5434:5432"
+      - "${POSTGRES_PORT:-5434}:5432"
     environment:
-      POSTGRES_USER: app
-      POSTGRES_PASSWORD: faris2002
-      POSTGRES_DB: hospital_booking
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-faris2002}
+      POSTGRES_DB: ${POSTGRES_DB:-hospital_booking}
     volumes:
       - app_postgres_data:/var/lib/postgresql/data
       - ./hospital_booking.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-hospital_booking}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - namaa_network
 
-  # n8n workflow automation
+  # ── Redis ──────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: namaa_redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - namaa_network
+
+  # ── Backend (Fastify API) ──────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: namaa_backend
+    restart: unless-stopped
+    ports:
+      - "${BACKEND_PORT:-3000}:3000"
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-faris2002}@app_postgres:5432/${POSTGRES_DB:-hospital_booking}?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+      WEBHOOK_API_KEY: ${WEBHOOK_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      LLM_MODEL: ${LLM_MODEL:-gpt-4-turbo-preview}
+      LLM_MAX_TOKENS: ${LLM_MAX_TOKENS:-1024}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.7}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      USE_GEMINI_VOICE: ${USE_GEMINI_VOICE:-true}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
+      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY}
+      VOICE_DEFAULT_DIALECT: ${VOICE_DEFAULT_DIALECT:-msa}
+      VOICE_MAX_CALL_DURATION_SEC: ${VOICE_MAX_CALL_DURATION_SEC:-600}
+      VOICE_SILENCE_TIMEOUT_MS: ${VOICE_SILENCE_TIMEOUT_MS:-1500}
+      BASE_URL: ${BASE_URL}
+      VOICE_WS_URL: ${VOICE_WS_URL}
+      DEFAULT_ORG_ID: ${DEFAULT_ORG_ID}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    depends_on:
+      app_postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - namaa_network
+
+  # ── Frontend (Nginx + React SPA) ──────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: namaa_frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - namaa_network
+
+  # ── PostgreSQL for n8n (optional) ──────────────────
+  n8n_postgres:
+    image: postgres:16-alpine
+    container_name: n8n_postgres
+    restart: unless-stopped
+    profiles:
+      - n8n
+    environment:
+      POSTGRES_USER: n8n
+      POSTGRES_PASSWORD: ${N8N_POSTGRES_PASSWORD:-faris2002}
+      POSTGRES_DB: n8n
+    volumes:
+      - n8n_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U n8n -d n8n"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - namaa_network
+
+  # ── n8n Workflow Automation (optional) ─────────────
   n8n:
     image: n8nio/n8n:latest
-    command: ["start", "--tunnel"]
     container_name: n8n
     restart: unless-stopped
+    profiles:
+      - n8n
     ports:
       - "5678:5678"
     environment:
       DB_TYPE: postgresdb
-      DB_POSTGRESDB_HOST: postgres
+      DB_POSTGRESDB_HOST: n8n_postgres
       DB_POSTGRESDB_PORT: 5432
       DB_POSTGRESDB_DATABASE: n8n
       DB_POSTGRESDB_USER: n8n
-      DB_POSTGRESDB_PASSWORD: faris2002
+      DB_POSTGRESDB_PASSWORD: ${N8N_POSTGRES_PASSWORD:-faris2002}
       N8N_HOST: localhost
       N8N_PORT: 5678
       N8N_PROTOCOL: http
@@ -51,9 +157,17 @@ services:
     volumes:
       - n8n_data:/home/node/.n8n
     depends_on:
-      - postgres
+      n8n_postgres:
+        condition: service_healthy
+    networks:
+      - namaa_network
 
 volumes:
-  n8n_data:
-  postgres_data:
   app_postgres_data:
+  redis_data:
+  n8n_postgres_data:
+  n8n_data:
+
+networks:
+  namaa_network:
+    driver: bridge

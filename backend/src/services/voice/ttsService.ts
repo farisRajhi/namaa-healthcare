@@ -1,4 +1,4 @@
-import { ElevenLabs } from 'elevenlabs';
+import { ElevenLabsClient } from 'elevenlabs';
 import { ArabicDialect } from '../../types/voice.js';
 
 // Voice IDs for different Arabic dialects (configure in env)
@@ -10,7 +10,7 @@ const DEFAULT_VOICE_IDS: Record<ArabicDialect, string> = {
 };
 
 export class TTSService {
-  private client: ElevenLabs;
+  private client: ElevenLabsClient | null;
   private voiceIds: Record<ArabicDialect, string>;
   private configured: boolean = false;
 
@@ -19,12 +19,12 @@ export class TTSService {
 
     if (!apiKey) {
       console.warn('ELEVENLABS_API_KEY not configured - TTS will be disabled');
-      this.client = null as unknown as ElevenLabs;
+      this.client = null;
       this.voiceIds = DEFAULT_VOICE_IDS;
       return;
     }
 
-    this.client = new ElevenLabs({ apiKey });
+    this.client = new ElevenLabsClient({ apiKey });
     this.configured = true;
 
     // Allow override of voice IDs from environment
@@ -53,15 +53,15 @@ export class TTSService {
 
     const voiceId = this.voiceIds[dialect];
 
-    const audioStream = await this.client.textToSpeech.convert(voiceId, {
+    const audioStream = await this.client!.textToSpeech.convert(voiceId, {
       text,
       model_id: 'eleven_multilingual_v2',
-      output_format: 'pcm_16000', // 16kHz PCM for easier conversion
+      output_format: 'pcm_16000' as any, // 16kHz PCM for easier conversion
     });
 
     // Collect stream into buffer
     const chunks: Buffer[] = [];
-    for await (const chunk of audioStream) {
+    for await (const chunk of audioStream as any) {
       chunks.push(Buffer.from(chunk));
     }
 
@@ -79,13 +79,13 @@ export class TTSService {
 
     const voiceId = this.voiceIds[dialect];
 
-    const audioStream = await this.client.textToSpeech.convert(voiceId, {
+    const audioStream = await this.client!.textToSpeech.convert(voiceId, {
       text,
       model_id: 'eleven_multilingual_v2',
-      output_format: 'pcm_16000',
+      output_format: 'pcm_16000' as any,
     });
 
-    for await (const chunk of audioStream) {
+    for await (const chunk of audioStream as any) {
       yield Buffer.from(chunk);
     }
   }
@@ -98,16 +98,16 @@ export class TTSService {
       return [];
     }
 
-    const response = await this.client.voices.getAll();
+    const response = await this.client!.voices.getAll();
 
     // Filter for voices that support Arabic
     // Note: You may need to adjust this based on ElevenLabs API response structure
-    return response.voices
-      .filter((voice) => {
+    return (response as any).voices
+      .filter((voice: any) => {
         const labels = voice.labels || {};
         return labels.language === 'ar' || labels.language === 'arabic';
       })
-      .map((voice) => ({
+      .map((voice: any) => ({
         voiceId: voice.voice_id,
         name: voice.name,
       }));

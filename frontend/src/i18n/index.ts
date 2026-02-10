@@ -15,7 +15,7 @@ i18n
   .use(initReactI18next)
   .init({
     resources,
-    fallbackLng: 'en',
+    fallbackLng: 'ar',
     interpolation: {
       escapeValue: false,
     },
@@ -25,16 +25,26 @@ i18n
     },
   })
 
-// Update document direction based on language
-i18n.on('languageChanged', (lng) => {
-  const dir = lng === 'ar' ? 'rtl' : 'ltr'
-  document.documentElement.dir = dir
+// Update document direction and font based on language
+const applyLanguageSettings = (lng: string) => {
+  const isRtl = lng === 'ar'
+  document.documentElement.dir = isRtl ? 'rtl' : 'ltr'
   document.documentElement.lang = lng
-})
+
+  // The CSS already handles font switching via [dir="rtl"] selectors
+  // but we also set a class for additional styling hooks
+  if (isRtl) {
+    document.documentElement.classList.add('lang-ar')
+    document.documentElement.classList.remove('lang-en')
+  } else {
+    document.documentElement.classList.add('lang-en')
+    document.documentElement.classList.remove('lang-ar')
+  }
+}
+
+i18n.on('languageChanged', applyLanguageSettings)
 
 // Set initial direction
-const initialDir = i18n.language === 'ar' ? 'rtl' : 'ltr'
-document.documentElement.dir = initialDir
-document.documentElement.lang = i18n.language
+applyLanguageSettings(i18n.language)
 
 export default i18n

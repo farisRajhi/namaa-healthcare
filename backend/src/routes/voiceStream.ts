@@ -6,12 +6,32 @@ import { getTTSService, pcmToMulaw } from '../services/voice/ttsService.js';
 import { getLLMService, ChatMessage } from '../services/llm.js';
 import { buildVoiceSystemPrompt, getRepeatMessage, getErrorMessage } from '../services/voicePrompt.js';
 import { TwilioMediaMessage, TwilioMediaResponse, ArabicDialect } from '../types/voice.js';
+import { GuardrailsService, ValidationContext } from '../services/ai/guardrails.js';
+import { redactPII } from '../services/security/piiRedactor.js';
+import { SmsDeflector } from '../services/messaging/smsDeflector.js';
+import { getCallRouter } from '../services/voice/callRouter.js';
+import { getSmartRouter } from '../services/routing/smartRouter.js';
+import { getContextBuilder } from '../services/patient/contextBuilder.js';
 
 // Silence detection threshold (in bytes of audio that constitute "silence")
 const SILENCE_THRESHOLD_MS = 1500; // 1.5 seconds of silence triggers processing
 const MIN_AUDIO_LENGTH = 1600; // Minimum audio bytes to process (100ms at 8kHz)
 
 export default async function voiceStreamRoutes(app: FastifyInstance) {
+  // Initialize shared services
+  const callRouter = getCallRouter();
+  const smartRouter = getSmartRouter(app.prisma);
+  const guardrails = new GuardrailsService(app.prisma);
+
+  // Initialize SMS deflector (Twilio client may be null in dev)
+  const twilioClient = (app as any).twilio ?? null;
+  const smsDeflector = new SmsDeflector(
+    app.prisma,
+    twilioClient,
+    process.env.TWILIO_PHONE_NUMBER,
+    process.env.TWILIO_WHATSAPP_FROM,
+  );
+
   // Register WebSocket route for Twilio Media Streams
   app.get('/stream', { websocket: true }, (connection, request) => {
     const ws = connection.socket as WebSocket;
@@ -111,23 +131,90 @@ export default async function voiceStreamRoutes(app: FastifyInstance) {
 
         const dialect = session.detectedDialect || sttResult.dialect || 'msa';
 
+        // ── Call Router: detect intent and track state ──
+        try {
+          const intentResult = await callRouter.detectIntent(callSid, sttResult.text);
+          app.log.info({ intent: intentResult.intent, confidence: intentResult.confidence }, 'Intent detected');
+
+          // Transition state machine based on intent
+          const activeCall = callRouter.getCall(callSid);
+          if (activeCall) {
+            if (activeCall.state === 'greeting' || activeCall.state === 'intent_detection') {
+              callRouter.transitionState(callSid, 'intent_detection');
+              if (intentResult.confidence >= 0.5) {
+                callRouter.transitionState(callSid, 'task_execution');
+              }
+            }
+
+            // Check smart router for escalation
+            const routingDecision = await smartRouter.route(session.orgId, {
+              intent: intentResult.intent,
+              utterance: sttResult.text,
+              confidence: intentResult.confidence,
+              patientRequestedHuman: /\b(موظف|بشري|إنسان|agent|human|representative|operator)\b/i.test(sttResult.text),
+              failedAttempts: activeCall.retryCount,
+            });
+
+            if (routingDecision.action === 'transfer' || routingDecision.action === 'escalate') {
+              app.log.info({ decision: routingDecision }, 'Smart router: escalation triggered');
+              // Store escalation info — actual Twilio transfer would happen here in production
+              callSessionManager.updateContext(callSid!, {
+                currentStep: 'escalation',
+                collectedInfo: {
+                  ...(session.context?.collectedInfo || {}),
+                  escalationReason: routingDecision.reason,
+                  escalationTarget: routingDecision.targetValue ?? 'unknown',
+                },
+              });
+            }
+
+            // ── SMS Deflection: detect scheduling/directions intent ──
+            try {
+              if (intentResult.intent === 'scheduling') {
+                const baseUrl = process.env.BASE_URL || 'https://namaa.app';
+                await smsDeflector.triggerMidCallSms({
+                  orgId: session.orgId,
+                  intent: 'scheduling',
+                  phone: session.callerPhone,
+                  vars: {
+                    patient_name: '',
+                    link: `${baseUrl}/book`,
+                  },
+                  lang: /[\u0600-\u06FF]/.test(sttResult.text) ? 'ar' : 'en',
+                });
+                app.log.info('Mid-call SMS sent for scheduling intent');
+              }
+            } catch (smsErr) {
+              app.log.error({ err: smsErr }, 'Mid-call SMS deflection failed');
+            }
+          }
+        } catch (routerErr) {
+          app.log.error({ err: routerErr }, 'Call router processing failed — continuing');
+        }
+
+        // ── PII Redaction: redact before saving to DB ──
+        let redactedUserText = sttResult.text;
+        try {
+          redactedUserText = redactPII(sttResult.text).redactedText;
+        } catch (_) { /* keep original */ }
+
         // Save user utterance to database
         await app.prisma.voiceUtterance.create({
           data: {
             callId: session.callId,
             speaker: 'caller',
-            text: sttResult.text,
+            text: redactedUserText,
             confidence: sttResult.confidence,
             dialect: sttResult.dialect,
           },
         });
 
-        // Save as conversation message
+        // Save as conversation message (PII-redacted)
         await app.prisma.conversationMessage.create({
           data: {
             conversationId: session.conversationId,
             direction: 'in',
-            bodyText: sttResult.text,
+            bodyText: redactedUserText,
             payload: {
               source: 'voice',
               dialect: sttResult.dialect,
@@ -149,24 +236,70 @@ export default async function voiceStreamRoutes(app: FastifyInstance) {
         }));
 
         // Build voice-optimized system prompt
-        const systemPrompt = await buildVoiceSystemPrompt(
+        let systemPrompt = await buildVoiceSystemPrompt(
           app.prisma,
           session.orgId,
           dialect as ArabicDialect
         );
 
+        // ── Patient Context: enrich voice prompt with patient memory ──
+        try {
+          // Resolve patient from conversation
+          const conv = await app.prisma.conversation.findUnique({
+            where: { conversationId: session.conversationId },
+            select: { patientId: true },
+          });
+          const voicePatientId = conv?.patientId ?? null;
+          if (voicePatientId) {
+            const contextBuilder = getContextBuilder(app.prisma);
+            const patientContext = await contextBuilder.buildPatientContext(voicePatientId);
+            if (patientContext) {
+              systemPrompt += '\n' + patientContext;
+            }
+          }
+        } catch (ctxErr) {
+          app.log.error({ err: ctxErr }, 'Failed to build voice patient context');
+        }
+
         // Get LLM response
         app.log.info('Getting LLM response...');
-        const llmResponse = await llmService.chat(chatMessages, systemPrompt);
+        let llmResponse = await llmService.chat(chatMessages, systemPrompt);
 
         app.log.info(`LLM response: "${llmResponse}"`);
 
-        // Save AI response
+        // ── AI Guardrails: validate response before TTS ──
+        try {
+          const validationContext: ValidationContext = {
+            orgId: session.orgId,
+            conversationId: session.conversationId,
+            userMessage: sttResult.text,
+            aiResponse: llmResponse,
+          };
+          const guardrailResult = await guardrails.validateResponse(validationContext);
+
+          if (!guardrailResult.approved && guardrailResult.sanitizedResponse) {
+            app.log.warn(
+              { flags: guardrailResult.flags },
+              'Voice guardrails blocked response — using safe replacement',
+            );
+            llmResponse = guardrailResult.sanitizedResponse;
+          }
+        } catch (grErr) {
+          app.log.error({ err: grErr }, 'Voice guardrails validation failed — using original');
+        }
+
+        // ── PII Redaction for AI response logging ──
+        let redactedAiResponse = llmResponse;
+        try {
+          redactedAiResponse = redactPII(llmResponse).redactedText;
+        } catch (_) { /* keep original */ }
+
+        // Save AI response (PII-redacted in DB)
         await app.prisma.voiceUtterance.create({
           data: {
             callId: session.callId,
             speaker: 'ai',
-            text: llmResponse,
+            text: redactedAiResponse,
             dialect,
           },
         });
@@ -175,7 +308,7 @@ export default async function voiceStreamRoutes(app: FastifyInstance) {
           data: {
             conversationId: session.conversationId,
             direction: 'out',
-            bodyText: llmResponse,
+            bodyText: redactedAiResponse,
             payload: {
               source: 'voice',
               model: process.env.LLM_MODEL || 'gpt-4-turbo-preview',
@@ -215,7 +348,7 @@ export default async function voiceStreamRoutes(app: FastifyInstance) {
 
         callSessionManager.setSpeaking(callSid, false);
       } catch (error) {
-        app.log.error('Voice processing error:', error);
+        app.log.error(`Voice processing error: ${error}`);
 
         // Send error message in Arabic
         const session = callSessionManager.getSession(callSid);
@@ -228,7 +361,7 @@ export default async function voiceStreamRoutes(app: FastifyInstance) {
             const mulawAudio = pcmToMulaw(errorAudio);
             sendAudio(mulawAudio);
           } catch (ttsError) {
-            app.log.error('Failed to send error message:', ttsError);
+            app.log.error(`Failed to send error message: ${ttsError}`);
           }
         }
       } finally {
@@ -250,6 +383,17 @@ export default async function voiceStreamRoutes(app: FastifyInstance) {
             streamSid = message.start!.streamSid;
             callSid = message.start!.callSid;
             app.log.info(`Stream started: ${streamSid} for call ${callSid}`);
+
+            // ── Call Router: register call in state machine ──
+            try {
+              const session = callSessionManager.getSession(callSid);
+              if (session) {
+                callRouter.startCall(callSid, session.orgId, session.callerPhone, session.conversationId);
+                app.log.info('Call router initialized for call');
+              }
+            } catch (routerErr) {
+              app.log.error({ err: routerErr }, 'Failed to initialize call router');
+            }
             break;
 
           case 'media':
@@ -292,10 +436,65 @@ export default async function voiceStreamRoutes(app: FastifyInstance) {
             if (audioBuffer.length > 0) {
               await processAudio();
             }
+
+            // ── Post-call: SMS summary + call router cleanup + memory extraction ──
+            try {
+              if (callSid) {
+                const endedCall = callRouter.endCall(callSid);
+                if (endedCall) {
+                  const session = callSessionManager.getSession(callSid);
+                  if (session?.callerPhone) {
+                    // Send post-call follow-up SMS
+                    await smsDeflector.triggerPostCallSms({
+                      orgId: endedCall.orgId,
+                      trigger: 'follow_up',
+                      phone: session.callerPhone,
+                      patientId: endedCall.patientId ?? undefined,
+                      vars: {
+                        patient_name: '',
+                      },
+                    });
+                    app.log.info('Post-call SMS triggered');
+                  }
+
+                  // ── Memory Extraction: extract memories from voice conversation ──
+                  try {
+                    const conv = endedCall.conversationId
+                      ? await app.prisma.conversation.findUnique({
+                          where: { conversationId: endedCall.conversationId },
+                          select: { patientId: true },
+                        })
+                      : null;
+                    const voicePatientId = conv?.patientId ?? null;
+                    if (voicePatientId && endedCall.conversationId) {
+                      const messages = await app.prisma.conversationMessage.findMany({
+                        where: { conversationId: endedCall.conversationId },
+                        orderBy: { createdAt: 'asc' },
+                        select: { direction: true, bodyText: true },
+                      });
+                      const contextBuilder = getContextBuilder(app.prisma);
+                      await contextBuilder.extractMemories(
+                        voicePatientId,
+                        messages.map(m => ({
+                          direction: m.direction as 'in' | 'out',
+                          bodyText: m.bodyText,
+                        })),
+                        endedCall.conversationId,
+                      );
+                      app.log.info('Post-call memory extraction completed');
+                    }
+                  } catch (memErr) {
+                    app.log.error({ err: memErr }, 'Post-call memory extraction failed');
+                  }
+                }
+              }
+            } catch (postCallErr) {
+              app.log.error({ err: postCallErr }, 'Post-call processing failed');
+            }
             break;
         }
       } catch (error) {
-        app.log.error('Error processing WebSocket message:', error);
+        app.log.error(`Error processing WebSocket message: ${error}`);
       }
     });
 
@@ -306,8 +505,8 @@ export default async function voiceStreamRoutes(app: FastifyInstance) {
       }
     });
 
-    ws.on('error', (error) => {
-      app.log.error('Voice WebSocket error:', error);
+    ws.on('error', (error: Error) => {
+      app.log.error(`Voice WebSocket error: ${error.message}`);
     });
   });
 }

@@ -355,7 +355,7 @@ export default async function demoChatRoutes(app: FastifyInstance) {
         remainingMessages: remaining,
       };
     } catch (error) {
-      app.log.error('Demo chat error:', error);
+      app.log.error(`Demo chat error: ${error}`);
       return {
         error: 'ai_error',
         message: 'Sorry, I encountered an error. Please try again.',

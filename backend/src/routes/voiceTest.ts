@@ -78,11 +78,11 @@ export default async function voiceTestRoutes(app: FastifyInstance) {
     // If no user from middleware, try to verify token from query
     if (!user?.orgId && token) {
       try {
-        const jwt = await import('jsonwebtoken');
-        const decoded = jwt.default.verify(token, process.env.JWT_SECRET || 'your-super-secret-key-change-in-production') as any;
+        const jwt = await import('jsonwebtoken') as any;
+        const decoded = jwt.default.verify(token, process.env.JWT_SECRET!) as any;
         user = { orgId: decoded.orgId, userId: decoded.userId };
       } catch (e) {
-        app.log.error('Token verification failed:', e);
+        app.log.error(`Token verification failed: ${e}`);
       }
     }
     
@@ -200,7 +200,7 @@ ${systemPrompt}`;
 
             // Handle errors
             gemini.on('error', (error: Error) => {
-              app.log.error('Gemini error:', error);
+              app.log.error(`Gemini error: ${error.message}`);
               if (ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
                   type: 'error',
@@ -311,8 +311,8 @@ ${systemPrompt}`;
       app.log.info('Voice test WebSocket closed');
     });
 
-    ws.on('error', (error) => {
-      app.log.error('Voice test WebSocket error:', error);
+    ws.on('error', (error: Error) => {
+      app.log.error(`Voice test WebSocket error: ${error.message}`);
     });
 
     // Send connected message to signal backend is ready

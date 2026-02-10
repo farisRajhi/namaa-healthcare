@@ -261,7 +261,7 @@ export default async function voiceDemoRealtimeRoutes(app: FastifyInstance) {
 
             // Handle errors
             gemini.on('error', (error: Error) => {
-              app.log.error('Gemini error:', error);
+              app.log.error(`Gemini error: ${error.message}`);
               if (ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
                   type: 'error',
@@ -291,7 +291,7 @@ export default async function voiceDemoRealtimeRoutes(app: FastifyInstance) {
               sessions.set(ws, { gemini, dialect });
               app.log.info(`Real-time demo session started with dialect: ${dialect}`);
             } catch (error) {
-              app.log.error('Failed to connect to Gemini:', error);
+              app.log.error(`Failed to connect to Gemini: ${error}`);
               ws.send(JSON.stringify({
                 type: 'error',
                 message: 'Failed to connect to AI service',
@@ -342,7 +342,7 @@ export default async function voiceDemoRealtimeRoutes(app: FastifyInstance) {
           }
         }
       } catch (error) {
-        app.log.error('Error processing WebSocket message:', error);
+        app.log.error(`Error processing WebSocket message: ${error}`);
         ws.send(JSON.stringify({
           type: 'error',
           message: 'Invalid message format',
@@ -359,8 +359,8 @@ export default async function voiceDemoRealtimeRoutes(app: FastifyInstance) {
       app.log.info('Real-time demo WebSocket connection closed');
     });
 
-    ws.on('error', (error) => {
-      app.log.error('Real-time demo WebSocket error:', error);
+    ws.on('error', (error: Error) => {
+      app.log.error(`Real-time demo WebSocket error: ${error.message}`);
     });
   });
 

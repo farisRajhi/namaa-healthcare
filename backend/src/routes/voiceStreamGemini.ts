@@ -9,6 +9,8 @@ import {
 } from '../services/voice/geminiLive.js';
 import { buildVoiceSystemPrompt } from '../services/voicePrompt.js';
 import { TwilioMediaMessage, TwilioMediaResponse, ArabicDialect } from '../types/voice.js';
+import { GuardrailsService, ValidationContext } from '../services/ai/guardrails.js';
+import { redactPII } from '../services/security/piiRedactor.js';
 
 /**
  * Voice streaming routes using Gemini Multimodal Live API
@@ -185,13 +187,45 @@ ${basePrompt}`;
       gemini.on('text', async (text: string) => {
         app.log.info(`Gemini text: ${text}`);
 
+        let finalText = text;
+
+        // ── AI Guardrails: validate Gemini response ──
+        try {
+          const guardrailsSvc = new GuardrailsService(app.prisma);
+          const validationCtx: ValidationContext = {
+            orgId: session.orgId,
+            conversationId: session.conversationId,
+            userMessage: '', // Gemini handles STT internally, no separate user text here
+            aiResponse: text,
+          };
+          const result = await guardrailsSvc.validateResponse(validationCtx);
+
+          if (!result.approved && result.sanitizedResponse) {
+            app.log.warn(
+              { flags: result.flags },
+              'Gemini voice guardrails blocked response',
+            );
+            finalText = result.sanitizedResponse;
+            // Note: audio was already streamed by Gemini. The text log reflects the flag.
+            // In production, you'd intercept the audio stream before sending to Twilio.
+          }
+        } catch (grErr) {
+          app.log.error({ err: grErr }, 'Gemini guardrails validation failed');
+        }
+
+        // ── PII Redaction: redact before saving to DB ──
+        let redactedText = finalText;
+        try {
+          redactedText = redactPII(finalText).redactedText;
+        } catch (_) { /* keep original */ }
+
         // Save AI response to conversation
         if (session.conversationId) {
           await app.prisma.conversationMessage.create({
             data: {
               conversationId: session.conversationId,
               direction: 'out',
-              bodyText: text,
+              bodyText: redactedText,
               payload: {
                 source: 'voice',
                 model: 'gemini-2.0-flash',
@@ -205,7 +239,7 @@ ${basePrompt}`;
             data: {
               callId: session.callId,
               speaker: 'ai',
-              text,
+              text: redactedText,
               dialect: session.detectedDialect,
             },
           });
@@ -214,13 +248,13 @@ ${basePrompt}`;
 
       // Handle function calls from Gemini
       gemini.on('functionCall', async (name: string, args: Record<string, unknown>) => {
-        app.log.info(`Gemini function call: ${name}`, args);
+        app.log.info(`Gemini function call: ${name} ${JSON.stringify(args)}`);
 
         try {
           const result = await handleFunctionCall(app, session.orgId, name, args);
           gemini.sendFunctionResponse(name, result);
         } catch (error) {
-          app.log.error(`Function call error: ${name}`, error);
+          app.log.error(`Function call error: ${name} ${error}`);
           gemini.sendFunctionResponse(name, { error: 'Failed to execute function' });
         }
       });
@@ -233,7 +267,7 @@ ${basePrompt}`;
 
       // Handle errors
       gemini.on('error', (error: Error) => {
-        app.log.error('Gemini session error:', error);
+        app.log.error(`Gemini session error: ${error}`);
       });
 
       // Connect to Gemini
@@ -242,7 +276,7 @@ ${basePrompt}`;
         app.log.info(`Gemini session connected for call ${twilioCallSid}`);
         return gemini;
       } catch (error) {
-        app.log.error('Failed to connect to Gemini:', error);
+        app.log.error(`Failed to connect to Gemini: ${error}`);
         geminiLiveSessionManager.removeSession(twilioCallSid);
         return null;
       }
@@ -309,7 +343,7 @@ ${basePrompt}`;
             break;
         }
       } catch (error) {
-        app.log.error('Error processing WebSocket message:', error);
+        app.log.error(`Error processing WebSocket message: ${error}`);
       }
     });
 
@@ -320,8 +354,8 @@ ${basePrompt}`;
       }
     });
 
-    ws.on('error', (error) => {
-      app.log.error('Gemini Voice WebSocket error:', error);
+    ws.on('error', (error: Error) => {
+      app.log.error(`Gemini Voice WebSocket error: ${error.message}`);
     });
   });
 }
@@ -350,7 +384,7 @@ async function handleFunctionCall(
       const whereClause: Record<string, unknown> = { orgId };
       if (providerId) whereClause.providerId = providerId;
 
-      const availabilityRules = await app.prisma.providerAvailability.findMany({
+      const availabilityRules = await app.prisma.providerAvailabilityRule.findMany({
         where: {
           ...whereClause,
           dayOfWeek,
@@ -369,13 +403,13 @@ async function handleFunctionCall(
       const existingAppointments = await app.prisma.appointment.findMany({
         where: {
           orgId,
-          startAt: { gte: startOfDay, lte: endOfDay },
+          startTs: { gte: startOfDay, lte: endOfDay },
           status: { in: ['held', 'booked', 'confirmed'] },
         },
       });
 
       // Calculate available slots
-      const availableSlots = availabilityRules.map((rule) => ({
+      const availableSlots = availabilityRules.map((rule: any) => ({
         providerId: rule.providerId,
         providerName: rule.provider.displayName,
         date: targetDate.toISOString().split('T')[0],
@@ -400,17 +434,28 @@ async function handleFunctionCall(
         dateTime: string;
       };
 
-      // Find or create patient
-      let patient = await app.prisma.patient.findFirst({
-        where: { orgId, phoneE164: patientPhone },
+      // Find or create patient by phone via PatientContact
+      const contact = await app.prisma.patientContact.findFirst({
+        where: { contactType: 'phone', contactValue: patientPhone },
       });
+      let patient = contact
+        ? await app.prisma.patient.findFirst({ where: { patientId: contact.patientId, orgId } })
+        : null;
 
       if (!patient) {
+        const nameParts = patientName.split(' ');
         patient = await app.prisma.patient.create({
           data: {
             orgId,
-            fullName: patientName,
-            phoneE164: patientPhone,
+            firstName: nameParts[0] || 'Unknown',
+            lastName: nameParts.slice(1).join(' ') || 'Unknown',
+            contacts: {
+              create: {
+                contactType: 'phone',
+                contactValue: patientPhone,
+                isPrimary: true,
+              },
+            },
           },
         });
       }
@@ -420,8 +465,8 @@ async function handleFunctionCall(
         where: { serviceId },
       });
 
-      const startAt = new Date(dateTime);
-      const endAt = new Date(startAt.getTime() + (service?.durationMin || 30) * 60000);
+      const startTs = new Date(dateTime);
+      const endTs = new Date(startTs.getTime() + (service?.durationMin || 30) * 60000);
 
       // Create appointment
       const appointment = await app.prisma.appointment.create({
@@ -430,10 +475,10 @@ async function handleFunctionCall(
           patientId: patient.patientId,
           providerId,
           serviceId,
-          startAt,
-          endAt,
+          startTs,
+          endTs,
           status: 'booked',
-          channel: 'phone',
+          bookedVia: 'phone',
         },
         include: {
           provider: true,
@@ -446,7 +491,7 @@ async function handleFunctionCall(
         appointmentId: appointment.appointmentId,
         providerName: appointment.provider.displayName,
         serviceName: appointment.service?.name,
-        dateTime: startAt.toISOString(),
+        dateTime: startTs.toISOString(),
         message: `Appointment booked successfully for ${patientName}`,
       };
     }
@@ -457,13 +502,18 @@ async function handleFunctionCall(
         patientPhone: string;
       };
 
-      // Find appointment
-      const appointment = await app.prisma.appointment.findFirst({
-        where: {
-          appointmentId,
-          patient: { phoneE164: patientPhone },
-        },
+      // Find appointment - verify patient phone via PatientContact
+      const cancelContact = await app.prisma.patientContact.findFirst({
+        where: { contactType: 'phone', contactValue: patientPhone },
       });
+      const appointment = cancelContact
+        ? await app.prisma.appointment.findFirst({
+            where: {
+              appointmentId,
+              patientId: cancelContact.patientId,
+            },
+          })
+        : null;
 
       if (!appointment) {
         return {
@@ -487,9 +537,13 @@ async function handleFunctionCall(
     case 'get_patient_appointments': {
       const { patientPhone } = args as { patientPhone: string };
 
-      const patient = await app.prisma.patient.findFirst({
-        where: { orgId, phoneE164: patientPhone },
+      // Find patient by phone via PatientContact
+      const patientContact = await app.prisma.patientContact.findFirst({
+        where: { contactType: 'phone', contactValue: patientPhone },
       });
+      const patient = patientContact
+        ? await app.prisma.patient.findFirst({ where: { patientId: patientContact.patientId, orgId } })
+        : null;
 
       if (!patient) {
         return {
@@ -503,13 +557,13 @@ async function handleFunctionCall(
         where: {
           patientId: patient.patientId,
           status: { in: ['booked', 'confirmed'] },
-          startAt: { gte: new Date() },
+          startTs: { gte: new Date() },
         },
         include: {
           provider: true,
           service: true,
         },
-        orderBy: { startAt: 'asc' },
+        orderBy: { startTs: 'asc' },
         take: 5,
       });
 
@@ -519,7 +573,7 @@ async function handleFunctionCall(
           appointmentId: apt.appointmentId,
           providerName: apt.provider.displayName,
           serviceName: apt.service?.name,
-          dateTime: apt.startAt.toISOString(),
+          dateTime: apt.startTs.toISOString(),
           status: apt.status,
         })),
       };

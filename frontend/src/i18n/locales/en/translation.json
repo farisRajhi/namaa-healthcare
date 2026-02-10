@@ -6,9 +6,35 @@
     "getStarted": "Get Started",
     "save": "Save Changes",
     "cancel": "Cancel",
+    "close": "Close",
     "loading": "Loading...",
     "organization": "Organization",
-    "features": "Features"
+    "features": "Features",
+    "add": "Add",
+    "edit": "Edit",
+    "delete": "Delete",
+    "update": "Update",
+    "search": "Search",
+    "filter": "Filter",
+    "yes": "Yes",
+    "no": "No",
+    "active": "Active",
+    "inactive": "Inactive",
+    "all": "All",
+    "noData": "No data available yet",
+    "previous": "Previous",
+    "next": "Next",
+    "saving": "Saving...",
+    "creating": "Creating...",
+    "adding": "Adding...",
+    "live": "Live",
+    "quickSearch": "Quick search...",
+    "showing": "Showing {{from}} to {{to}} of {{total}}",
+    "page": "Page {{page}} of {{totalPages}}",
+    "minutes": "min",
+    "providers": "providers",
+    "services": "services",
+    "total": "Total"
   },
   "landing": {
     "brand": "Namaa",
@@ -92,6 +118,17 @@
         "residency": "Data residency options"
       }
     },
+    "demo": {
+      "badge": "Try It Free Now",
+      "title": "Try the AI Assistant",
+      "subtitle": "Interact with our AI assistant via text chat or voice",
+      "tryNow": "Try Now",
+      "features": {
+        "dialects": "Understands Arabic dialects",
+        "booking": "Appointment booking",
+        "availability": "Available 24/7"
+      }
+    },
     "finalCta": {
       "title": "Ready to Transform Your Practice?",
       "subtitle": "Start your free trial today. No credit card required."
@@ -122,11 +159,16 @@
   "dashboard": {
     "title": "Dashboard",
     "subtitle": "Overview of your business performance",
+    "loadingData": "Loading data...",
+    "lastUpdate": "Last update: {{time}}",
+    "last14Days": "Last 14 days",
+    "channelDistribution": "Booking channel distribution",
     "stats": {
       "totalPatients": "Total Patients",
       "activeProviders": "Active Providers",
       "todayAppointments": "Today's Appointments",
-      "thisMonth": "This Month"
+      "thisMonth": "This Month",
+      "aiCallsToday": "AI Calls Today"
     },
     "charts": {
       "appointments": "Appointments (Last 14 Days)",
@@ -151,7 +193,32 @@
     "patients": "Patients",
     "services": "Services",
     "management": "Management",
-    "settings": "Settings"
+    "settings": "Settings",
+    "callCenter": "Call Center",
+    "prescriptions": "Prescriptions",
+    "faq": "FAQ",
+    "campaigns": "Campaigns",
+    "reminders": "Reminders",
+    "analyticsDashboard": "Analytics Dashboard",
+    "fleet": "Fleet Management",
+    "quality": "Quality Review",
+    "integrations": "Integrations",
+    "audit": "Audit Log",
+    "providers": "Providers",
+    "departments": "Departments",
+    "facilities": "Facilities",
+    "smsTemplates": "SMS Templates",
+    "waitlist": "Waitlist",
+    "agentBuilder": "Agent Builder",
+    "generalManagement": "General Management",
+    "groups": {
+      "main": "Main",
+      "operations": "Operations",
+      "management": "Management",
+      "marketing": "Marketing",
+      "analytics": "Analytics",
+      "system": "System"
+    }
   },
   "demoChat": {
     "openChat": "Try AI Assistant",
