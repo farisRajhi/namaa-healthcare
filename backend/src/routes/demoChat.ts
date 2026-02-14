@@ -5,7 +5,7 @@ import { buildSystemPrompt } from '../services/systemPrompt.js';
 
 // Schemas
 const sendMessageSchema = z.object({
-  sessionId: z.string().uuid(),
+  sessionId: z.string().min(1).max(100),
   message: z.string().min(1).max(500),
   conversationHistory: z.array(z.object({
     role: z.enum(['user', 'assistant']),
@@ -15,7 +15,7 @@ const sendMessageSchema = z.object({
 });
 
 const newSessionSchema = z.object({
-  sessionId: z.string().uuid(),
+  sessionId: z.string().min(1).max(100),
 });
 
 // Rate limiting storage (in-memory)

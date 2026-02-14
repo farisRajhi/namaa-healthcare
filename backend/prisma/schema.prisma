@@ -7,32 +7,33 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Org {
-  orgId           String   @id @default(dbgenerated("gen_random_uuid()")) @map("org_id") @db.Uuid
-  name            String
-  defaultTimezone String   @default("UTC") @map("default_timezone")
-  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+// ─── Core Org ───────────────────────────────────────────────
 
+model Org {
+  orgId           String           @id @default(dbgenerated("gen_random_uuid()")) @map("org_id") @db.Uuid
+  name            String
+  defaultTimezone String           @default("UTC") @map("default_timezone")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  agentFlows      AgentFlow[]
   phoneNumbers    OrgPhoneNumber[]
 
   @@map("orgs")
 }
 
 model Facility {
-  facilityId   String   @id @default(dbgenerated("gen_random_uuid()")) @map("facility_id") @db.Uuid
-  orgId        String   @map("org_id") @db.Uuid
+  facilityId   String        @id @default(dbgenerated("gen_random_uuid()")) @map("facility_id") @db.Uuid
+  orgId        String        @map("org_id") @db.Uuid
   name         String
   timezone     String
-  addressLine1 String?  @map("address_line1")
-  addressLine2 String?  @map("address_line2")
+  addressLine1 String?       @map("address_line1")
+  addressLine2 String?       @map("address_line2")
   city         String?
   region       String?
-  postalCode   String?  @map("postal_code")
+  postalCode   String?       @map("postal_code")
   country      String?
-  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  providers    Provider[]
+  createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   appointments Appointment[]
+  providers    Provider[]
 
   @@unique([orgId, name])
   @@map("facilities")
@@ -43,12 +44,14 @@ model Department {
   orgId        String        @map("org_id") @db.Uuid
   name         String
   createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
-  providers    Provider[]
   appointments Appointment[]
+  providers    Provider[]
 
   @@unique([orgId, name])
   @@map("departments")
 }
+
+// ─── Provider / Service ─────────────────────────────────────
 
 model Provider {
   providerId        String                     @id @default(dbgenerated("gen_random_uuid()")) @map("provider_id") @db.Uuid
@@ -59,9 +62,10 @@ model Provider {
   credentials       String?
   active            Boolean                    @default(true)
   createdAt         DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  appointments      Appointment[]
   availabilityRules ProviderAvailabilityRule[]
-  timeOff           ProviderTimeOff[]
   services          ProviderService[]
+  timeOff           ProviderTimeOff[]
   department        Department?                @relation(fields: [departmentId], references: [departmentId])
   facility          Facility?                  @relation(fields: [facilityId], references: [facilityId])
 
@@ -77,6 +81,7 @@ model Service {
   bufferAfterMin  Int               @default(0) @map("buffer_after_min")
   active          Boolean           @default(true)
   createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  appointments    Appointment[]
   providers       ProviderService[]
 
   @@unique([orgId, name])
@@ -120,15 +125,20 @@ model ProviderTimeOff {
   @@map("provider_time_off")
 }
 
+// ─── Patient ────────────────────────────────────────────────
+
 model Patient {
-  patientId   String          @id @default(dbgenerated("gen_random_uuid()")) @map("patient_id") @db.Uuid
-  orgId       String          @map("org_id") @db.Uuid
-  firstName   String          @map("first_name")
-  lastName    String          @map("last_name")
-  dateOfBirth DateTime?       @map("date_of_birth") @db.Date
+  patientId   String                     @id @default(dbgenerated("gen_random_uuid()")) @map("patient_id") @db.Uuid
+  orgId       String                     @map("org_id") @db.Uuid
+  firstName   String                     @map("first_name")
+  lastName    String                     @map("last_name")
+  dateOfBirth DateTime?                  @map("date_of_birth") @db.Date
   sex         String?
   mrn         String?
-  createdAt   DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  createdAt   DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  appointments Appointment[]
+  patientLinks MessagingUserPatientLink[]
+  contacts    PatientContact[]
   memories    PatientMemory[]
 
   @@unique([orgId, mrn])
@@ -143,6 +153,7 @@ model PatientContact {
   isPrimary    Boolean   @default(false) @map("is_primary")
   verifiedAt   DateTime? @map("verified_at") @db.Timestamptz(6)
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  patient      Patient   @relation(fields: [patientId], references: [patientId], onDelete: Cascade)
 
   @@index([contactType, contactValue], map: "idx_patient_contacts_lookup")
   @@map("patient_contacts")
@@ -167,29 +178,36 @@ model PatientMemory {
   @@map("patient_memories")
 }
 
+// ─── Messaging ──────────────────────────────────────────────
+
 model MessagingUser {
-  messagingUserId String   @id @default(dbgenerated("gen_random_uuid()")) @map("messaging_user_id") @db.Uuid
-  orgId           String   @map("org_id") @db.Uuid
+  messagingUserId String                     @id @default(dbgenerated("gen_random_uuid()")) @map("messaging_user_id") @db.Uuid
+  orgId           String                     @map("org_id") @db.Uuid
   channel         channel
-  externalUserId  String   @map("external_user_id")
-  phoneE164       String?  @map("phone_e164")
-  displayName     String?  @map("display_name")
-  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  externalUserId  String                     @map("external_user_id")
+  phoneE164       String?                    @map("phone_e164")
+  displayName     String?                    @map("display_name")
+  createdAt       DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  patientLinks    MessagingUserPatientLink[]
 
   @@unique([orgId, channel, externalUserId])
   @@map("messaging_users")
 }
 
 model MessagingUserPatientLink {
-  messagingUserId String   @map("messaging_user_id") @db.Uuid
-  patientId       String   @map("patient_id") @db.Uuid
-  relationship    String   @default("self")
-  isDefault       Boolean  @default(false) @map("is_default")
-  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  messagingUserId String        @map("messaging_user_id") @db.Uuid
+  patientId       String        @map("patient_id") @db.Uuid
+  relationship    String        @default("self")
+  isDefault       Boolean       @default(false) @map("is_default")
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+  messagingUser   MessagingUser @relation(fields: [messagingUserId], references: [messagingUserId], onDelete: Cascade)
+  patient         Patient       @relation(fields: [patientId], references: [patientId], onDelete: Cascade)
 
   @@id([messagingUserId, patientId])
   @@map("messaging_user_patient_links")
 }
+
+// ─── Conversations ──────────────────────────────────────────
 
 model Conversation {
   conversationId    String                @id @default(dbgenerated("gen_random_uuid()")) @map("conversation_id") @db.Uuid
@@ -243,27 +261,33 @@ model ConversationSummary {
   @@map("conversation_summaries")
 }
 
+// ─── Appointments ───────────────────────────────────────────
+
 model Appointment {
-  appointmentId           String             @id @default(dbgenerated("gen_random_uuid()")) @map("appointment_id") @db.Uuid
-  orgId                   String             @map("org_id") @db.Uuid
-  facilityId              String?            @map("facility_id") @db.Uuid
-  departmentId            String?            @map("department_id") @db.Uuid
-  providerId              String             @map("provider_id") @db.Uuid
-  patientId               String?            @map("patient_id") @db.Uuid
-  serviceId               String             @map("service_id") @db.Uuid
-  startTs                 DateTime           @map("start_ts") @db.Timestamptz(6)
-  endTs                   DateTime           @map("end_ts") @db.Timestamptz(6)
+  appointmentId           String                     @id @default(dbgenerated("gen_random_uuid()")) @map("appointment_id") @db.Uuid
+  orgId                   String                     @map("org_id") @db.Uuid
+  facilityId              String?                    @map("facility_id") @db.Uuid
+  departmentId            String?                    @map("department_id") @db.Uuid
+  providerId              String                     @map("provider_id") @db.Uuid
+  patientId               String?                    @map("patient_id") @db.Uuid
+  serviceId               String                     @map("service_id") @db.Uuid
+  startTs                 DateTime                   @map("start_ts") @db.Timestamptz(6)
+  endTs                   DateTime                   @map("end_ts") @db.Timestamptz(6)
   status                  appointment_status
-  holdExpiresAt           DateTime?          @map("hold_expires_at") @db.Timestamptz(6)
-  bookedVia               channel            @default(api) @map("booked_via")
-  bookedByMessagingUserId String?            @map("booked_by_messaging_user_id") @db.Uuid
-  conversationId          String?            @map("conversation_id") @db.Uuid
+  holdExpiresAt           DateTime?                  @map("hold_expires_at") @db.Timestamptz(6)
+  bookedVia               channel                    @default(api) @map("booked_via")
+  bookedByMessagingUserId String?                    @map("booked_by_messaging_user_id") @db.Uuid
+  conversationId          String?                    @map("conversation_id") @db.Uuid
   reason                  String?
   notes                   String?
-  createdAt               DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt               DateTime           @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  department              Department?        @relation(fields: [departmentId], references: [departmentId])
-  facility                Facility?          @relation(fields: [facilityId], references: [facilityId])
+  createdAt               DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt               DateTime                   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  statusHistory           AppointmentStatusHistory[]
+  department              Department?                @relation(fields: [departmentId], references: [departmentId])
+  facility                Facility?                  @relation(fields: [facilityId], references: [facilityId])
+  patient                 Patient?                   @relation(fields: [patientId], references: [patientId])
+  provider                Provider                   @relation(fields: [providerId], references: [providerId])
+  service                 Service                    @relation(fields: [serviceId], references: [serviceId])
 
   @@index([patientId, startTs(sort: Desc)], map: "idx_appointments_patient_time")
   @@index([providerId, startTs(sort: Desc)], map: "idx_appointments_provider_time")
@@ -278,9 +302,12 @@ model AppointmentStatusHistory {
   reason        String?
   oldStatus     AppointmentStatus? @map("old_status")
   newStatus     AppointmentStatus  @map("new_status")
+  appointment   Appointment        @relation(fields: [appointmentId], references: [appointmentId], onDelete: Cascade)
 
   @@map("appointment_status_history")
 }
+
+// ─── Outbox ─────────────────────────────────────────────────
 
 model OutboxEvent {
   eventId       String    @id @default(dbgenerated("gen_random_uuid()")) @map("event_id") @db.Uuid
@@ -295,6 +322,525 @@ model OutboxEvent {
 
   @@map("outbox_events")
 }
+
+// ─── Voice ──────────────────────────────────────────────────
+
+model VoiceCall {
+  callId          String           @id @default(dbgenerated("gen_random_uuid()")) @map("call_id") @db.Uuid
+  orgId           String           @map("org_id") @db.Uuid
+  conversationId  String?          @map("conversation_id") @db.Uuid
+  twilioCallSid   String           @unique @map("twilio_call_sid")
+  callerPhone     String           @map("caller_phone")
+  calledPhone     String           @map("called_phone")
+  direction       call_direction   @default(inbound)
+  status          call_status      @default(ringing)
+  detectedDialect String?          @map("detected_dialect")
+  durationSec     Int?             @map("duration_sec")
+  recordingUrl    String?          @map("recording_url")
+  transcriptUrl   String?          @map("transcript_url")
+  context         Json             @default("{}")
+  startedAt       DateTime         @default(now()) @map("started_at") @db.Timestamptz(6)
+  endedAt         DateTime?        @map("ended_at") @db.Timestamptz(6)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  conversation    Conversation?    @relation(fields: [conversationId], references: [conversationId])
+  utterances      VoiceUtterance[]
+
+  @@index([orgId, startedAt(sort: Desc)])
+  @@map("voice_calls")
+}
+
+model VoiceUtterance {
+  utteranceId String       @id @default(dbgenerated("gen_random_uuid()")) @map("utterance_id") @db.Uuid
+  callId      String       @map("call_id") @db.Uuid
+  speaker     speaker_type
+  text        String
+  confidence  Float?
+  durationMs  Int?         @map("duration_ms")
+  dialect     String?
+  audioUrl    String?      @map("audio_url")
+  timestamp   DateTime     @default(now()) @db.Timestamptz(6)
+  call        VoiceCall    @relation(fields: [callId], references: [callId], onDelete: Cascade)
+
+  @@index([callId, timestamp])
+  @@map("voice_utterances")
+}
+
+model OrgPhoneNumber {
+  phoneNumberId String            @id @default(dbgenerated("gen_random_uuid()")) @map("phone_number_id") @db.Uuid
+  orgId         String            @map("org_id") @db.Uuid
+  twilioNumber  String            @unique @map("twilio_number")
+  twilioSid     String?           @map("twilio_sid")
+  numberType    phone_number_type @default(twilio_owned) @map("number_type")
+  forwardedFrom String?           @map("forwarded_from")
+  friendlyName  String?           @map("friendly_name")
+  isActive      Boolean           @default(true) @map("is_active")
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  org           Org               @relation(fields: [orgId], references: [orgId], onDelete: Cascade)
+
+  @@index([twilioNumber])
+  @@index([orgId])
+  @@map("org_phone_numbers")
+}
+
+// ─── Agent Builder ──────────────────────────────────────────
+
+model AgentFlow {
+  agentFlowId      String             @id @default(dbgenerated("gen_random_uuid()")) @map("agent_flow_id") @db.Uuid
+  orgId            String             @map("org_id") @db.Uuid
+  name             String
+  nameAr           String?            @map("name_ar")
+  description      String?
+  descriptionAr    String?            @map("description_ar")
+  nodes            Json
+  edges            Json
+  variables        Json?
+  settings         Json?
+  isActive         Boolean            @default(false) @map("is_active")
+  isTemplate       Boolean            @default(false) @map("is_template")
+  templateCategory String?            @map("template_category")
+  version          Int                @default(1)
+  publishedAt      DateTime?          @map("published_at") @db.Timestamptz(6)
+  createdAt        DateTime           @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime           @default(now()) @map("updated_at") @db.Timestamptz(6)
+  sessions         AgentFlowSession[]
+  org              Org                @relation(fields: [orgId], references: [orgId], onDelete: Cascade)
+
+  @@index([isTemplate, templateCategory])
+  @@index([orgId, isActive])
+  @@map("agent_flows")
+}
+
+model AgentFlowSession {
+  sessionId     String    @id @default(dbgenerated("gen_random_uuid()")) @map("session_id") @db.Uuid
+  flowId        String    @map("flow_id") @db.Uuid
+  conversationId String?  @map("conversation_id") @db.Uuid
+  currentNodeId String    @map("current_node_id")
+  variables     Json?
+  history       Json?
+  status        String    @default("active")
+  startedAt     DateTime  @default(now()) @map("started_at") @db.Timestamptz(6)
+  completedAt   DateTime? @map("completed_at") @db.Timestamptz(6)
+  flow          AgentFlow @relation(fields: [flowId], references: [agentFlowId], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([flowId, status])
+  @@map("agent_flow_sessions")
+}
+
+// ─── Reminders ──────────────────────────────────────────────
+
+model AppointmentReminder {
+  reminderId    String    @id @default(dbgenerated("gen_random_uuid()")) @map("reminder_id") @db.Uuid
+  appointmentId String    @map("appointment_id") @db.Uuid
+  channel       String
+  scheduledFor  DateTime  @map("scheduled_for") @db.Timestamptz(6)
+  sentAt        DateTime? @map("sent_at") @db.Timestamptz(6)
+  status        String    @default("pending")
+  response      String?
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([appointmentId])
+  @@index([scheduledFor, status])
+  @@map("appointment_reminders")
+}
+
+// ─── Security ───────────────────────────────────────────────
+
+model AuditLog {
+  auditId    String   @id @default(dbgenerated("gen_random_uuid()")) @map("audit_id") @db.Uuid
+  orgId      String   @map("org_id") @db.Uuid
+  userId     String?  @map("user_id")
+  action     String
+  resource   String
+  resourceId String?  @map("resource_id")
+  details    Json?
+  ipAddress  String?  @map("ip_address")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([orgId, createdAt(sort: Desc)])
+  @@map("audit_logs")
+}
+
+// ─── Quality ────────────────────────────────────────────────
+
+model CallQualityScore {
+  scoreId        String   @id @default(dbgenerated("gen_random_uuid()")) @map("score_id") @db.Uuid
+  callId         String?  @map("call_id") @db.Uuid
+  conversationId String?  @map("conversation_id") @db.Uuid
+  accuracyScore  Int      @map("accuracy_score")
+  toneScore      Int      @map("tone_score")
+  resolutionScore Int     @map("resolution_score")
+  complianceScore Int     @map("compliance_score")
+  overallScore   Int      @map("overall_score")
+  flagged        Boolean  @default(false)
+  flagReason     String?  @map("flag_reason")
+  reviewedBy     String?  @map("reviewed_by")
+  reviewNotes    String?  @map("review_notes")
+  analyzedAt     DateTime @default(now()) @map("analyzed_at") @db.Timestamptz(6)
+
+  @@index([overallScore])
+  @@map("call_quality_scores")
+}
+
+// ─── Campaigns ──────────────────────────────────────────────
+
+model Campaign {
+  campaignId      String           @id @default(dbgenerated("gen_random_uuid()")) @map("campaign_id") @db.Uuid
+  orgId           String           @map("org_id") @db.Uuid
+  name            String
+  nameAr          String?          @map("name_ar")
+  type            String
+  status          String           @default("draft")
+  targetFilter    Json             @default("{}") @map("target_filter")
+  channelSequence String[]         @map("channel_sequence")
+  scriptEn        String?          @map("script_en")
+  scriptAr        String?          @map("script_ar")
+  maxCallsPerHour Int              @default(50) @map("max_calls_per_hour")
+  startDate       DateTime?        @map("start_date") @db.Timestamptz(6)
+  endDate         DateTime?        @map("end_date") @db.Timestamptz(6)
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
+  targets         CampaignTarget[]
+
+  @@index([orgId, status])
+  @@map("campaigns")
+}
+
+model CampaignTarget {
+  targetId     String    @id @default(dbgenerated("gen_random_uuid()")) @map("target_id") @db.Uuid
+  campaignId   String    @map("campaign_id") @db.Uuid
+  patientId    String    @map("patient_id") @db.Uuid
+  status       String    @default("pending")
+  attempts     Int       @default(0)
+  lastChannel  String?   @map("last_channel")
+  bookedApptId String?   @map("booked_appt_id") @db.Uuid
+  notes        String?
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  campaign     Campaign  @relation(fields: [campaignId], references: [campaignId], onDelete: Cascade)
+
+  @@index([campaignId, status])
+  @@map("campaign_targets")
+}
+
+// ─── Care Gaps ──────────────────────────────────────────────
+
+model CareGapRule {
+  careGapRuleId String   @id @default(dbgenerated("gen_random_uuid()")) @map("care_gap_rule_id") @db.Uuid
+  orgId         String   @map("org_id") @db.Uuid
+  name          String
+  nameAr        String?  @map("name_ar")
+  condition     Json
+  priority      String   @default("medium")
+  action        String
+  messageEn     String?  @map("message_en")
+  messageAr     String?  @map("message_ar")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([orgId])
+  @@map("care_gap_rules")
+}
+
+model PatientCareGap {
+  careGapId  String    @id @default(dbgenerated("gen_random_uuid()")) @map("care_gap_id") @db.Uuid
+  patientId  String    @map("patient_id") @db.Uuid
+  ruleId     String    @map("rule_id") @db.Uuid
+  riskScore  Int       @default(0) @map("risk_score")
+  status     String    @default("open")
+  detectedAt DateTime  @default(now()) @map("detected_at") @db.Timestamptz(6)
+  resolvedAt DateTime? @map("resolved_at") @db.Timestamptz(6)
+
+  @@index([patientId, status])
+  @@map("patient_care_gaps")
+}
+
+// ─── Escalation / Routing ───────────────────────────────────
+
+model EscalationRule {
+  ruleId       String   @id @default(dbgenerated("gen_random_uuid()")) @map("rule_id") @db.Uuid
+  orgId        String   @map("org_id") @db.Uuid
+  triggerType  String   @map("trigger_type")
+  triggerValue String   @map("trigger_value")
+  action       String
+  targetType   String   @map("target_type")
+  targetValue  String   @map("target_value")
+  priority     Int      @default(0)
+  isActive     Boolean  @default(true) @map("is_active")
+  schedule     Json?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([orgId, triggerType])
+  @@map("escalation_rules")
+}
+
+model Handoff {
+  handoffId      String    @id @default(dbgenerated("gen_random_uuid()")) @map("handoff_id") @db.Uuid
+  conversationId String    @map("conversation_id") @db.Uuid
+  reason         String
+  summary        String
+  patientContext Json      @default("{}") @map("patient_context")
+  assignedTo     String?   @map("assigned_to")
+  status         String    @default("pending")
+  waitTimeSec    Int?      @map("wait_time_sec")
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  acceptedAt     DateTime? @map("accepted_at") @db.Timestamptz(6)
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(6)
+
+  @@index([conversationId])
+  @@map("handoffs")
+}
+
+// ─── Facility Config ────────────────────────────────────────
+
+model FacilityConfig {
+  configId      String   @id @default(dbgenerated("gen_random_uuid()")) @map("config_id") @db.Uuid
+  facilityId    String   @unique @map("facility_id") @db.Uuid
+  greetingEn    String?  @map("greeting_en")
+  greetingAr    String?  @map("greeting_ar")
+  businessHours Json?    @map("business_hours")
+  languages     String[] @default(["ar", "en"])
+  aiEnabled     Boolean  @default(true) @map("ai_enabled")
+  maxWaitSec    Int      @default(30) @map("max_wait_sec")
+  afterHoursMsg String?  @map("after_hours_msg")
+  customFaqs    Json?    @map("custom_faqs")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("facility_configs")
+}
+
+// ─── FAQ / Triage ───────────────────────────────────────────
+
+model FaqEntry {
+  faqId      String   @id @default(dbgenerated("gen_random_uuid()")) @map("faq_id") @db.Uuid
+  orgId      String   @map("org_id") @db.Uuid
+  category   String
+  questionEn String   @map("question_en")
+  questionAr String   @map("question_ar")
+  answerEn   String   @map("answer_en")
+  answerAr   String   @map("answer_ar")
+  priority   Int      @default(0)
+  isActive   Boolean  @default(true) @map("is_active")
+  viewCount  Int      @default(0) @map("view_count")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([orgId, category])
+  @@map("faq_entries")
+}
+
+model TriageRule {
+  ruleId     String   @id @default(dbgenerated("gen_random_uuid()")) @map("rule_id") @db.Uuid
+  orgId      String   @map("org_id") @db.Uuid
+  keywords   String[]
+  severity   String
+  responseEn String   @map("response_en")
+  responseAr String   @map("response_ar")
+  action     String
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([orgId])
+  @@map("triage_rules")
+}
+
+// ─── Integrations ───────────────────────────────────────────
+
+model Integration {
+  integrationId String    @id @default(dbgenerated("gen_random_uuid()")) @map("integration_id") @db.Uuid
+  orgId         String    @map("org_id") @db.Uuid
+  type          String
+  provider      String
+  config        Json      @default("{}")
+  isActive      Boolean   @default(true) @map("is_active")
+  lastSyncAt    DateTime? @map("last_sync_at") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([orgId, type])
+  @@map("integrations")
+}
+
+// ─── Prescriptions ──────────────────────────────────────────
+
+model Prescription {
+  prescriptionId    String                @id @default(dbgenerated("gen_random_uuid()")) @map("prescription_id") @db.Uuid
+  orgId             String                @map("org_id") @db.Uuid
+  patientId         String                @map("patient_id") @db.Uuid
+  providerId        String                @map("provider_id") @db.Uuid
+  medicationName    String                @map("medication_name")
+  medicationNameAr  String?               @map("medication_name_ar")
+  dosage            String
+  frequency         String
+  refillsRemaining  Int                   @default(0) @map("refills_remaining")
+  refillsTotal      Int                   @default(0) @map("refills_total")
+  status            String                @default("active")
+  startDate         DateTime              @map("start_date") @db.Date
+  endDate           DateTime?             @map("end_date") @db.Date
+  pharmacyName      String?               @map("pharmacy_name")
+  pharmacyPhone     String?               @map("pharmacy_phone")
+  notes             String?
+  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime              @default(now()) @map("updated_at") @db.Timestamptz(6)
+  reminders         MedicationReminder[]
+  refills           PrescriptionRefill[]
+
+  @@index([patientId, status])
+  @@map("prescriptions")
+}
+
+model PrescriptionRefill {
+  refillId       String       @id @default(dbgenerated("gen_random_uuid()")) @map("refill_id") @db.Uuid
+  prescriptionId String       @map("prescription_id") @db.Uuid
+  requestedVia   String       @map("requested_via")
+  conversationId String?      @map("conversation_id") @db.Uuid
+  status         String       @default("pending")
+  requestedAt    DateTime     @default(now()) @map("requested_at") @db.Timestamptz(6)
+  processedAt    DateTime?    @map("processed_at") @db.Timestamptz(6)
+  processedBy    String?      @map("processed_by")
+  notes          String?
+  prescription   Prescription @relation(fields: [prescriptionId], references: [prescriptionId], onDelete: Cascade)
+
+  @@index([prescriptionId])
+  @@map("prescription_refills")
+}
+
+model MedicationReminder {
+  reminderId     String       @id @default(dbgenerated("gen_random_uuid()")) @map("reminder_id") @db.Uuid
+  patientId      String       @map("patient_id") @db.Uuid
+  prescriptionId String       @map("prescription_id") @db.Uuid
+  channel        String
+  scheduleTime   String       @map("schedule_time")
+  isActive       Boolean      @default(true) @map("is_active")
+  lastSentAt     DateTime?    @map("last_sent_at") @db.Timestamptz(6)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  prescription   Prescription @relation(fields: [prescriptionId], references: [prescriptionId], onDelete: Cascade)
+
+  @@index([patientId, isActive])
+  @@map("medication_reminders")
+}
+
+// ─── Patient Verification ───────────────────────────────────
+
+model PatientVerification {
+  verificationId String    @id @default(dbgenerated("gen_random_uuid()")) @map("verification_id") @db.Uuid
+  patientId      String    @map("patient_id") @db.Uuid
+  conversationId String?   @map("conversation_id") @db.Uuid
+  method         String
+  level          Int       @default(0)
+  verified       Boolean   @default(false)
+  attempts       Int       @default(0)
+  verifiedAt     DateTime? @map("verified_at") @db.Timestamptz(6)
+  expiresAt      DateTime  @map("expires_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([patientId])
+  @@map("patient_verifications")
+}
+
+// ─── SMS ────────────────────────────────────────────────────
+
+model SmsLog {
+  logId       String   @id @default(dbgenerated("gen_random_uuid()")) @map("log_id") @db.Uuid
+  orgId       String   @map("org_id") @db.Uuid
+  templateId  String?  @map("template_id") @db.Uuid
+  patientId   String?  @map("patient_id") @db.Uuid
+  phone       String
+  channel     String
+  body        String
+  status      String   @default("sent")
+  twilioSid   String?  @map("twilio_sid")
+  triggeredBy String   @map("triggered_by")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([orgId, createdAt(sort: Desc)])
+  @@map("sms_logs")
+}
+
+model SmsTemplate {
+  templateId String   @id @default(dbgenerated("gen_random_uuid()")) @map("template_id") @db.Uuid
+  orgId      String   @map("org_id") @db.Uuid
+  name       String
+  trigger    String
+  bodyEn     String   @map("body_en")
+  bodyAr     String   @map("body_ar")
+  variables  String[]
+  channel    String   @default("sms")
+  isActive   Boolean  @default(true) @map("is_active")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([orgId, trigger])
+  @@map("sms_templates")
+}
+
+// ─── Users / Roles ──────────────────────────────────────────
+
+model User {
+  userId    String    @id @default(dbgenerated("gen_random_uuid()")) @map("user_id") @db.Uuid
+  orgId     String    @map("org_id") @db.Uuid
+  email     String    @unique
+  password  String
+  name      String?
+  nameAr    String?   @map("name_ar")
+  roleId    String?   @map("role_id") @db.Uuid
+  isActive  Boolean   @default(true) @map("is_active")
+  lastLogin DateTime? @map("last_login") @db.Timestamptz(6)
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@map("users")
+}
+
+model Role {
+  roleId      String   @id @default(dbgenerated("gen_random_uuid()")) @map("role_id") @db.Uuid
+  orgId       String   @map("org_id") @db.Uuid
+  name        String
+  permissions String[]
+  isSystem    Boolean  @default(false) @map("is_system")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@unique([orgId, name])
+  @@map("roles")
+}
+
+// ─── Waitlist ───────────────────────────────────────────────
+
+model Waitlist {
+  waitlistId    String    @id @default(dbgenerated("gen_random_uuid()")) @map("waitlist_id") @db.Uuid
+  orgId         String    @map("org_id") @db.Uuid
+  patientId     String    @map("patient_id") @db.Uuid
+  serviceId     String?   @map("service_id") @db.Uuid
+  providerId    String?   @map("provider_id") @db.Uuid
+  facilityId    String?   @map("facility_id") @db.Uuid
+  priority      Int       @default(0)
+  preferredDate DateTime? @map("preferred_date") @db.Date
+  preferredTime String?   @map("preferred_time")
+  status        String    @default("waiting")
+  notifiedAt    DateTime? @map("notified_at") @db.Timestamptz(6)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([orgId, status])
+  @@map("waitlist")
+}
+
+// ─── Webhooks ───────────────────────────────────────────────
+
+model WebhookSubscription {
+  webhookId   String    @id @default(dbgenerated("gen_random_uuid()")) @map("webhook_id") @db.Uuid
+  orgId       String    @map("org_id") @db.Uuid
+  event       String
+  url         String
+  secret      String
+  isActive    Boolean   @default(true) @map("is_active")
+  lastFiredAt DateTime? @map("last_fired_at") @db.Timestamptz(6)
+  failCount   Int       @default(0) @map("fail_count")
+  createdAt   DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  @@index([orgId, event])
+  @@map("webhook_subscriptions")
+}
+
+// ─── Enums ──────────────────────────────────────────────────
 
 enum Channel {
   telegram
@@ -370,49 +916,6 @@ enum message_direction {
   out
 }
 
-// Voice Call Models
-model VoiceCall {
-  callId          String       @id @default(dbgenerated("gen_random_uuid()")) @map("call_id") @db.Uuid
-  orgId           String       @map("org_id") @db.Uuid
-  conversationId  String?      @map("conversation_id") @db.Uuid
-  twilioCallSid   String       @unique @map("twilio_call_sid")
-  callerPhone     String       @map("caller_phone")
-  calledPhone     String       @map("called_phone")
-  direction       call_direction @default(inbound)
-  status          call_status  @default(ringing)
-  detectedDialect String?      @map("detected_dialect")
-  durationSec     Int?         @map("duration_sec")
-  recordingUrl    String?      @map("recording_url")
-  transcriptUrl   String?      @map("transcript_url")
-  context         Json         @default("{}")
-  startedAt       DateTime     @default(now()) @map("started_at") @db.Timestamptz(6)
-  endedAt         DateTime?    @map("ended_at") @db.Timestamptz(6)
-  createdAt       DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  conversation    Conversation? @relation(fields: [conversationId], references: [conversationId])
-  utterances      VoiceUtterance[]
-
-  @@index([orgId, startedAt(sort: Desc)])
-  @@map("voice_calls")
-}
-
-model VoiceUtterance {
-  utteranceId String       @id @default(dbgenerated("gen_random_uuid()")) @map("utterance_id") @db.Uuid
-  callId      String       @map("call_id") @db.Uuid
-  speaker     speaker_type
-  text        String
-  confidence  Float?
-  durationMs  Int?         @map("duration_ms")
-  dialect     String?
-  audioUrl    String?      @map("audio_url")
-  timestamp   DateTime     @default(now()) @db.Timestamptz(6)
-
-  call        VoiceCall    @relation(fields: [callId], references: [callId], onDelete: Cascade)
-
-  @@index([callId, timestamp])
-  @@map("voice_utterances")
-}
-
 enum call_direction {
   inbound
   outbound
@@ -430,24 +933,6 @@ enum call_status {
 enum speaker_type {
   caller
   ai
-}
-// Phone Number Management for Multi-Tenant Voice AI
-model OrgPhoneNumber {
-  phoneNumberId String            @id @default(dbgenerated("gen_random_uuid()")) @map("phone_number_id") @db.Uuid
-  orgId         String            @map("org_id") @db.Uuid
-  twilioNumber  String            @unique @map("twilio_number")
-  twilioSid     String?           @map("twilio_sid")
-  numberType    phone_number_type @default(twilio_owned) @map("number_type")
-  forwardedFrom String?           @map("forwarded_from")
-  friendlyName  String?           @map("friendly_name")
-  isActive      Boolean           @default(true) @map("is_active")
-  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-
-  org           Org               @relation(fields: [orgId], references: [orgId], onDelete: Cascade)
-
-  @@index([twilioNumber])
-  @@index([orgId])
-  @@map("org_phone_numbers")
 }
 
 enum phone_number_type {

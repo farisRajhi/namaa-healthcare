@@ -27,13 +27,28 @@ const demoApi = axios.create({
 })
 
 // Generate or retrieve session ID
+function generateUUID(): string {
+  // crypto.randomUUID() requires secure context (HTTPS or localhost)
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    try {
+      return crypto.randomUUID()
+    } catch {
+      // Falls through to manual generation
+    }
+  }
+  // Fallback: generate a valid UUID v4 format (xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx)
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    const v = c === 'x' ? r : (r & 0x3) | 0x8
+    return v.toString(16)
+  })
+}
+
 function getSessionId(): string {
   const key = 'demo_chat_session_id'
   let sessionId = localStorage.getItem(key)
   if (!sessionId) {
-    sessionId = typeof crypto !== 'undefined' && crypto.randomUUID
-      ? crypto.randomUUID()
-      : 'xxxx-xxxx-xxxx-xxxx'.replace(/x/g, () => Math.floor(Math.random() * 16).toString(16))
+    sessionId = generateUUID()
     localStorage.setItem(key, sessionId)
   }
   return sessionId
@@ -109,8 +124,13 @@ export default function DemoChatEmbed() {
         setMessages((prev) => [...prev, aiMessage])
         setRemainingMessages(data.remainingMessages)
       }
-    } catch (err) {
-      setError('Failed to send message. Please try again.')
+    } catch (err: any) {
+      const isNetworkError = err?.code === 'ERR_NETWORK' || err?.message === 'Network Error' || !err?.response
+      if (isNetworkError) {
+        setError('لا يمكن الاتصال بالخادم. يرجى التأكد من تشغيل الخادم والمحاولة مرة أخرى.')
+      } else {
+        setError('فشل إرسال الرسالة. يرجى المحاولة مرة أخرى.')
+      }
       setMessages((prev) => prev.filter((m) => m.id !== userMessage.id))
     } finally {
       setIsLoading(false)
@@ -119,7 +139,7 @@ export default function DemoChatEmbed() {
 
   const handleNewChat = async () => {
     try {
-      const newSessionId = crypto.randomUUID()
+      const newSessionId = generateUUID()
       localStorage.setItem('demo_chat_session_id', newSessionId)
       await demoApi.post('/api/demo-chat/new', { sessionId: newSessionId })
       setSessionId(newSessionId)
@@ -128,7 +148,7 @@ export default function DemoChatEmbed() {
       setRemainingMessages(null)
       setIsChatStarted(false)
     } catch (err) {
-      setError('Failed to start new conversation')
+      setError('فشل بدء محادثة جديدة. يرجى المحاولة مرة أخرى.')
     }
   }
 
