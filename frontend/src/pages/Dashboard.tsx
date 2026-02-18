@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import {
   Users,
@@ -30,6 +31,7 @@ const CHART_COLORS = ['#0891B2', '#22D3EE', '#059669', '#F59E0B', '#8B5CF6']
 
 export default function Dashboard() {
   const { t, i18n } = useTranslation()
+  const navigate = useNavigate()
 
   const { data: overview, isLoading: overviewLoading } = useQuery({
     queryKey: ['analytics', 'overview'],
@@ -261,21 +263,30 @@ export default function Dashboard() {
             {t('dashboard.quickActions.title')}
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <button className="card-interactive p-4 text-center group border-2 border-dashed border-healthcare-border/40 hover:border-primary-300">
+            <button
+              onClick={() => navigate('/dashboard/appointments')}
+              className="card-interactive p-4 text-center group border-2 border-dashed border-healthcare-border/40 hover:border-primary-300"
+            >
               <div className="w-12 h-12 mx-auto rounded-xl bg-primary-50 flex items-center justify-center mb-3 group-hover:bg-primary-100 transition-colors">
                 <Calendar className="h-6 w-6 text-primary-500" />
               </div>
               <p className="text-sm font-semibold text-healthcare-text">{t('dashboard.quickActions.newAppointment')}</p>
               <p className="text-xs text-healthcare-muted mt-0.5">{t('dashboard.quickActions.newAppointmentDesc')}</p>
             </button>
-            <button className="card-interactive p-4 text-center group border-2 border-dashed border-healthcare-border/40 hover:border-success-300">
+            <button
+              onClick={() => navigate('/dashboard/patients')}
+              className="card-interactive p-4 text-center group border-2 border-dashed border-healthcare-border/40 hover:border-success-300"
+            >
               <div className="w-12 h-12 mx-auto rounded-xl bg-success-50 flex items-center justify-center mb-3 group-hover:bg-success-100 transition-colors">
                 <Users className="h-6 w-6 text-success-500" />
               </div>
               <p className="text-sm font-semibold text-healthcare-text">{t('dashboard.quickActions.addPatient')}</p>
               <p className="text-xs text-healthcare-muted mt-0.5">{t('dashboard.quickActions.addPatientDesc')}</p>
             </button>
-            <button className="card-interactive p-4 text-center group border-2 border-dashed border-healthcare-border/40 hover:border-secondary-300">
+            <button
+              onClick={() => navigate('/dashboard/call-center')}
+              className="card-interactive p-4 text-center group border-2 border-dashed border-healthcare-border/40 hover:border-secondary-300"
+            >
               <div className="w-12 h-12 mx-auto rounded-xl bg-secondary-50 flex items-center justify-center mb-3 group-hover:bg-secondary-100 transition-colors">
                 <MessageSquare className="h-6 w-6 text-secondary-500" />
               </div>

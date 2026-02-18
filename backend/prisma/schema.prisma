@@ -31,6 +31,8 @@ model Facility {
   region       String?
   postalCode   String?       @map("postal_code")
   country      String?
+  /// URL-friendly slug for patient self-booking links (e.g. "namaa-riyadh")
+  clinicSlug   String?       @unique @map("clinic_slug")
   createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   appointments Appointment[]
   providers    Provider[]
@@ -305,6 +307,28 @@ model AppointmentStatusHistory {
   appointment   Appointment        @relation(fields: [appointmentId], references: [appointmentId], onDelete: Cascade)
 
   @@map("appointment_status_history")
+}
+
+// ─── Branch (Multi-clinic/Multi-branch) ─────────────────────
+
+/// A physical branch of a clinic/hospital under an Org.
+/// Providers and appointments are linked via Facility; Branch is a lightweight
+/// logical grouping for dashboard filtering.
+model Branch {
+  branchId    String   @id @default(dbgenerated("gen_random_uuid()")) @map("branch_id") @db.Uuid
+  orgId       String   @map("org_id") @db.Uuid
+  name        String
+  nameAr      String?  @map("name_ar")
+  address     String?
+  phone       String?
+  facilityIds String[] @map("facility_ids") @db.Uuid
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([orgId, name])
+  @@index([orgId, isActive])
+  @@map("branches")
 }
 
 // ─── Outbox ─────────────────────────────────────────────────

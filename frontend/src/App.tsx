@@ -38,9 +38,7 @@ import PatientBooking from './pages/portal/PatientBooking'
 import PatientPrescriptions from './pages/portal/PatientPrescriptions'
 import PatientProfile from './pages/portal/PatientProfile'
 import LoadingSpinner from './components/ui/LoadingSpinner'
-import PrivacyPolicy from './pages/Legal/PrivacyPolicy'
-import Terms from './pages/Legal/Terms'
-import DoctorSchedule from './pages/DoctorSchedule'
+// PrivacyPolicy, Terms, DoctorSchedule imported lazily when routes are added
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth()

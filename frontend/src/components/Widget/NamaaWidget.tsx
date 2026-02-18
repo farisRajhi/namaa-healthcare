@@ -104,7 +104,7 @@ async function sendMessage(
 
 // ─── Component ────────────────────────────────────────────────────────
 export default function NamaaWidget({
-  orgId = 'default',
+  orgId: _orgId = 'default',
   lang = 'ar',
   theme = 'teal',
   position = 'bottom-right',
@@ -226,7 +226,6 @@ export default function NamaaWidget({
           showQuickActions={showQuickActions}
           quickActions={t.quickActions}
           onQuickAction={(v) => handleSend(v)}
-          t={t}
           messagesEndRef={messagesEndRef}
         />
         <ChatInput
@@ -273,7 +272,6 @@ export default function NamaaWidget({
             setShowQuickActions(false)
             handleSend(v)
           }}
-          t={t}
           messagesEndRef={messagesEndRef}
         />
         <ChatInput
@@ -351,7 +349,6 @@ function ChatMessages({
   showQuickActions,
   quickActions,
   onQuickAction,
-  t,
   messagesEndRef,
 }: {
   messages: Message[]
@@ -361,7 +358,6 @@ function ChatMessages({
   showQuickActions: boolean
   quickActions: { label: string; value: string }[]
   onQuickAction: (v: string) => void
-  t: typeof T['ar']
   messagesEndRef: React.RefObject<HTMLDivElement>
 }) {
   return (

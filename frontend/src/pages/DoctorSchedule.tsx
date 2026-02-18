@@ -424,7 +424,7 @@ export default function DoctorSchedule() {
                                     variant={
                                       appt.status === 'confirmed' ? 'success' :
                                       appt.status === 'cancelled' ? 'danger' :
-                                      appt.status === 'completed' ? 'default' : 'info'
+                                      appt.status === 'completed' ? 'neutral' : 'info'
                                     }
                                   >
                                     {appt.status}

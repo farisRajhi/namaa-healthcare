@@ -115,6 +115,25 @@ export class WhatsAppHandler {
       },
     });
 
+    // 4b. Check pre-built WhatsApp templates (fast-path – no LLM needed)
+    const templateResponse = await this.matchTemplate(body, orgId);
+    if (templateResponse) {
+      await this.sendMessage(phone, templateResponse);
+      await this.prisma.conversationMessage.create({
+        data: {
+          conversationId,
+          direction: 'out',
+          bodyText: templateResponse,
+          payload: { source: 'whatsapp_template' },
+        },
+      });
+      await this.prisma.conversation.update({
+        where: { conversationId },
+        data: { lastActivityAt: new Date() },
+      });
+      return templateResponse;
+    }
+
     // 5. Build AI context
     const systemPrompt = await this.buildContext(orgId, conversationId, patient?.patientId ?? null);
 

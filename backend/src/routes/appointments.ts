@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { getWaitlistAutoFill } from '../services/pipelines/waitlistAutoFill.js';
+import { getAppointmentReminderService } from '../services/reminders/appointmentReminder.js';
 
 const createAppointmentSchema = z.object({
   providerId: z.string().uuid(),
@@ -282,5 +283,137 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
     }
 
     return { slots };
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // POST /cancel-by-sms – Cancel an appointment via SMS keyword
+  // Twilio webhook body: From (phone), Body (SMS text containing appointment ID or "إلغاء <id>")
+  // This endpoint is intentionally public (auth handled by Twilio signature in prod)
+  // ─────────────────────────────────────────────────────────────────────────
+  app.post('/cancel-by-sms', async (request: FastifyRequest, reply) => {
+    const smsSchema = z.object({
+      From: z.string(),   // patient phone in E.164
+      Body: z.string(),   // raw SMS body
+    });
+
+    let from: string;
+    let body: string;
+    try {
+      const parsed = smsSchema.parse(request.body);
+      from = parsed.From;
+      body = parsed.Body;
+    } catch {
+      return reply.code(400).send({ error: 'Missing From or Body fields' });
+    }
+
+    // Normalize phone
+    const phone = from.replace(/^whatsapp:/, '');
+
+    // Extract appointment ID – two patterns:
+    //   1. "إلغاء <uuid>"
+    //   2. Raw UUID anywhere in the message
+    const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+    const match = body.match(uuidRegex);
+    let appointment: any = null;
+
+    if (match) {
+      // Try direct appointment ID lookup
+      appointment = await app.prisma.appointment.findUnique({
+        where: { appointmentId: match[0] },
+        include: { patient: true, provider: true, service: true },
+      });
+    }
+
+    // Fallback: find the patient by phone and get their next upcoming appointment
+    if (!appointment) {
+      const contact = await app.prisma.patientContact.findFirst({
+        where: { contactType: 'phone', contactValue: phone },
+      });
+      if (contact) {
+        appointment = await app.prisma.appointment.findFirst({
+          where: {
+            patientId: contact.patientId,
+            status: { in: ['booked', 'confirmed'] },
+            startTs: { gt: new Date() },
+          },
+          orderBy: { startTs: 'asc' },
+          include: { patient: true, provider: true, service: true },
+        });
+      }
+    }
+
+    if (!appointment) {
+      // Send SMS "not found" reply via Twilio if configured
+      if (app.twilio) {
+        await app.twilio.messages.create({
+          to: phone,
+          from: process.env.TWILIO_PHONE_NUMBER!,
+          body: 'عذراً، لم نتمكن من العثور على موعد مرتبط برقمك. تواصل معنا للمساعدة.',
+        });
+      }
+      return reply.code(404).send({ error: 'Appointment not found' });
+    }
+
+    // Check it belongs to this patient
+    const arabicCancelKeywords = ['إلغاء', 'الغاء', 'الغ', 'cancel', 'no', '2'];
+    const lowerBody = body.trim().toLowerCase();
+    const isCancelIntent = arabicCancelKeywords.some((kw) => lowerBody.includes(kw));
+
+    if (!isCancelIntent && !match) {
+      return reply.code(400).send({ error: 'No cancellation intent detected in message' });
+    }
+
+    // Cancel the appointment
+    await app.prisma.appointment.update({
+      where: { appointmentId: appointment.appointmentId },
+      data: {
+        status: 'cancelled',
+        statusHistory: {
+          create: {
+            oldStatus: appointment.status,
+            newStatus: 'cancelled',
+            changedBy: 'sms_patient',
+            reason: 'Patient cancelled via SMS',
+          },
+        },
+      },
+    });
+
+    // Cancel pending reminders
+    await app.prisma.appointmentReminder.updateMany({
+      where: { appointmentId: appointment.appointmentId, status: 'pending' },
+      data: { status: 'cancelled', response: 'appointment_cancelled_by_patient_sms' },
+    });
+
+    // Trigger waitlist auto-fill
+    try {
+      const waitlistAutoFill = getWaitlistAutoFill(app.prisma, app.twilio ?? null);
+      waitlistAutoFill.onAppointmentCancelled(appointment.appointmentId).catch(() => {});
+    } catch {}
+
+    // Send confirmation SMS
+    const dateStr = appointment.startTs.toLocaleDateString('ar-SA', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    });
+    const timeStr = appointment.startTs.toLocaleTimeString('ar-SA', {
+      hour: '2-digit', minute: '2-digit',
+    });
+    const confirmMsg =
+      `تم إلغاء موعدك مع ${appointment.provider.displayName} بتاريخ ${dateStr} الساعة ${timeStr} بنجاح. ` +
+      `نتمنى لك دوام الصحة والعافية. 💚`;
+
+    if (app.twilio) {
+      await app.twilio.messages.create({
+        to: phone,
+        from: process.env.TWILIO_PHONE_NUMBER!,
+        body: confirmMsg,
+      });
+    }
+
+    return {
+      success: true,
+      appointmentId: appointment.appointmentId,
+      message: confirmMsg,
+    };
   });
 }

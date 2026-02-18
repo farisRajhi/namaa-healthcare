@@ -47,6 +47,8 @@ import reportsRoutes from './reports.js';
 import paymentsRoutes from './payments.js';
 import subscriptionRoutes from './subscription.js';
 import callSummariesRoutes from './callSummaries.js';
+import publicBookingRoutes from './publicBooking.js';
+import branchRoutes from './branches.js';
 
 export async function registerRoutes(app: FastifyInstance) {
   // Register auth plugin
@@ -173,6 +175,12 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // Call Summaries, Transcripts & AI Analysis
   await app.register(callSummariesRoutes, { prefix: '/api/calls' });
+
+  // Public patient self-booking links (no auth required)
+  await app.register(publicBookingRoutes, { prefix: '/api/book' });
+
+  // Branch management (multi-clinic/multi-branch)
+  await app.register(branchRoutes, { prefix: '/api/branches' });
 
   // Register audit trail middleware (auto-logs sensitive route access)
   registerAuditMiddleware(app);

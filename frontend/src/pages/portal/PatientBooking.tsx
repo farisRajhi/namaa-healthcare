@@ -50,6 +50,7 @@ export default function PatientBooking() {
   const [loadingSlots, setLoadingSlots] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [bookingError, setBookingError] = useState<string | null>(null)
 
   // Selections
   const [selectedService, setSelectedService] = useState<ServiceItem | null>(null)
@@ -126,6 +127,7 @@ export default function PatientBooking() {
   const handleSubmit = async () => {
     if (!selectedService || !selectedProvider || !selectedDate || !selectedTime) return
     setSubmitting(true)
+    setBookingError(null)
     try {
       const api = patientApi()
       const startTs = `${selectedDate}T${selectedTime}:00Z`
@@ -136,8 +138,13 @@ export default function PatientBooking() {
         reason: reason || undefined,
       })
       setSuccess(true)
-    } catch {
-      // show error inline
+    } catch (error: any) {
+      const msg =
+        error?.response?.data?.error ||
+        error?.response?.data?.message ||
+        error?.message ||
+        'حدث خطأ أثناء الحجز، يرجى المحاولة مرة أخرى'
+      setBookingError(msg)
     } finally {
       setSubmitting(false)
     }
@@ -418,11 +425,19 @@ export default function PatientBooking() {
         )}
       </div>
 
+      {/* Booking error */}
+      {bookingError && (
+        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+          <p className="font-medium">حدث خطأ</p>
+          <p className="text-xs mt-0.5 text-red-500">{bookingError}</p>
+        </div>
+      )}
+
       {/* Navigation buttons */}
       <div className="flex items-center gap-3 pt-2">
         {step > 0 && (
           <button
-            onClick={() => setStep(step - 1)}
+            onClick={() => { setStep(step - 1); setBookingError(null) }}
             className="flex items-center gap-1 text-sm text-slate-600 px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50"
           >
             <ArrowRight className="w-4 h-4" />

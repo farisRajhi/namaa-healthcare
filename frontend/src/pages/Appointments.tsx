@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
-import { Plus, Calendar, Clock, User } from 'lucide-react'
+import { Plus, Calendar, Clock, User, X } from 'lucide-react'
 import { formatTime, cn } from '../lib/utils'
 import Badge, { getStatusBadgeVariant } from '../components/ui/Badge'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
@@ -43,6 +43,7 @@ export default function Appointments() {
   const [page, setPage] = useState(1)
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [showModal, setShowModal] = useState(false)
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null)
   const [form, setForm] = useState<AppointmentForm>(defaultForm)
   const [errors, setErrors] = useState<Partial<Record<keyof AppointmentForm, string>>>({})
   const { i18n } = useTranslation()
@@ -194,6 +195,7 @@ export default function Appointments() {
               <div
                 key={appointment.appointmentId}
                 className="p-5 hover:bg-primary-50/30 transition-colors cursor-pointer"
+                onClick={() => setSelectedAppointment(appointment)}
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex gap-4 flex-1 min-w-0">
@@ -270,6 +272,69 @@ export default function Appointments() {
           </div>
         )}
       </div>
+
+      {/* Appointment Detail Modal */}
+      <Modal
+        open={!!selectedAppointment}
+        onClose={() => setSelectedAppointment(null)}
+        title={isAr ? 'تفاصيل الموعد' : 'Appointment Details'}
+        size="lg"
+      >
+        {selectedAppointment && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-xs text-healthcare-muted mb-1">{isAr ? 'المريض' : 'Patient'}</p>
+                <p className="text-sm font-semibold text-healthcare-text">
+                  {selectedAppointment.patient
+                    ? `${selectedAppointment.patient.firstName} ${selectedAppointment.patient.lastName}`
+                    : isAr ? 'زائر' : 'Walk-in'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-healthcare-muted mb-1">{isAr ? 'الحالة' : 'Status'}</p>
+                <Badge variant={getStatusBadgeVariant(selectedAppointment.status)}>
+                  {selectedAppointment.status.replace('_', ' ')}
+                </Badge>
+              </div>
+              <div>
+                <p className="text-xs text-healthcare-muted mb-1">{isAr ? 'الخدمة' : 'Service'}</p>
+                <p className="text-sm font-semibold text-healthcare-text">{selectedAppointment.service.name}</p>
+              </div>
+              <div>
+                <p className="text-xs text-healthcare-muted mb-1">{isAr ? 'الطبيب' : 'Provider'}</p>
+                <p className="text-sm font-semibold text-healthcare-text">{selectedAppointment.provider.displayName}</p>
+              </div>
+              <div>
+                <p className="text-xs text-healthcare-muted mb-1">{isAr ? 'التاريخ والوقت' : 'Date & Time'}</p>
+                <p className="text-sm font-semibold text-healthcare-text dir-ltr">
+                  {new Date(selectedAppointment.startTs).toLocaleDateString(isAr ? 'ar-SA' : 'en-US')}
+                  {' · '}
+                  {formatTime(selectedAppointment.startTs)} – {formatTime(selectedAppointment.endTs)}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs text-healthcare-muted mb-1">{isAr ? 'المدة' : 'Duration'}</p>
+                <p className="text-sm font-semibold text-healthcare-text">
+                  {selectedAppointment.service.durationMin} {isAr ? 'دقيقة' : 'min'}
+                </p>
+              </div>
+            </div>
+            {selectedAppointment.reason && (
+              <div>
+                <p className="text-xs text-healthcare-muted mb-1">{isAr ? 'سبب الزيارة' : 'Visit Reason'}</p>
+                <p className="text-sm text-healthcare-text bg-primary-50/50 rounded-lg p-3">{selectedAppointment.reason}</p>
+              </div>
+            )}
+            <div className="flex justify-end pt-2">
+              <button onClick={() => setSelectedAppointment(null)} className="btn-outline">
+                <X className="h-4 w-4" />
+                {isAr ? 'إغلاق' : 'Close'}
+              </button>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* New Appointment Modal */}
       <Modal open={showModal} onClose={handleCloseModal} title={isAr ? 'موعد جديد' : 'New Appointment'} size="lg">

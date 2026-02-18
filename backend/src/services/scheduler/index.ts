@@ -427,7 +427,90 @@ export class TaskScheduler {
         },
       },
 
-      // 9. Waitlist Expiry Re-notify — every 30 minutes
+      // 9. Daily SMS Appointment Reminders — every day at 9:00 AM AST
+      {
+        name: 'daily-sms-reminders',
+        schedule: '0 9 * * *',
+        description: 'Send SMS reminders for all confirmed appointments scheduled for tomorrow',
+        enabled: true,
+        timezone: 'Asia/Riyadh',
+        handler: async () => {
+          const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Riyadh' }));
+          const tomorrow = new Date(now);
+          tomorrow.setDate(tomorrow.getDate() + 1);
+
+          const startOfTomorrow = new Date(tomorrow);
+          startOfTomorrow.setHours(0, 0, 0, 0);
+          const endOfTomorrow = new Date(tomorrow);
+          endOfTomorrow.setHours(23, 59, 59, 999);
+
+          const appointments = await this.prisma.appointment.findMany({
+            where: {
+              startTs: { gte: startOfTomorrow, lt: endOfTomorrow },
+              status: { in: ['booked', 'confirmed'] },
+            },
+            include: {
+              provider: { select: { displayName: true } },
+              patient: {
+                include: {
+                  contacts: {
+                    where: { contactType: 'phone', isPrimary: true },
+                    take: 1,
+                  },
+                },
+              },
+            },
+          });
+
+          let sent = 0;
+          let skipped = 0;
+
+          for (const apt of appointments) {
+            try {
+              const phone = apt.patient?.contacts?.[0]?.contactValue;
+              if (!phone) { skipped++; continue; }
+
+              const timeStr = apt.startTs.toLocaleTimeString('ar-SA', {
+                hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Riyadh',
+              });
+              const body =
+                `تذكير: لديك موعد غداً مع ${apt.provider.displayName} الساعة ${timeStr}. ` +
+                `للإلغاء أرسل "إلغاء ${apt.appointmentId}"`;
+
+              const twilioClient = (await import('twilio')).default(
+                process.env.TWILIO_ACCOUNT_SID,
+                process.env.TWILIO_AUTH_TOKEN,
+              );
+              await twilioClient.messages.create({
+                to: phone,
+                from: process.env.TWILIO_PHONE_NUMBER!,
+                body,
+              });
+
+              await this.prisma.smsLog.create({
+                data: {
+                  orgId: apt.orgId,
+                  patientId: apt.patientId ?? undefined,
+                  phone,
+                  channel: 'sms',
+                  body,
+                  status: 'sent',
+                  triggeredBy: 'daily-sms-reminders-cron',
+                },
+              });
+
+              sent++;
+            } catch (err: any) {
+              skipped++;
+              console.error(`[Scheduler]   ✗ SMS reminder failed for apt ${apt.appointmentId}:`, err?.message);
+            }
+          }
+
+          console.log(`[Scheduler]   ✓ Daily SMS reminders: ${sent} sent, ${skipped} skipped (of ${appointments.length} tomorrow's appointments)`);
+        },
+      },
+
+      // 10. Waitlist Expiry Re-notify — every 30 minutes
       {
         name: 'waitlist-expiry-renotify',
         schedule: '*/30 * * * *',
