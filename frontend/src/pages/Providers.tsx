@@ -7,6 +7,7 @@ import Modal from '../components/ui/Modal'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import Badge from '../components/ui/Badge'
+import { useToast } from '../components/ui/Toast'
 
 interface Provider {
   providerId: string
@@ -66,6 +67,8 @@ export default function Providers() {
     queryFn: async () => (await api.get('/api/facilities')).data,
   })
 
+  const { addToast } = useToast()
+
   const createMutation = useMutation({
     mutationFn: (data: ProviderForm) =>
       api.post('/api/providers', {
@@ -75,7 +78,11 @@ export default function Providers() {
         facilityId: data.facilityId || undefined,
         active: data.active,
       }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['providers'] }); handleCloseModal() },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['providers'] }); handleCloseModal()
+      addToast({ type: 'success', title: isAr ? 'تم إضافة الطبيب' : 'Provider added' })
+    },
+    onError: () => addToast({ type: 'error', title: isAr ? 'فشل إضافة الطبيب' : 'Failed to add provider' }),
   })
 
   const updateMutation = useMutation({
@@ -87,12 +94,20 @@ export default function Providers() {
         facilityId: data.facilityId || undefined,
         active: data.active,
       }),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['providers'] }); handleCloseModal() },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['providers'] }); handleCloseModal()
+      addToast({ type: 'success', title: isAr ? 'تم تحديث الطبيب' : 'Provider updated' })
+    },
+    onError: () => addToast({ type: 'error', title: isAr ? 'فشل تحديث الطبيب' : 'Failed to update provider' }),
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/api/providers/${id}`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['providers'] }); setDeleteConfirm(null) },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['providers'] }); setDeleteConfirm(null)
+      addToast({ type: 'success', title: isAr ? 'تم حذف الطبيب' : 'Provider deleted' })
+    },
+    onError: () => addToast({ type: 'error', title: isAr ? 'فشل حذف الطبيب' : 'Failed to delete provider' }),
   })
 
   const providers: Provider[] = data?.data || []

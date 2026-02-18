@@ -14,6 +14,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react'
+import { useToast } from '../components/ui/Toast'
 import { cn, formatDate } from '../lib/utils'
 import {
   BarChart,
@@ -76,6 +77,7 @@ export default function Campaigns() {
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const orgId = user?.org?.id || ''
+  const { addToast } = useToast()
 
   const [search, setSearch] = useState('')
   const [showWizard, setShowWizard] = useState(false)
@@ -129,7 +131,9 @@ export default function Campaigns() {
       setShowWizard(false)
       setWizardStep(0)
       setWizardData({ name: '', type: 'recall', targetFilter: { minAge: '', maxAge: '', lastVisitDaysAgo: '' }, channelSequence: ['sms'], scriptEn: '', scriptAr: '' })
+      addToast({ type: 'success', title: isAr ? 'تم إنشاء الحملة' : 'Campaign created' })
     },
+    onError: () => addToast({ type: 'error', title: isAr ? 'فشل إنشاء الحملة' : 'Failed to create campaign' }),
   })
 
   // Backend: GET /api/outbound/campaigns/:id

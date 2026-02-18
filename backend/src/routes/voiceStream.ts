@@ -437,24 +437,145 @@ export default async function voiceStreamRoutes(app: FastifyInstance) {
               await processAudio();
             }
 
-            // ── Post-call: SMS summary + call router cleanup + memory extraction ──
+            // ── Post-call: AI summary, intent classification, SMS, memory extraction ──
             try {
               if (callSid) {
                 const endedCall = callRouter.endCall(callSid);
                 if (endedCall) {
                   const session = callSessionManager.getSession(callSid);
+
+                  // ── Fetch full transcript for post-call processing ──
+                  const transcriptMessages = endedCall.conversationId
+                    ? await app.prisma.conversationMessage.findMany({
+                        where: { conversationId: endedCall.conversationId },
+                        orderBy: { createdAt: 'asc' },
+                        select: { direction: true, bodyText: true, createdAt: true },
+                      })
+                    : [];
+
+                  const transcriptText = transcriptMessages
+                    .map((m) => `${m.direction === 'in' ? 'المريض' : 'المساعد'}: ${m.bodyText || ''}`)
+                    .join('\n');
+
+                  // ── AI Post-Call Summary & Intent Classification ──
+                  if (transcriptMessages.length > 0 && endedCall.conversationId) {
+                    try {
+                      const llmForSummary = getLLMService();
+                      const summaryPrompt = `
+أنت محلل مكالمات طبية متخصص. قم بتحليل محادثة المريض التالية وأنتج ملخصاً دقيقاً.
+
+النص الكامل للمحادثة:
+${transcriptText}
+
+أجب بصيغة JSON فقط بدون أي نص إضافي:
+{
+  "summary": "ملخص موجز للمحادثة بالعربية (2-3 جمل)",
+  "intent": "booking | inquiry | emergency | complaint | prescription | other",
+  "keyTopics": ["موضوع 1", "موضوع 2"],
+  "sentiment": "positive | neutral | negative",
+  "actionItems": [
+    {"action": "وصف الإجراء المطلوب", "priority": "high | medium | low"}
+  ],
+  "appointmentBooked": true | false,
+  "escalationNeeded": true | false
+}`;
+
+                      const summaryResponse = await llmForSummary.chat(
+                        [{ role: 'user', content: summaryPrompt }],
+                        'أنت محلل محادثات طبية. أنتج JSON دقيق فقط.'
+                      );
+
+                      // Parse AI response
+                      let analysisData: Record<string, unknown> = {};
+                      try {
+                        const jsonMatch = summaryResponse.match(/\{[\s\S]*\}/);
+                        if (jsonMatch) {
+                          analysisData = JSON.parse(jsonMatch[0]);
+                        }
+                      } catch (parseErr) {
+                        app.log.warn({ err: parseErr }, 'Failed to parse post-call AI summary JSON');
+                        analysisData = { summary: summaryResponse.slice(0, 500) };
+                      }
+
+                      const summaryText = (analysisData.summary as string) || 'لم يتم إنشاء ملخص';
+                      const detectedIntent = (analysisData.intent as string) || 'other';
+                      const keyTopics = (analysisData.keyTopics as string[]) || [];
+                      const sentiment = (analysisData.sentiment as string) || 'neutral';
+                      const actionItems = analysisData.actionItems || [];
+
+                      // Store in ConversationSummary
+                      const msgIds = await app.prisma.conversationMessage.findMany({
+                        where: { conversationId: endedCall.conversationId },
+                        orderBy: { createdAt: 'asc' },
+                        select: { messageId: true },
+                        take: 1,
+                      });
+                      const lastMsgIds = await app.prisma.conversationMessage.findMany({
+                        where: { conversationId: endedCall.conversationId },
+                        orderBy: { createdAt: 'desc' },
+                        select: { messageId: true },
+                        take: 1,
+                      });
+
+                      await app.prisma.conversationSummary.create({
+                        data: {
+                          conversationId: endedCall.conversationId,
+                          summary: summaryText,
+                          keyTopics,
+                          sentiment,
+                          actionItems: actionItems as object[],
+                          messageCount: transcriptMessages.length,
+                          startMessageId: msgIds[0]?.messageId ?? null,
+                          endMessageId: lastMsgIds[0]?.messageId ?? null,
+                        },
+                      });
+
+                      // Update VoiceCall context with intent & recording link
+                      const voiceCallRecord = await app.prisma.voiceCall.findFirst({
+                        where: { twilioCallSid: callSid },
+                      });
+                      if (voiceCallRecord) {
+                        await app.prisma.voiceCall.update({
+                          where: { callId: voiceCallRecord.callId },
+                          data: {
+                            context: {
+                              ...(voiceCallRecord.context as object),
+                              detectedIntent,
+                              postCallSummary: summaryText,
+                              keyTopics,
+                              sentiment,
+                              actionItems,
+                              appointmentBooked: analysisData.appointmentBooked ?? false,
+                              escalationNeeded: analysisData.escalationNeeded ?? false,
+                              transcriptMessageCount: transcriptMessages.length,
+                            },
+                          },
+                        });
+                      }
+
+                      app.log.info(
+                        { intent: detectedIntent, sentiment, keyTopics },
+                        'Post-call AI analysis completed and stored'
+                      );
+                    } catch (summaryErr) {
+                      app.log.error({ err: summaryErr }, 'Post-call AI summary generation failed');
+                    }
+                  }
+
+                  // ── Post-call SMS ──
                   if (session?.callerPhone) {
-                    // Send post-call follow-up SMS
-                    await smsDeflector.triggerPostCallSms({
-                      orgId: endedCall.orgId,
-                      trigger: 'follow_up',
-                      phone: session.callerPhone,
-                      patientId: endedCall.patientId ?? undefined,
-                      vars: {
-                        patient_name: '',
-                      },
-                    });
-                    app.log.info('Post-call SMS triggered');
+                    try {
+                      await smsDeflector.triggerPostCallSms({
+                        orgId: endedCall.orgId,
+                        trigger: 'follow_up',
+                        phone: session.callerPhone,
+                        patientId: endedCall.patientId ?? undefined,
+                        vars: { patient_name: '' },
+                      });
+                      app.log.info('Post-call SMS triggered');
+                    } catch (smsErr) {
+                      app.log.error({ err: smsErr }, 'Post-call SMS failed');
+                    }
                   }
 
                   // ── Memory Extraction: extract memories from voice conversation ──
@@ -467,15 +588,10 @@ export default async function voiceStreamRoutes(app: FastifyInstance) {
                       : null;
                     const voicePatientId = conv?.patientId ?? null;
                     if (voicePatientId && endedCall.conversationId) {
-                      const messages = await app.prisma.conversationMessage.findMany({
-                        where: { conversationId: endedCall.conversationId },
-                        orderBy: { createdAt: 'asc' },
-                        select: { direction: true, bodyText: true },
-                      });
                       const contextBuilder = getContextBuilder(app.prisma);
                       await contextBuilder.extractMemories(
                         voicePatientId,
-                        messages.map(m => ({
+                        transcriptMessages.map(m => ({
                           direction: m.direction as 'in' | 'out',
                           bodyText: m.bodyText,
                         })),

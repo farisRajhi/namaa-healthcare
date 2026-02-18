@@ -31,6 +31,7 @@ import {
   MessageSquare,
   ClipboardList,
   Workflow,
+  FileBarChart,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -89,6 +90,7 @@ const getNavigation = (t: (key: string) => string): NavGroup[] => [
       { name: t('nav.analyticsDashboard'), href: '/dashboard/analytics', icon: BarChart3 },
       { name: t('nav.fleet'), href: '/dashboard/fleet', icon: Truck },
       { name: t('nav.quality'), href: '/dashboard/quality', icon: ShieldCheck },
+      { name: t('nav.reports'), href: '/dashboard/reports', icon: FileBarChart },
       { name: t('nav.audit'), href: '/dashboard/audit', icon: FileText },
     ],
   },

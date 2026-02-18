@@ -20,6 +20,18 @@ export default function PatientLogin() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+
+    // Validate phone
+    if (!phone.trim() || !/^\+?[0-9\s\-]{7,15}$/.test(phone.trim())) {
+      setError('يرجى إدخال رقم هاتف صالح / Please enter a valid phone number')
+      return
+    }
+    // Validate date of birth
+    if (!dateOfBirth) {
+      setError('يرجى إدخال تاريخ الميلاد / Please enter your date of birth')
+      return
+    }
+
     setIsLoading(true)
 
     try {

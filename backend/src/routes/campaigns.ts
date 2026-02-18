@@ -9,6 +9,7 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { getCampaignManager } from '../services/campaigns/campaignManager.js';
+import { requireManager } from '../middleware/rbac.js';
 
 const createCampaignSchema = z.object({
   name: z.string().min(1),
@@ -46,6 +47,8 @@ const listQuerySchema = z.object({
 
 export default async function campaignRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
+  // Campaign management is admin/manager only
+  app.addHook('preHandler', requireManager);
 
   const getManager = () => getCampaignManager(app.prisma, app.twilio);
 

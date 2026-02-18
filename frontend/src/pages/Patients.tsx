@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
 import { Plus, Phone, Mail, Users } from 'lucide-react'
@@ -8,6 +8,7 @@ import SearchInput from '../components/ui/SearchInput'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import EmptyState from '../components/ui/EmptyState'
 import Modal from '../components/ui/Modal'
+import { useToast } from '../components/ui/Toast'
 
 interface Patient {
   patientId: string
@@ -25,12 +26,36 @@ interface Patient {
   createdAt: string
 }
 
+interface PatientForm {
+  firstName: string
+  lastName: string
+  dateOfBirth: string
+  sex: string
+  mrn: string
+  phone: string
+  email: string
+}
+
+const defaultForm: PatientForm = {
+  firstName: '',
+  lastName: '',
+  dateOfBirth: '',
+  sex: '',
+  mrn: '',
+  phone: '',
+  email: '',
+}
+
 export default function Patients() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [form, setForm] = useState<PatientForm>(defaultForm)
+  const [errors, setErrors] = useState<Partial<Record<keyof PatientForm, string>>>({})
   const { i18n } = useTranslation()
   const isAr = i18n.language === 'ar'
+  const queryClient = useQueryClient()
+  const { addToast } = useToast()
 
   const { data, isLoading } = useQuery({
     queryKey: ['patients', { page, search }],
@@ -42,8 +67,70 @@ export default function Patients() {
     },
   })
 
+  const createMutation = useMutation({
+    mutationFn: (data: PatientForm) =>
+      api.post('/api/patients', {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        dateOfBirth: data.dateOfBirth || undefined,
+        sex: data.sex || undefined,
+        mrn: data.mrn || undefined,
+        phone: data.phone || undefined,
+        email: data.email || undefined,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patients'] })
+      setShowAddModal(false)
+      setForm(defaultForm)
+      setErrors({})
+      addToast({
+        type: 'success',
+        title: isAr ? 'تم إضافة المريض بنجاح' : 'Patient added successfully',
+      })
+    },
+    onError: (err: any) => {
+      addToast({
+        type: 'error',
+        title: isAr ? 'فشل إضافة المريض' : 'Failed to add patient',
+        message: err.response?.data?.error || err.message,
+      })
+    },
+  })
+
   const patients: Patient[] = data?.data || []
   const pagination = data?.pagination
+
+  const validate = (): boolean => {
+    const newErrors: Partial<Record<keyof PatientForm, string>> = {}
+
+    if (!form.firstName.trim()) {
+      newErrors.firstName = isAr ? 'الاسم الأول مطلوب' : 'First name is required'
+    }
+    if (!form.lastName.trim()) {
+      newErrors.lastName = isAr ? 'اسم العائلة مطلوب' : 'Last name is required'
+    }
+    if (form.phone && !/^\+?[0-9\s\-]{7,15}$/.test(form.phone)) {
+      newErrors.phone = isAr ? 'رقم هاتف غير صالح' : 'Invalid phone number'
+    }
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      newErrors.email = isAr ? 'بريد إلكتروني غير صالح' : 'Invalid email address'
+    }
+
+    setErrors(newErrors)
+    return Object.keys(newErrors).length === 0
+  }
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!validate()) return
+    createMutation.mutate(form)
+  }
+
+  const handleCloseModal = () => {
+    setShowAddModal(false)
+    setForm(defaultForm)
+    setErrors({})
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -76,8 +163,11 @@ export default function Patients() {
           <EmptyState
             icon={Users}
             title={isAr ? 'لا يوجد مرضى' : 'No patients found'}
-            description={search ? (isAr ? 'حاول تغيير كلمات البحث' : 'Try different search terms') : undefined}
-            action={search ? { label: isAr ? 'مسح البحث' : 'Clear search', onClick: () => setSearch('') } : undefined}
+            description={search ? (isAr ? 'حاول تغيير كلمات البحث' : 'Try different search terms') : (isAr ? 'ابدأ بإضافة مريض جديد' : 'Start by adding a new patient')}
+            action={search
+              ? { label: isAr ? 'مسح البحث' : 'Clear search', onClick: () => setSearch('') }
+              : { label: isAr ? 'إضافة مريض' : 'Add Patient', onClick: () => setShowAddModal(true) }
+            }
           />
         ) : (
           <div className="overflow-x-auto">
@@ -175,14 +265,111 @@ export default function Patients() {
       </div>
 
       {/* Add Patient Modal */}
-      <Modal open={showAddModal} onClose={() => setShowAddModal(false)} title={isAr ? 'إضافة مريض جديد' : 'Add New Patient'}>
-        <p className="text-sm text-healthcare-muted mb-4">{isAr ? 'النموذج قيد التطوير...' : 'Form coming soon...'}</p>
-        <button
-          onClick={() => setShowAddModal(false)}
-          className="btn-outline w-full"
-        >
-          {isAr ? 'إغلاق' : 'Close'}
-        </button>
+      <Modal open={showAddModal} onClose={handleCloseModal} title={isAr ? 'إضافة مريض جديد' : 'Add New Patient'} size="lg">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Name row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="input-label">{isAr ? 'الاسم الأول *' : 'First Name *'}</label>
+              <input
+                type="text"
+                value={form.firstName}
+                onChange={(e) => { setForm({ ...form, firstName: e.target.value }); setErrors({ ...errors, firstName: undefined }) }}
+                className={`input ${errors.firstName ? 'border-red-400 focus:ring-red-300' : ''}`}
+                placeholder={isAr ? 'مثال: أحمد' : 'e.g., Ahmed'}
+                autoFocus
+              />
+              {errors.firstName && <p className="text-xs text-red-500 mt-1">{errors.firstName}</p>}
+            </div>
+            <div>
+              <label className="input-label">{isAr ? 'اسم العائلة *' : 'Last Name *'}</label>
+              <input
+                type="text"
+                value={form.lastName}
+                onChange={(e) => { setForm({ ...form, lastName: e.target.value }); setErrors({ ...errors, lastName: undefined }) }}
+                className={`input ${errors.lastName ? 'border-red-400 focus:ring-red-300' : ''}`}
+                placeholder={isAr ? 'مثال: الشمري' : 'e.g., Al-Shamri'}
+              />
+              {errors.lastName && <p className="text-xs text-red-500 mt-1">{errors.lastName}</p>}
+            </div>
+          </div>
+
+          {/* DOB + Sex row */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="input-label">{isAr ? 'تاريخ الميلاد' : 'Date of Birth'}</label>
+              <input
+                type="date"
+                value={form.dateOfBirth}
+                onChange={(e) => setForm({ ...form, dateOfBirth: e.target.value })}
+                className="input dir-ltr"
+                max={new Date().toISOString().split('T')[0]}
+              />
+            </div>
+            <div>
+              <label className="input-label">{isAr ? 'الجنس' : 'Sex'}</label>
+              <select
+                value={form.sex}
+                onChange={(e) => setForm({ ...form, sex: e.target.value })}
+                className="select"
+              >
+                <option value="">{isAr ? 'اختر...' : 'Select...'}</option>
+                <option value="male">{isAr ? 'ذكر' : 'Male'}</option>
+                <option value="female">{isAr ? 'أنثى' : 'Female'}</option>
+              </select>
+            </div>
+          </div>
+
+          {/* MRN */}
+          <div>
+            <label className="input-label">{isAr ? 'رقم الملف الطبي' : 'MRN (Medical Record Number)'}</label>
+            <input
+              type="text"
+              value={form.mrn}
+              onChange={(e) => setForm({ ...form, mrn: e.target.value })}
+              className="input"
+              placeholder={isAr ? 'مثال: MRN-001234' : 'e.g., MRN-001234'}
+            />
+          </div>
+
+          {/* Contact info */}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="input-label">{isAr ? 'رقم الهاتف' : 'Phone Number'}</label>
+              <input
+                type="tel"
+                value={form.phone}
+                onChange={(e) => { setForm({ ...form, phone: e.target.value }); setErrors({ ...errors, phone: undefined }) }}
+                className={`input dir-ltr ${errors.phone ? 'border-red-400 focus:ring-red-300' : ''}`}
+                placeholder="+966 5X XXX XXXX"
+              />
+              {errors.phone && <p className="text-xs text-red-500 mt-1">{errors.phone}</p>}
+            </div>
+            <div>
+              <label className="input-label">{isAr ? 'البريد الإلكتروني' : 'Email'}</label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => { setForm({ ...form, email: e.target.value }); setErrors({ ...errors, email: undefined }) }}
+                className={`input dir-ltr ${errors.email ? 'border-red-400 focus:ring-red-300' : ''}`}
+                placeholder="name@example.com"
+              />
+              {errors.email && <p className="text-xs text-red-500 mt-1">{errors.email}</p>}
+            </div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={handleCloseModal} className="btn-outline flex-1">
+              {isAr ? 'إلغاء' : 'Cancel'}
+            </button>
+            <button type="submit" disabled={createMutation.isPending} className="btn-primary flex-1">
+              {createMutation.isPending
+                ? (isAr ? 'جاري الإضافة...' : 'Adding...')
+                : (isAr ? 'إضافة المريض' : 'Add Patient')}
+            </button>
+          </div>
+        </form>
       </Modal>
     </div>
   )

@@ -4,6 +4,7 @@ import { PatientAuthProvider, usePatientAuth } from './context/PatientAuthContex
 import DashboardLayout from './components/layout/DashboardLayout'
 import PortalLayout from './components/portal/PortalLayout'
 import Landing from './pages/Landing'
+import Pricing from './pages/Pricing'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
@@ -29,6 +30,7 @@ import SmsTemplates from './pages/SmsTemplates'
 import Waitlist from './pages/Waitlist'
 import AgentBuilderList from './pages/AgentBuilderList'
 import AgentBuilder from './pages/AgentBuilder'
+import Reports from './pages/Reports'
 import PatientLogin from './pages/portal/PatientLogin'
 import PatientDashboard from './pages/portal/PatientDashboard'
 import PatientAppointments from './pages/portal/PatientAppointments'
@@ -36,6 +38,9 @@ import PatientBooking from './pages/portal/PatientBooking'
 import PatientPrescriptions from './pages/portal/PatientPrescriptions'
 import PatientProfile from './pages/portal/PatientProfile'
 import LoadingSpinner from './components/ui/LoadingSpinner'
+import PrivacyPolicy from './pages/Legal/PrivacyPolicy'
+import Terms from './pages/Legal/Terms'
+import DoctorSchedule from './pages/DoctorSchedule'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth()
@@ -78,6 +83,7 @@ function App() {
     <Routes>
       {/* Public routes */}
       <Route path="/" element={<Landing />} />
+      <Route path="/pricing" element={<Pricing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
 
@@ -114,6 +120,7 @@ function App() {
         <Route path="waitlist" element={<Waitlist />} />
         <Route path="agent-builder" element={<AgentBuilderList />} />
         <Route path="agent-builder/:id" element={<AgentBuilder />} />
+        <Route path="reports" element={<Reports />} />
       </Route>
 
       {/* Patient Portal — Public */}

@@ -773,6 +773,44 @@ model SmsTemplate {
   @@map("sms_templates")
 }
 
+// ─── Moyasar Payment & Subscription ─────────────────────────
+
+model NamaaSubscription {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId      String   @map("org_id") @db.Uuid
+  plan       String   // starter, professional, enterprise
+  status     String   @default("active") // active, cancelled, expired
+  moyasarId  String?  @map("moyasar_id")
+  startDate  DateTime @map("start_date") @db.Timestamptz(6)
+  endDate    DateTime @map("end_date") @db.Timestamptz(6)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([orgId, status])
+  @@map("namaa_subscriptions")
+}
+
+model NamaaPayment {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId        String   @map("org_id") @db.Uuid
+  amount       Int      // in halalas (SAR cents)
+  currency     String   @default("SAR")
+  status       String   // paid, failed, pending, authorized
+  moyasarId    String?  @unique @map("moyasar_id")
+  source       String?  // creditcard, applepay, sadad, mada
+  description  String?
+  plan         String?  // which plan this payment is for
+  callbackUrl  String?  @map("callback_url")
+  errorMessage String?  @map("error_message")
+  metadata     Json?    @default("{}")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+
+  @@index([orgId, status])
+  @@index([moyasarId])
+  @@map("namaa_payments")
+}
+
 // ─── Users / Roles ──────────────────────────────────────────
 
 model User {

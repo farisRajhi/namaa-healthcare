@@ -7,11 +7,13 @@ declare module '@fastify/jwt' {
       userId: string;
       orgId: string;
       email: string;
+      role?: string;
     };
     user: {
       userId: string;
       orgId: string;
       email: string;
+      role?: string;
     };
   }
 }

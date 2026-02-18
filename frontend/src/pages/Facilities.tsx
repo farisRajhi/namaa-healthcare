@@ -6,6 +6,7 @@ import { Plus, Building2, Pencil, Trash2, Users, MapPin } from 'lucide-react'
 import Modal from '../components/ui/Modal'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
+import { useToast } from '../components/ui/Toast'
 
 interface Facility {
   facilityId: string
@@ -39,6 +40,7 @@ export default function Facilities() {
   const { i18n } = useTranslation()
   const isAr = i18n.language === 'ar'
   const queryClient = useQueryClient()
+  const { addToast } = useToast()
 
   const { data, isLoading } = useQuery({
     queryKey: ['facilities'],
@@ -47,17 +49,29 @@ export default function Facilities() {
 
   const createMutation = useMutation({
     mutationFn: (data: FacilityForm) => api.post('/api/facilities', data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['facilities'] }); handleCloseModal() },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['facilities'] }); handleCloseModal()
+      addToast({ type: 'success', title: isAr ? 'تم إضافة العيادة' : 'Facility added' })
+    },
+    onError: () => addToast({ type: 'error', title: isAr ? 'فشل إضافة العيادة' : 'Failed to add facility' }),
   })
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: Partial<FacilityForm> }) => api.put(`/api/facilities/${id}`, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['facilities'] }); handleCloseModal() },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['facilities'] }); handleCloseModal()
+      addToast({ type: 'success', title: isAr ? 'تم تحديث العيادة' : 'Facility updated' })
+    },
+    onError: () => addToast({ type: 'error', title: isAr ? 'فشل تحديث العيادة' : 'Failed to update facility' }),
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/api/facilities/${id}`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['facilities'] }); setDeleteConfirm(null) },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['facilities'] }); setDeleteConfirm(null)
+      addToast({ type: 'success', title: isAr ? 'تم حذف العيادة' : 'Facility deleted' })
+    },
+    onError: () => addToast({ type: 'error', title: isAr ? 'فشل حذف العيادة' : 'Failed to delete facility' }),
   })
 
   const facilities: Facility[] = data?.data || []

@@ -7,6 +7,7 @@ import {
   Plus, Edit2, Trash2, Eye, AlertTriangle,
   BookOpen, ChevronDown, ChevronUp,
 } from 'lucide-react'
+import { useToast } from '../components/ui/Toast'
 import { cn } from '../lib/utils'
 import Modal from '../components/ui/Modal'
 import SearchInput from '../components/ui/SearchInput'
@@ -43,6 +44,7 @@ export default function FAQ() {
   const queryClient = useQueryClient()
   const { user } = useAuth()
   const orgId = user?.org?.id || ''
+  const { addToast } = useToast()
 
   const [activeCategory, setActiveCategory] = useState('all')
   const [search, setSearch] = useState('')
@@ -90,12 +92,20 @@ export default function FAQ() {
   const saveFaqMutation = useMutation({
     mutationFn: (data: typeof faqForm & { faqId?: string }) =>
       data.faqId ? api.patch(`/api/faq/${data.faqId}`, data) : api.post('/api/faq', data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['faqs'] }); closeModal() },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['faqs'] }); closeModal()
+      addToast({ type: 'success', title: isAr ? 'تم الحفظ بنجاح' : 'FAQ saved' })
+    },
+    onError: () => addToast({ type: 'error', title: isAr ? 'فشل حفظ السؤال' : 'Failed to save FAQ' }),
   })
 
   const deleteFaqMutation = useMutation({
     mutationFn: (faqId: string) => api.delete(`/api/faq/${faqId}`),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['faqs'] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['faqs'] })
+      addToast({ type: 'success', title: isAr ? 'تم الحذف' : 'FAQ deleted' })
+    },
+    onError: () => addToast({ type: 'error', title: isAr ? 'فشل الحذف' : 'Failed to delete FAQ' }),
   })
 
   const saveTriageMutation = useMutation({

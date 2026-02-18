@@ -7,6 +7,7 @@ import Modal from '../components/ui/Modal'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import Badge from '../components/ui/Badge'
+import { useToast } from '../components/ui/Toast'
 
 interface Service {
   serviceId: string
@@ -28,6 +29,7 @@ export default function Services() {
   const { i18n } = useTranslation()
   const isAr = i18n.language === 'ar'
   const queryClient = useQueryClient()
+  const { addToast } = useToast()
 
   const createMutation = useMutation({
     mutationFn: (data: typeof formData) => api.post('/api/services', data).then(r => r.data),
@@ -36,8 +38,12 @@ export default function Services() {
       setShowModal(false)
       setFormData({ name: '', durationMin: 30, bufferBeforeMin: 0, bufferAfterMin: 0, active: true })
       setError('')
+      addToast({ type: 'success', title: isAr ? 'تم إضافة الخدمة' : 'Service created' })
     },
-    onError: (err: any) => setError(err.response?.data?.error || 'Failed to create service'),
+    onError: (err: any) => {
+      setError(err.response?.data?.error || 'Failed to create service')
+      addToast({ type: 'error', title: isAr ? 'فشل إضافة الخدمة' : 'Failed to create service' })
+    },
   })
 
   const { data, isLoading } = useQuery({

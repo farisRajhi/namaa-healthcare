@@ -1,5 +1,7 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import helmet from '@fastify/helmet';
+import rateLimit from '@fastify/rate-limit';
 import jwt from '@fastify/jwt';
 import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
@@ -42,6 +44,37 @@ export async function buildApp() {
       }
     },
   );
+
+  // ── Security Headers (helmet) ──────────────────────────
+  // Must be registered before routes so headers apply to all responses.
+  // CSP is disabled here to avoid breaking the Swagger UI / widget embeds;
+  // enable and tighten in production via CORS_ORIGIN + a dedicated CSP header.
+  await app.register(helmet, {
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false, // required for Swagger UI iframes
+  });
+
+  // ── Global Rate Limiting ───────────────────────────────
+  // Auth endpoints get their own tighter limit (see routes/auth.ts: 10/min).
+  // This global limit protects everything else.
+  await app.register(rateLimit, {
+    global: true,
+    max: 100,
+    timeWindow: '1 minute',
+    // Skip Twilio webhook IPs from rate-limiting (they POST frequently)
+    skipOnError: true,
+    keyGenerator: (request) => {
+      // Use X-Forwarded-For if behind a proxy/load-balancer
+      const forwarded = request.headers['x-forwarded-for'];
+      const ip = Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(',')[0] ?? request.ip;
+      return ip;
+    },
+    errorResponseBuilder: (_request, context) => ({
+      statusCode: 429,
+      error: 'Too Many Requests',
+      message: `Rate limit exceeded, retry in ${context.after}`,
+    }),
+  });
 
   // CORS
   await app.register(cors, {
@@ -171,7 +204,7 @@ export async function buildApp() {
 
   // Health check
   app.get('/health', async () => {
-    return { status: 'ok', timestamp: new Date().toISOString() };
+    return { status: 'ok', timestamp: new Date().toISOString(), version: '1.1.0' };
   });
 
   return app;

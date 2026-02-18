@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { Eye, EyeOff, ArrowRight, Building2 } from 'lucide-react'
+import { useToast } from '../components/ui/Toast'
 
 export default function Register() {
   const [email, setEmail] = useState('')
@@ -14,17 +15,32 @@ export default function Register() {
   const { register } = useAuth()
   const navigate = useNavigate()
   const { t } = useTranslation()
+  const { addToast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+
+    // Validation
+    if (!orgName.trim()) {
+      setError(t('auth.orgRequired') || 'اسم المنشأة مطلوب / Organization name is required')
+      return
+    }
+    if (password.length < 6) {
+      setError(t('auth.passwordTooShort') || 'كلمة المرور يجب أن تكون 6 أحرف على الأقل / Password must be at least 6 characters')
+      return
+    }
+
     setIsLoading(true)
 
     try {
       await register(email, password, orgName)
+      addToast({ type: 'success', title: 'تم إنشاء الحساب بنجاح! / Account created!' })
       navigate('/dashboard')
     } catch (err: any) {
-      setError(err.response?.data?.message || t('auth.registrationFailed'))
+      const msg = err.response?.data?.message || t('auth.registrationFailed')
+      setError(msg)
+      addToast({ type: 'error', title: msg })
     } finally {
       setIsLoading(false)
     }

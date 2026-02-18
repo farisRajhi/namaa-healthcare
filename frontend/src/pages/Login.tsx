@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../context/AuthContext'
 import { Eye, EyeOff, ArrowRight } from 'lucide-react'
+import { useToast } from '../components/ui/Toast'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -13,6 +14,7 @@ export default function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
   const { t } = useTranslation()
+  const { addToast } = useToast()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -21,9 +23,12 @@ export default function Login() {
 
     try {
       await login(email, password)
+      addToast({ type: 'success', title: t('auth.welcomeBack') })
       navigate('/dashboard')
     } catch (err: any) {
-      setError(err.response?.data?.message || t('auth.invalidCredentials'))
+      const msg = err.response?.data?.message || t('auth.invalidCredentials')
+      setError(msg)
+      addToast({ type: 'error', title: msg })
     } finally {
       setIsLoading(false)
     }

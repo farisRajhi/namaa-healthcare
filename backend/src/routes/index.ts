@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { authPlugin } from '../plugins/auth.js';
+import { subscriptionGuardPlugin } from '../plugins/subscriptionGuard.js';
 import authRoutes from './auth.js';
 import patientsRoutes from './patients.js';
 import appointmentsRoutes from './appointments.js';
@@ -40,10 +41,19 @@ import patientAuthRoutes from './patientAuth.js';
 import patientPortalRoutes from './patientPortal.js';
 import agentBuilderRoutes from './agentBuilder.js';
 import campaignRoutes from './campaigns.js';
+import { integrationsRoutes, webhookSubscriptionsRoutes } from './integrations.js';
+import settingsRoutes from './settings.js';
+import reportsRoutes from './reports.js';
+import paymentsRoutes from './payments.js';
+import subscriptionRoutes from './subscription.js';
+import callSummariesRoutes from './callSummaries.js';
 
 export async function registerRoutes(app: FastifyInstance) {
   // Register auth plugin
   await app.register(authPlugin);
+
+  // Register subscription guard plugin
+  await app.register(subscriptionGuardPlugin);
 
   // Public routes
   await app.register(authRoutes, { prefix: '/api/auth' });
@@ -144,6 +154,25 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // Agent Builder (No-Code Flow Builder)
   await app.register(agentBuilderRoutes, { prefix: '/api/agent-builder' });
+
+  // Integrations & Webhook Subscriptions management
+  await app.register(integrationsRoutes, { prefix: '/api/integrations' });
+  await app.register(webhookSubscriptionsRoutes, { prefix: '/api/webhook-subscriptions' });
+
+  // Settings (org, profile, notifications)
+  await app.register(settingsRoutes, { prefix: '/api/settings' });
+
+  // Reports & Export
+  await app.register(reportsRoutes, { prefix: '/api/reports' });
+
+  // Moyasar Payments
+  await app.register(paymentsRoutes, { prefix: '/api/payments' });
+
+  // Subscription management
+  await app.register(subscriptionRoutes, { prefix: '/api/subscription' });
+
+  // Call Summaries, Transcripts & AI Analysis
+  await app.register(callSummariesRoutes, { prefix: '/api/calls' });
 
   // Register audit trail middleware (auto-logs sensitive route access)
   registerAuditMiddleware(app);

@@ -7,6 +7,7 @@ import { FastifyInstance, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 import { FlowEngine } from '../services/agentBuilder/flowEngine.js'
 import { ALL_TEMPLATES } from '../services/agentBuilder/templates.js'
+import { requireManager } from '../middleware/rbac.js'
 
 // ─── Validation Schemas ──────────────────────────────────
 
@@ -46,6 +47,8 @@ const listFlowsQuerySchema = z.object({
 
 export default async function agentBuilderRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate)
+  // Agent builder is admin/manager only — modifying flows affects live AI behavior
+  app.addHook('preHandler', requireManager)
 
   const engine = new FlowEngine(app.prisma)
 

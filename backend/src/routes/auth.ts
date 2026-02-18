@@ -66,11 +66,12 @@ export default async function authRoutes(app: FastifyInstance) {
       },
     });
 
-    // Sign JWT
+    // Sign JWT (no role at registration — user can be promoted later)
     const token = app.jwt.sign({
       userId: user.userId,
       orgId: user.orgId,
       email: user.email,
+      role: 'viewer', // default role for new registrations
     });
 
     return {
@@ -91,7 +92,7 @@ export default async function authRoutes(app: FastifyInstance) {
   app.post('/login', async (request: FastifyRequest, reply: FastifyReply) => {
     const body = loginSchema.parse(request.body);
 
-    // Find user by email
+    // Find user by email (include role relation)
     const user = await app.prisma.user.findUnique({
       where: { email: body.email },
     });
@@ -108,17 +109,28 @@ export default async function authRoutes(app: FastifyInstance) {
       return reply.code(401).send({ error: msg(messages.auth.invalidCredentials, lang) });
     }
 
+    // Look up the user's role name (if assigned)
+    let roleName: string | undefined;
+    if (user.roleId) {
+      const roleRecord = await app.prisma.role.findUnique({
+        where: { roleId: user.roleId },
+        select: { name: true },
+      });
+      roleName = roleRecord?.name ?? undefined;
+    }
+
     // Update last login
     await app.prisma.user.update({
       where: { userId: user.userId },
       data: { lastLogin: new Date() },
     });
 
-    // Sign JWT
+    // Sign JWT — include role so RBAC middleware can gate routes
     const token = app.jwt.sign({
       userId: user.userId,
       orgId: user.orgId,
       email: user.email,
+      role: roleName ?? 'viewer',
     });
 
     return { token };

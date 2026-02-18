@@ -6,6 +6,7 @@ import { Plus, FolderTree, Pencil, Trash2, Users } from 'lucide-react'
 import Modal from '../components/ui/Modal'
 import EmptyState from '../components/ui/EmptyState'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
+import { useToast } from '../components/ui/Toast'
 
 interface Department {
   departmentId: string
@@ -22,6 +23,7 @@ export default function Departments() {
   const { i18n } = useTranslation()
   const isAr = i18n.language === 'ar'
   const queryClient = useQueryClient()
+  const { addToast } = useToast()
 
   const { data, isLoading } = useQuery({
     queryKey: ['departments'],
@@ -30,17 +32,29 @@ export default function Departments() {
 
   const createMutation = useMutation({
     mutationFn: (data: { name: string }) => api.post('/api/departments', data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['departments'] }); handleCloseModal() },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['departments'] }); handleCloseModal()
+      addToast({ type: 'success', title: isAr ? 'تم إضافة القسم' : 'Department added' })
+    },
+    onError: () => addToast({ type: 'error', title: isAr ? 'فشل إضافة القسم' : 'Failed to add department' }),
   })
 
   const updateMutation = useMutation({
     mutationFn: ({ id, data }: { id: string; data: { name: string } }) => api.put(`/api/departments/${id}`, data),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['departments'] }); handleCloseModal() },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['departments'] }); handleCloseModal()
+      addToast({ type: 'success', title: isAr ? 'تم تحديث القسم' : 'Department updated' })
+    },
+    onError: () => addToast({ type: 'error', title: isAr ? 'فشل تحديث القسم' : 'Failed to update department' }),
   })
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/api/departments/${id}`),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['departments'] }); setDeleteConfirm(null) },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['departments'] }); setDeleteConfirm(null)
+      addToast({ type: 'success', title: isAr ? 'تم حذف القسم' : 'Department deleted' })
+    },
+    onError: () => addToast({ type: 'error', title: isAr ? 'فشل حذف القسم' : 'Failed to delete department' }),
   })
 
   const departments: Department[] = data?.data || []

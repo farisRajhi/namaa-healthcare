@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import { requireManager } from '../middleware/rbac.js';
 
 const dateRangeSchema = z.object({
   from: z.string().optional(),
@@ -119,6 +120,8 @@ async function getChannelsData(app: FastifyInstance, orgId: string) {
 
 export default async function analyticsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
+  // Analytics is sensitive admin data — restrict to manager+ roles
+  app.addHook('preHandler', requireManager);
 
   // ── Org-scoped routes: GET /api/analytics/:orgId/overview etc. ──────────
 
