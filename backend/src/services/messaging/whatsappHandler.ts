@@ -391,4 +391,119 @@ export class WhatsAppHandler {
 
     return prompt;
   }
+
+  /**
+   * Match incoming message against pre-built Arabic templates.
+   * Returns a ready response string if matched, null otherwise.
+   *
+   * Common queries handled without LLM:
+   *   - Working hours
+   *   - Visit cost
+   *   - Today's availability
+   */
+  private async matchTemplate(body: string, orgId: string): Promise<string | null> {
+    const msg = body.trim().toLowerCase().replace(/[؟?!.]/g, '');
+
+    // ── Working hours ──────────────────────────────────────────────────────
+    const hoursKeywords = [
+      'مواعيد', 'اوقات', 'أوقات', 'ساعات', 'متى تفتح', 'متى تغلق',
+      'وقت العمل', 'دوام', 'working hours', 'hours',
+    ];
+    if (hoursKeywords.some((kw) => msg.includes(kw))) {
+      // Try to load facility config
+      const facilityForConfig = await this.prisma.facility.findFirst({ where: { orgId }, select: { facilityId: true } });
+      const config = facilityForConfig ? await this.prisma.facilityConfig.findFirst({
+        where: { facilityId: facilityForConfig.facilityId },
+        select: { businessHours: true, greetingAr: true },
+      }) : null;
+
+      if (config?.businessHours) {
+        const hours = config.businessHours as Record<string, any>;
+        const lines = Object.entries(hours)
+          .map(([day, h]: [string, any]) => `• ${day}: ${h.open ?? ''} – ${h.close ?? ''}`)
+          .join('\n');
+        return `🕐 ساعات عمل العيادة:\n${lines}\n\nللحجز أرسل "حجز" أو اتصل بنا 📞`;
+      }
+
+      // Default hours
+      return '🕐 العيادة تعمل من الأحد إلى الخميس من 8:00 صباحاً حتى 9:00 مساءً.\nللحجز أرسل "حجز" أو اتصل بنا 📞';
+    }
+
+    // ── Visit cost ─────────────────────────────────────────────────────────
+    const costKeywords = [
+      'تكلفة', 'سعر', 'كم', 'رسوم', 'أتعاب', 'price', 'cost', 'fee', 'كم يكلف', 'بكم',
+    ];
+    if (costKeywords.some((kw) => msg.includes(kw))) {
+      // Try to get cheapest service price hint
+      const services = await this.prisma.service.findMany({
+        where: { orgId, active: true },
+        select: { name: true },
+        take: 3,
+        orderBy: { name: 'asc' },
+      });
+
+      const serviceList = services.map((s) => `• ${s.name}`).join('\n');
+      return (
+        '💰 تكاليف الزيارة تختلف حسب نوع الخدمة والطبيب.\n' +
+        (services.length > 0 ? `\nالخدمات المتاحة:\n${serviceList}\n\n` : '') +
+        'للاستفسار عن تكلفة خدمة معينة، يرجى التواصل معنا مباشرة 📞'
+      );
+    }
+
+    // ── Today's availability ───────────────────────────────────────────────
+    const todayKeywords = [
+      'موعد اليوم', 'اليوم', 'الآن', 'متاح اليوم', 'today', 'available today',
+      'هل في مواعيد', 'مواعيد اليوم', 'فيه مواعيد',
+    ];
+    if (todayKeywords.some((kw) => msg.includes(kw))) {
+      const now = new Date();
+      const endOfDay = new Date(now);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const count = await this.prisma.appointment.count({
+        where: {
+          orgId,
+          startTs: { gte: now, lte: endOfDay },
+          status: { in: ['booked', 'confirmed'] },
+        },
+      });
+
+      // Count available providers today
+      const dayOfWeek = now.getDay();
+      const activeProviders = await this.prisma.providerAvailabilityRule.count({
+        where: {
+          provider: { orgId, active: true },
+          dayOfWeek,
+          validFrom: { lte: now },
+          OR: [{ validTo: null }, { validTo: { gte: now } }],
+        },
+      });
+
+      if (activeProviders === 0) {
+        return '😔 عذراً، لا يوجد مواعيد متاحة اليوم.\nيمكنك الحجز ليوم آخر عبر الرابط أو التواصل معنا 📞';
+      }
+
+      return (
+        `✅ يوجد مواعيد متاحة اليوم!\n` +
+        `عدد الأطباء المتاحين: ${activeProviders}\n\n` +
+        `للحجز أرسل "حجز" أو انقر على الرابط:\nhttps://namaa.app/book`
+      );
+    }
+
+    // ── Greeting / start ──────────────────────────────────────────────────
+    const greetKeywords = ['مرحبا', 'السلام', 'هلا', 'hi', 'hello', 'مرحباً', 'أهلاً', 'اهلاً'];
+    if (greetKeywords.some((kw) => msg.includes(kw))) {
+      return (
+        '👋 أهلاً وسهلاً بكم في نماء للرعاية الصحية!\n\n' +
+        'كيف يمكنني مساعدتك؟ يمكنك:\n' +
+        '• حجز موعد → اكتب "حجز"\n' +
+        '• الاستفسار عن مواعيد العيادة → اكتب "مواعيد"\n' +
+        '• إلغاء موعد → اكتب "إلغاء"\n' +
+        '• أي استفسار آخر → اكتب سؤالك مباشرة 😊'
+      );
+    }
+
+    // No template matched — fall through to LLM
+    return null;
+  }
 }

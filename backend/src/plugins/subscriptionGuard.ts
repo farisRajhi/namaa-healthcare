@@ -37,7 +37,7 @@ const subscriptionGuardPlugin: FastifyPluginAsync = async (fastify) => {
         // Attach subscription info to request for downstream use
         (request as any).subscription = subscription;
       } catch (error) {
-        fastify.log.error('[subscriptionGuard]', error);
+        fastify.log.error(`[subscriptionGuard] ${error}`);
         return reply.code(500).send({ error: 'Failed to verify subscription' });
       }
     },

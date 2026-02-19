@@ -134,7 +134,15 @@
       "subtitle": "Start your free trial today. No credit card required."
     },
     "footer": {
-      "copyright": "Namaa. All rights reserved."
+      "copyright": "Namaa. All rights reserved.",
+      "tagline": "AI-powered medical receptionist platform for clinics and hospitals.",
+      "product": "Product",
+      "pricing": "Pricing",
+      "access": "Access",
+      "patientPortal": "Patient Portal",
+      "legal": "Legal",
+      "privacy": "Privacy Policy",
+      "terms": "Terms of Service"
     }
   },
   "auth": {
@@ -211,6 +219,8 @@
     "smsTemplates": "SMS Templates",
     "waitlist": "Waitlist",
     "agentBuilder": "Agent Builder",
+    "branches": "Branches",
+    "doctorSchedule": "Doctor Schedule",
     "generalManagement": "General Management",
     "groups": {
       "main": "Main",
@@ -230,6 +240,17 @@
     "limitReached": "Demo limit reached!",
     "signUp": "Sign up for unlimited access",
     "cta": "Sign up to book real appointments"
+  },
+  "notFound": {
+    "title": "Page Not Found",
+    "description": "The page you're looking for doesn't exist or has been moved. Let's get you back on track.",
+    "goHome": "Go Home",
+    "goDashboard": "Go to Dashboard",
+    "helpfulLinks": "Helpful links",
+    "links": {
+      "patientPortal": "Patient Portal",
+      "pricing": "Pricing"
+    }
   },
   "settings": {
     "title": "Settings",

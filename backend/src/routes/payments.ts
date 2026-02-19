@@ -108,10 +108,10 @@ export default async function paymentsRoutes(app: FastifyInstance) {
   );
 
   // GET /api/payments/verify/:id — verify Moyasar payment status
-  app.get(
+  app.get<{ Params: { id: string } }>(
     '/verify/:id',
     { preHandler: [app.authenticate] },
-    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    async (request, reply) => {
       const { id } = request.params;
       const user = request.user;
 
@@ -214,7 +214,7 @@ export default async function paymentsRoutes(app: FastifyInstance) {
       const event = request.body as any;
       const { type, data } = event;
 
-      app.log.info(`[webhook] Moyasar event: ${type}`, { paymentId: data?.id });
+      app.log.info(`[webhook] Moyasar event: ${type} paymentId=${data?.id}`);
 
       try {
         switch (type) {

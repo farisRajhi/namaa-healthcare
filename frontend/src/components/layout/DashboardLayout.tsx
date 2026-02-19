@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../context/AuthContext'
+import { BranchProvider } from '../../context/BranchContext'
+import BranchSelector from '../ui/BranchSelector'
 import {
   LayoutDashboard,
   Users,
@@ -32,6 +34,7 @@ import {
   ClipboardList,
   Workflow,
   FileBarChart,
+  CalendarDays,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -63,6 +66,7 @@ const getNavigation = (t: (key: string) => string): NavGroup[] => [
       { name: t('nav.prescriptions'), href: '/dashboard/prescriptions', icon: Pill },
       { name: t('nav.reminders'), href: '/dashboard/reminders', icon: Bell },
       { name: t('nav.waitlist'), href: '/dashboard/waitlist', icon: ClipboardList },
+      { name: t('nav.doctorSchedule'), href: '/dashboard/doctor-schedule', icon: CalendarDays },
       { name: t('nav.agentBuilder'), href: '/dashboard/agent-builder', icon: Workflow },
     ],
   },
@@ -73,6 +77,7 @@ const getNavigation = (t: (key: string) => string): NavGroup[] => [
       { name: t('nav.providers'), href: '/dashboard/providers', icon: UserCog },
       { name: t('nav.departments'), href: '/dashboard/departments', icon: FolderTree },
       { name: t('nav.facilities'), href: '/dashboard/facilities', icon: Building2 },
+      { name: t('nav.branches'), href: '/dashboard/branches', icon: Building2 },
       { name: t('nav.services'), href: '/dashboard/services', icon: Briefcase },
     ],
   },
@@ -186,6 +191,7 @@ export default function DashboardLayout() {
   )
 
   return (
+    <BranchProvider>
     <div className="min-h-screen bg-healthcare-bg">
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
@@ -248,6 +254,9 @@ export default function DashboardLayout() {
 
           {/* Right side actions */}
           <div className="flex items-center gap-2">
+            {/* Branch selector (multi-clinic) */}
+            <BranchSelector />
+
             {/* Language toggle */}
             <button
               onClick={toggleLanguage}
@@ -316,5 +325,6 @@ export default function DashboardLayout() {
         </main>
       </div>
     </div>
+    </BranchProvider>
   )
 }

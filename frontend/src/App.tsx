@@ -38,7 +38,12 @@ import PatientBooking from './pages/portal/PatientBooking'
 import PatientPrescriptions from './pages/portal/PatientPrescriptions'
 import PatientProfile from './pages/portal/PatientProfile'
 import LoadingSpinner from './components/ui/LoadingSpinner'
-// PrivacyPolicy, Terms, DoctorSchedule imported lazily when routes are added
+import PrivacyPolicy from './pages/Legal/PrivacyPolicy'
+import Terms from './pages/Legal/Terms'
+import DoctorSchedule from './pages/DoctorSchedule'
+import NotFound from './pages/NotFound'
+import PublicBooking from './pages/PublicBooking'
+import Branches from './pages/Branches'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth()
@@ -119,7 +124,13 @@ function App() {
         <Route path="agent-builder" element={<AgentBuilderList />} />
         <Route path="agent-builder/:id" element={<AgentBuilder />} />
         <Route path="reports" element={<Reports />} />
+        <Route path="branches" element={<Branches />} />
+        <Route path="doctor-schedule" element={<DoctorSchedule />} />
       </Route>
+
+      {/* Legal pages */}
+      <Route path="/privacy" element={<PrivacyPolicy />} />
+      <Route path="/terms" element={<Terms />} />
 
       {/* Patient Portal — Public */}
       <Route
@@ -149,8 +160,11 @@ function App() {
         <Route path="profile" element={<PatientProfile />} />
       </Route>
 
-      {/* Catch all */}
-      <Route path="*" element={<Navigate to="/" replace />} />
+      {/* Public self-booking link for clinics */}
+      <Route path="/book/:slug" element={<PublicBooking />} />
+
+      {/* Catch all — proper 404 page */}
+      <Route path="*" element={<NotFound />} />
     </Routes>
   )
 }

@@ -371,24 +371,61 @@ export default function Landing() {
       {/* Footer */}
       <footer className="bg-healthcare-text text-white/70 py-12 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
-          <div className="flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center">
-                <span className="text-white font-bold text-lg">✚</span>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            {/* Brand */}
+            <div className="md:col-span-1">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center">
+                  <span className="text-white font-bold text-lg">✚</span>
+                </div>
+                <div>
+                  <span className="text-lg font-heading font-bold text-white">{t('landing.brand')}</span>
+                  <span className="text-xs text-white/50 ms-2">HEALTH AI</span>
+                </div>
               </div>
-              <div>
-                <span className="text-lg font-heading font-bold text-white">{t('landing.brand')}</span>
-                <span className="text-xs text-white/50 ms-2">HEALTH AI</span>
-              </div>
+              <p className="text-sm text-white/50 leading-relaxed">
+                {t('landing.footer.tagline')}
+              </p>
             </div>
-            <div className="flex items-center gap-8 text-sm">
-              <a href="#features" className="hover:text-white transition-colors">{t('common.features')}</a>
-              <Link to="/login" className="hover:text-white transition-colors">{t('common.signIn')}</Link>
-              <Link to="/register" className="hover:text-white transition-colors">{t('common.getStarted')}</Link>
+
+            {/* Product links */}
+            <div>
+              <h4 className="text-sm font-semibold text-white mb-4">{t('landing.footer.product')}</h4>
+              <ul className="space-y-2.5 text-sm">
+                <li><a href="#features" className="hover:text-white transition-colors">{t('common.features')}</a></li>
+                <li><Link to="/pricing" className="hover:text-white transition-colors">{t('landing.footer.pricing')}</Link></li>
+                <li><a href="#demo" className="hover:text-white transition-colors">{t('landing.demo.tryNow')}</a></li>
+              </ul>
+            </div>
+
+            {/* Access links */}
+            <div>
+              <h4 className="text-sm font-semibold text-white mb-4">{t('landing.footer.access')}</h4>
+              <ul className="space-y-2.5 text-sm">
+                <li><Link to="/login" className="hover:text-white transition-colors">{t('common.signIn')}</Link></li>
+                <li><Link to="/register" className="hover:text-white transition-colors">{t('common.getStarted')}</Link></li>
+                <li><Link to="/patient" className="hover:text-white transition-colors">{t('landing.footer.patientPortal')}</Link></li>
+              </ul>
+            </div>
+
+            {/* Legal links */}
+            <div>
+              <h4 className="text-sm font-semibold text-white mb-4">{t('landing.footer.legal')}</h4>
+              <ul className="space-y-2.5 text-sm">
+                <li><Link to="/privacy" className="hover:text-white transition-colors">{t('landing.footer.privacy')}</Link></li>
+                <li><Link to="/terms" className="hover:text-white transition-colors">{t('landing.footer.terms')}</Link></li>
+              </ul>
             </div>
           </div>
-          <div className="border-t border-white/10 mt-8 pt-8 text-center text-sm text-white/40">
-            &copy; {new Date().getFullYear()} {t('landing.footer.copyright')}
+
+          <div className="border-t border-white/10 mt-10 pt-8 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <p className="text-sm text-white/40">
+              &copy; {new Date().getFullYear()} {t('landing.footer.copyright')}
+            </p>
+            <div className="flex items-center gap-6 text-sm text-white/40">
+              <Link to="/privacy" className="hover:text-white/60 transition-colors">{t('landing.footer.privacy')}</Link>
+              <Link to="/terms" className="hover:text-white/60 transition-colors">{t('landing.footer.terms')}</Link>
+            </div>
           </div>
         </div>
       </footer>
