@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { patientApi } from '../../context/PatientAuthContext'
 import { Calendar, Clock, Plus, X, AlertTriangle } from 'lucide-react'
 import { formatDate, formatTime } from '../../lib/utils'
@@ -31,19 +32,8 @@ const statusColors: Record<string, string> = {
   expired: 'bg-slate-100 text-slate-500',
 }
 
-const statusLabels: Record<string, string> = {
-  booked: 'محجوز',
-  confirmed: 'مؤكد',
-  cancelled: 'ملغي',
-  completed: 'مكتمل',
-  checked_in: 'تم الحضور',
-  in_progress: 'جاري',
-  held: 'محجوز مؤقتاً',
-  no_show: 'لم يحضر',
-  expired: 'منتهي',
-}
-
 export default function PatientAppointments() {
+  const { t } = useTranslation()
   const [activeTab, setActiveTab] = useState<TabType>('upcoming')
   const [appointments, setAppointments] = useState<AppointmentItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -72,7 +62,6 @@ export default function PatientAppointments() {
     try {
       const api = patientApi()
       await api.patch(`/api/patient-portal/appointments/${appointmentId}/cancel`)
-      // Refresh
       await loadAppointments(activeTab)
     } catch {
       // ignore
@@ -90,13 +79,13 @@ export default function PatientAppointments() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-slate-800">المواعيد</h2>
+        <h2 className="text-lg font-bold text-slate-800">{t('portal.appointments.title')}</h2>
         <Link
           to="/patient/dashboard/book"
           className="flex items-center gap-1.5 bg-teal-500 text-white px-3 py-2 rounded-xl text-xs font-medium hover:bg-teal-600 transition-colors shadow-sm"
         >
           <Plus className="w-3.5 h-3.5" />
-          حجز جديد
+          {t('portal.appointments.newBooking')}
         </Link>
       </div>
 
@@ -113,7 +102,7 @@ export default function PatientAppointments() {
                 : 'text-slate-500'
             )}
           >
-            {tab === 'upcoming' ? 'القادمة' : 'السابقة'}
+            {t(`portal.appointments.${tab}`)}
           </button>
         ))}
       </div>
@@ -133,10 +122,7 @@ export default function PatientAppointments() {
         <div className="bg-white rounded-xl p-8 border border-slate-100 text-center">
           <Calendar className="w-12 h-12 text-slate-300 mx-auto mb-3" />
           <p className="text-sm text-slate-600 font-medium">
-            {activeTab === 'upcoming' ? 'لا توجد مواعيد قادمة' : 'لا توجد مواعيد سابقة'}
-          </p>
-          <p className="text-xs text-slate-400 mt-1">
-            {activeTab === 'upcoming' ? 'No upcoming appointments' : 'No past appointments'}
+            {activeTab === 'upcoming' ? t('portal.appointments.noUpcoming') : t('portal.appointments.noPast')}
           </p>
           {activeTab === 'upcoming' && (
             <Link
@@ -144,7 +130,7 @@ export default function PatientAppointments() {
               className="inline-flex items-center gap-1 mt-4 text-xs text-teal-600 font-medium bg-teal-50 px-4 py-2 rounded-lg"
             >
               <Plus className="w-3.5 h-3.5" />
-              احجز موعد جديد
+              {t('portal.appointments.bookNew')}
             </Link>
           )}
         </div>
@@ -166,7 +152,7 @@ export default function PatientAppointments() {
                 <span
                   className={`text-[10px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${statusColors[appt.status] || 'bg-slate-100 text-slate-600'}`}
                 >
-                  {statusLabels[appt.status] || appt.status}
+                  {t(`portal.statuses.${appt.status}`, { defaultValue: appt.status })}
                 </span>
               </div>
 
@@ -180,7 +166,7 @@ export default function PatientAppointments() {
                   {formatTime(appt.startTs)}
                 </span>
                 <span className="text-slate-300">•</span>
-                <span>{appt.service.durationMin} دقيقة</span>
+                <span>{appt.service.durationMin} {t('portal.appointments.minutes')}</span>
               </div>
 
               {appt.facility && (
@@ -193,19 +179,19 @@ export default function PatientAppointments() {
                   {cancelId === appt.appointmentId ? (
                     <div className="flex items-center gap-2">
                       <AlertTriangle className="w-4 h-4 text-amber-500 flex-shrink-0" />
-                      <p className="text-xs text-slate-600 flex-1">هل تريد إلغاء هذا الموعد؟</p>
+                      <p className="text-xs text-slate-600 flex-1">{t('portal.appointments.confirmCancel')}</p>
                       <button
                         onClick={() => handleCancel(appt.appointmentId)}
                         disabled={cancelling}
                         className="text-xs bg-red-500 text-white px-3 py-1.5 rounded-lg font-medium disabled:opacity-60"
                       >
-                        {cancelling ? 'جاري...' : 'نعم، إلغاء'}
+                        {cancelling ? t('portal.appointments.cancelling') : t('portal.appointments.yesCancel')}
                       </button>
                       <button
                         onClick={() => setCancelId(null)}
                         className="text-xs text-slate-500 px-2 py-1.5"
                       >
-                        لا
+                        {t('common.no')}
                       </button>
                     </div>
                   ) : (
@@ -214,7 +200,7 @@ export default function PatientAppointments() {
                       className="flex items-center gap-1 text-xs text-red-500 hover:text-red-600 font-medium"
                     >
                       <X className="w-3.5 h-3.5" />
-                      إلغاء الموعد
+                      {t('portal.appointments.cancelAppointment')}
                     </button>
                   )}
                 </div>

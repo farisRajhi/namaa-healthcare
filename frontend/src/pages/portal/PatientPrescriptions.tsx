@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { patientApi } from '../../context/PatientAuthContext'
 import { Pill, RefreshCw, Check, Clock, AlertCircle } from 'lucide-react'
 import { cn } from '../../lib/utils'
@@ -23,21 +24,23 @@ interface PrescriptionItem {
   }>
 }
 
-const statusConfig: Record<string, { label: string; color: string; icon: React.ElementType }> = {
-  active: { label: 'فعال', color: 'bg-green-100 text-green-700', icon: Check },
-  expired: { label: 'منتهي', color: 'bg-red-100 text-red-700', icon: AlertCircle },
-  completed: { label: 'مكتمل', color: 'bg-blue-100 text-blue-700', icon: Check },
-  cancelled: { label: 'ملغي', color: 'bg-slate-100 text-slate-500', icon: AlertCircle },
+const statusIcons: Record<string, React.ElementType> = {
+  active: Check,
+  expired: AlertCircle,
+  completed: Check,
+  cancelled: AlertCircle,
 }
 
-const frequencyLabels: Record<string, string> = {
-  once_daily: 'مرة يومياً',
-  twice_daily: 'مرتين يومياً',
-  three_daily: 'ثلاث مرات يومياً',
-  as_needed: 'عند الحاجة',
+const statusColorMap: Record<string, string> = {
+  active: 'bg-green-100 text-green-700',
+  expired: 'bg-red-100 text-red-700',
+  completed: 'bg-blue-100 text-blue-700',
+  cancelled: 'bg-slate-100 text-slate-500',
 }
 
 export default function PatientPrescriptions() {
+  const { t, i18n } = useTranslation()
+  const isRTL = i18n.language === 'ar'
   const [prescriptions, setPrescriptions] = useState<PrescriptionItem[]>([])
   const [loading, setLoading] = useState(true)
   const [refilling, setRefilling] = useState<string | null>(null)
@@ -66,7 +69,6 @@ export default function PatientPrescriptions() {
       const api = patientApi()
       await api.post(`/api/patient-portal/prescriptions/${prescriptionId}/refill`)
       setRefillSuccess(prescriptionId)
-      // Refresh after short delay
       setTimeout(() => {
         loadPrescriptions()
         setRefillSuccess(null)
@@ -82,9 +84,13 @@ export default function PatientPrescriptions() {
     return rx.recentRefills.some((r) => r.status === 'pending')
   }
 
+  const getFrequencyLabel = (freq: string) => {
+    return t(`portal.prescriptions.frequencies.${freq}`, { defaultValue: freq })
+  }
+
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-bold text-slate-800">الوصفات الطبية</h2>
+      <h2 className="text-lg font-bold text-slate-800">{t('portal.prescriptions.title')}</h2>
 
       {loading ? (
         <div className="space-y-3">
@@ -99,14 +105,13 @@ export default function PatientPrescriptions() {
       ) : prescriptions.length === 0 ? (
         <div className="bg-white rounded-xl p-8 border border-slate-100 text-center">
           <Pill className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <p className="text-sm text-slate-600 font-medium">لا توجد وصفات طبية</p>
-          <p className="text-xs text-slate-400 mt-1">No prescriptions on file</p>
+          <p className="text-sm text-slate-600 font-medium">{t('portal.prescriptions.noPrescriptions')}</p>
         </div>
       ) : (
         <div className="space-y-3">
           {prescriptions.map((rx) => {
-            const config = statusConfig[rx.status] || statusConfig.active
-            const StatusIcon = config.icon
+            const StatusIcon = statusIcons[rx.status] || Check
+            const colorClass = statusColorMap[rx.status] || statusColorMap.active
             const canRefill = rx.status === 'active' && rx.refillsRemaining > 0 && !hasPendingRefill(rx)
 
             return (
@@ -122,40 +127,41 @@ export default function PatientPrescriptions() {
                       </div>
                       <div>
                         <p className="font-medium text-sm text-slate-800">
-                          {rx.medicationNameAr || rx.medicationName}
+                          {isRTL && rx.medicationNameAr ? rx.medicationNameAr : rx.medicationName}
                         </p>
-                        {rx.medicationNameAr && (
+                        {isRTL && rx.medicationNameAr && (
                           <p className="text-[10px] text-slate-400">{rx.medicationName}</p>
+                        )}
+                        {!isRTL && rx.medicationNameAr && (
+                          <p className="text-[10px] text-slate-400">{rx.medicationNameAr}</p>
                         )}
                       </div>
                     </div>
-                    <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1', config.color)}>
+                    <span className={cn('text-[10px] font-medium px-2 py-0.5 rounded-full flex items-center gap-1', colorClass)}>
                       <StatusIcon className="w-3 h-3" />
-                      {config.label}
+                      {t(`portal.prescriptions.statuses.${rx.status}`, { defaultValue: rx.status })}
                     </span>
                   </div>
 
                   {/* Details */}
                   <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
                     <div className="bg-slate-50 rounded-lg px-3 py-2">
-                      <p className="text-slate-400 text-[10px]">الجرعة</p>
+                      <p className="text-slate-400 text-[10px]">{t('portal.prescriptions.dosage')}</p>
                       <p className="text-slate-700 font-medium">{rx.dosage}</p>
                     </div>
                     <div className="bg-slate-50 rounded-lg px-3 py-2">
-                      <p className="text-slate-400 text-[10px]">التكرار</p>
-                      <p className="text-slate-700 font-medium">
-                        {frequencyLabels[rx.frequency] || rx.frequency}
-                      </p>
+                      <p className="text-slate-400 text-[10px]">{t('portal.prescriptions.frequency')}</p>
+                      <p className="text-slate-700 font-medium">{getFrequencyLabel(rx.frequency)}</p>
                     </div>
                     <div className="bg-slate-50 rounded-lg px-3 py-2">
-                      <p className="text-slate-400 text-[10px]">إعادة التعبئة المتبقية</p>
+                      <p className="text-slate-400 text-[10px]">{t('portal.prescriptions.refillsRemaining')}</p>
                       <p className="text-slate-700 font-medium">
                         {rx.refillsRemaining} / {rx.refillsTotal}
                       </p>
                     </div>
                     {rx.pharmacyName && (
                       <div className="bg-slate-50 rounded-lg px-3 py-2">
-                        <p className="text-slate-400 text-[10px]">الصيدلية</p>
+                        <p className="text-slate-400 text-[10px]">{t('portal.prescriptions.pharmacy')}</p>
                         <p className="text-slate-700 font-medium">{rx.pharmacyName}</p>
                       </div>
                     )}
@@ -165,7 +171,7 @@ export default function PatientPrescriptions() {
                   {hasPendingRefill(rx) && (
                     <div className="mt-3 flex items-center gap-1.5 text-xs text-amber-600 bg-amber-50 px-3 py-2 rounded-lg">
                       <Clock className="w-3.5 h-3.5" />
-                      طلب إعادة تعبئة قيد المراجعة
+                      {t('portal.prescriptions.pendingRefill')}
                     </div>
                   )}
 
@@ -173,7 +179,7 @@ export default function PatientPrescriptions() {
                   {refillSuccess === rx.prescriptionId && (
                     <div className="mt-3 flex items-center gap-1.5 text-xs text-green-600 bg-green-50 px-3 py-2 rounded-lg">
                       <Check className="w-3.5 h-3.5" />
-                      تم إرسال طلب إعادة التعبئة بنجاح
+                      {t('portal.prescriptions.refillSuccess')}
                     </div>
                   )}
                 </div>
@@ -191,7 +197,7 @@ export default function PatientPrescriptions() {
                       ) : (
                         <RefreshCw className="w-3.5 h-3.5" />
                       )}
-                      طلب إعادة تعبئة
+                      {t('portal.prescriptions.requestRefill')}
                     </button>
                   </div>
                 )}

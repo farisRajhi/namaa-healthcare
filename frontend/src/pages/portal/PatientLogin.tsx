@@ -1,15 +1,23 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { usePatientAuth } from '../../context/PatientAuthContext'
-import { Phone, CalendarDays, ArrowLeft, Shield } from 'lucide-react'
+import { Phone, CalendarDays, ArrowLeft, ArrowRight, Shield, Globe } from 'lucide-react'
 
 export default function PatientLogin() {
+  const { t, i18n } = useTranslation()
   const [phone, setPhone] = useState('')
   const [dateOfBirth, setDateOfBirth] = useState('')
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const { login, isAuthenticated } = usePatientAuth()
   const navigate = useNavigate()
+  const isRTL = i18n.language === 'ar'
+  const ArrowIcon = isRTL ? ArrowLeft : ArrowRight
+
+  const toggleLanguage = () => {
+    i18n.changeLanguage(i18n.language === 'ar' ? 'en' : 'ar')
+  }
 
   // Redirect if already logged in
   if (isAuthenticated) {
@@ -21,14 +29,12 @@ export default function PatientLogin() {
     e.preventDefault()
     setError('')
 
-    // Validate phone
     if (!phone.trim() || !/^\+?[0-9\s\-]{7,15}$/.test(phone.trim())) {
-      setError('يرجى إدخال رقم هاتف صالح / Please enter a valid phone number')
+      setError(t('portal.login.invalidPhone'))
       return
     }
-    // Validate date of birth
     if (!dateOfBirth) {
-      setError('يرجى إدخال تاريخ الميلاد / Please enter your date of birth')
+      setError(t('portal.login.invalidDob'))
       return
     }
 
@@ -38,7 +44,7 @@ export default function PatientLogin() {
       await login(phone, dateOfBirth)
       navigate('/patient/dashboard')
     } catch (err: any) {
-      const msg = err.response?.data?.error || err.response?.data?.errorEn || 'حدث خطأ في تسجيل الدخول'
+      const msg = err.response?.data?.error || err.response?.data?.errorEn || t('portal.login.error')
       setError(msg)
     } finally {
       setIsLoading(false)
@@ -46,24 +52,34 @@ export default function PatientLogin() {
   }
 
   return (
-    <div dir="rtl" className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-cyan-50 flex flex-col">
+    <div dir={isRTL ? 'rtl' : 'ltr'} className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-cyan-50 flex flex-col">
+      {/* Language Toggle */}
+      <div className="absolute top-4 end-4 z-10">
+        <button
+          onClick={toggleLanguage}
+          className="flex items-center gap-1.5 text-slate-500 hover:text-slate-700 bg-white/80 backdrop-blur px-3 py-1.5 rounded-lg text-sm font-medium border border-slate-200/50 transition-colors"
+        >
+          <Globe className="w-4 h-4" />
+          {i18n.language === 'ar' ? 'EN' : 'AR'}
+        </button>
+      </div>
+
       {/* Header */}
       <div className="px-6 pt-8 pb-4 text-center">
         <div className="w-16 h-16 bg-gradient-to-br from-teal-500 to-teal-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-teal-200">
           <span className="text-white font-bold text-2xl">✚</span>
         </div>
-        <h1 className="text-2xl font-bold text-slate-800">نماء</h1>
-        <p className="text-sm text-slate-500 mt-1">بوابة المريض</p>
-        <p className="text-xs text-slate-400 mt-0.5">Patient Portal</p>
+        <h1 className="text-2xl font-bold text-slate-800">{t('portal.brand')}</h1>
+        <p className="text-sm text-slate-500 mt-1">{t('portal.patientPortal')}</p>
       </div>
 
       {/* Form */}
       <div className="flex-1 flex items-start justify-center px-6 pt-4">
         <div className="w-full max-w-sm">
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-            <h2 className="text-lg font-bold text-slate-800 mb-1">تسجيل الدخول</h2>
+            <h2 className="text-lg font-bold text-slate-800 mb-1">{t('portal.login.title')}</h2>
             <p className="text-sm text-slate-500 mb-6">
-              أدخل رقم هاتفك وتاريخ ميلادك للدخول
+              {t('portal.login.subtitle')}
             </p>
 
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -76,11 +92,10 @@ export default function PatientLogin() {
               {/* Phone */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                  رقم الهاتف
-                  <span className="text-slate-400 text-xs font-normal mr-1">Phone Number</span>
+                  {t('portal.login.phone')}
                 </label>
                 <div className="relative">
-                  <Phone className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <Phone className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
                     type="tel"
                     value={phone}
@@ -88,7 +103,7 @@ export default function PatientLogin() {
                     placeholder="+966 5X XXX XXXX"
                     required
                     dir="ltr"
-                    className="w-full pr-10 pl-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-colors text-left"
+                    className="w-full ps-10 pe-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-colors text-left"
                   />
                 </div>
               </div>
@@ -96,18 +111,17 @@ export default function PatientLogin() {
               {/* Date of Birth */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                  تاريخ الميلاد
-                  <span className="text-slate-400 text-xs font-normal mr-1">Date of Birth</span>
+                  {t('portal.login.dob')}
                 </label>
                 <div className="relative">
-                  <CalendarDays className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <CalendarDays className="absolute start-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                   <input
                     type="date"
                     value={dateOfBirth}
                     onChange={(e) => setDateOfBirth(e.target.value)}
                     required
                     dir="ltr"
-                    className="w-full pr-10 pl-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-colors text-left"
+                    className="w-full ps-10 pe-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-colors text-left"
                   />
                 </div>
               </div>
@@ -122,8 +136,8 @@ export default function PatientLogin() {
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                 ) : (
                   <>
-                    دخول
-                    <ArrowLeft className="w-4 h-4" />
+                    {t('portal.login.submit')}
+                    <ArrowIcon className="w-4 h-4" />
                   </>
                 )}
               </button>
@@ -133,7 +147,7 @@ export default function PatientLogin() {
           {/* Trust indicators */}
           <div className="mt-6 flex items-center justify-center gap-2 text-slate-400">
             <Shield className="w-4 h-4" />
-            <p className="text-xs">بياناتك محمية ومشفرة بالكامل</p>
+            <p className="text-xs">{t('portal.dataProtected')}</p>
           </div>
         </div>
       </div>

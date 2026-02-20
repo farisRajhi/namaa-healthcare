@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { usePatientAuth, patientApi } from '../../context/PatientAuthContext'
 import { Calendar, Pill, Plus, Clock, User, Phone } from 'lucide-react'
 import { formatDate, formatTime } from '../../lib/utils'
@@ -14,6 +15,7 @@ interface AppointmentItem {
 }
 
 export default function PatientDashboard() {
+  const { t } = useTranslation()
   const { patient } = usePatientAuth()
   const [upcomingAppointments, setUpcomingAppointments] = useState<AppointmentItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -42,26 +44,16 @@ export default function PatientDashboard() {
     in_progress: 'bg-teal-100 text-teal-700',
   }
 
-  const statusLabels: Record<string, string> = {
-    booked: 'محجوز',
-    confirmed: 'مؤكد',
-    cancelled: 'ملغي',
-    completed: 'مكتمل',
-    checked_in: 'تم الحضور',
-    in_progress: 'جاري',
-    held: 'محجوز مؤقتاً',
-  }
-
   return (
     <div className="space-y-5">
       {/* Welcome */}
       <div className="bg-gradient-to-br from-teal-500 to-teal-600 rounded-2xl p-5 text-white shadow-sm">
-        <p className="text-teal-100 text-sm">مرحباً 👋</p>
+        <p className="text-teal-100 text-sm">{t('portal.dashboard.welcome')}</p>
         <h2 className="text-xl font-bold mt-1">
           {patient?.firstName} {patient?.lastName}
         </h2>
         <p className="text-teal-100 text-xs mt-1">
-          Welcome back, {patient?.firstName}
+          {t('portal.dashboard.welcomeBack', { name: patient?.firstName })}
         </p>
       </div>
 
@@ -74,7 +66,7 @@ export default function PatientDashboard() {
           <div className="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center">
             <Plus className="w-5 h-5 text-teal-600" />
           </div>
-          <span className="text-xs font-medium text-slate-700 text-center">حجز موعد</span>
+          <span className="text-xs font-medium text-slate-700 text-center">{t('portal.dashboard.bookAppointment')}</span>
         </Link>
         <Link
           to="/patient/dashboard/prescriptions"
@@ -83,7 +75,7 @@ export default function PatientDashboard() {
           <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center">
             <Pill className="w-5 h-5 text-purple-600" />
           </div>
-          <span className="text-xs font-medium text-slate-700 text-center">وصفاتي</span>
+          <span className="text-xs font-medium text-slate-700 text-center">{t('portal.dashboard.myPrescriptions')}</span>
         </Link>
         <Link
           to="/patient/dashboard/profile"
@@ -92,16 +84,16 @@ export default function PatientDashboard() {
           <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
             <User className="w-5 h-5 text-blue-600" />
           </div>
-          <span className="text-xs font-medium text-slate-700 text-center">حسابي</span>
+          <span className="text-xs font-medium text-slate-700 text-center">{t('portal.dashboard.myAccount')}</span>
         </Link>
       </div>
 
       {/* Upcoming Appointments */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <h3 className="font-bold text-slate-800 text-sm">المواعيد القادمة</h3>
+          <h3 className="font-bold text-slate-800 text-sm">{t('portal.dashboard.upcomingAppointments')}</h3>
           <Link to="/patient/dashboard/appointments" className="text-xs text-teal-600 font-medium">
-            عرض الكل
+            {t('portal.dashboard.viewAll')}
           </Link>
         </div>
 
@@ -118,14 +110,13 @@ export default function PatientDashboard() {
         ) : upcomingAppointments.length === 0 ? (
           <div className="bg-white rounded-xl p-6 border border-slate-100 text-center">
             <Calendar className="w-10 h-10 text-slate-300 mx-auto mb-2" />
-            <p className="text-sm text-slate-500">لا توجد مواعيد قادمة</p>
-            <p className="text-xs text-slate-400 mt-0.5">No upcoming appointments</p>
+            <p className="text-sm text-slate-500">{t('portal.dashboard.noUpcoming')}</p>
             <Link
               to="/patient/dashboard/book"
               className="inline-flex items-center gap-1 mt-3 text-xs text-teal-600 font-medium"
             >
               <Plus className="w-3.5 h-3.5" />
-              احجز موعد جديد
+              {t('portal.dashboard.bookNew')}
             </Link>
           </div>
         ) : (
@@ -147,7 +138,7 @@ export default function PatientDashboard() {
                   <span
                     className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${statusColors[appt.status] || 'bg-slate-100 text-slate-600'}`}
                   >
-                    {statusLabels[appt.status] || appt.status}
+                    {t(`portal.statuses.${appt.status}`, { defaultValue: appt.status })}
                   </span>
                 </div>
                 <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
@@ -173,14 +164,13 @@ export default function PatientDashboard() {
             <Phone className="w-5 h-5 text-green-600" />
           </div>
           <div className="flex-1">
-            <p className="text-sm font-medium text-slate-800">تواصل مع العيادة</p>
-            <p className="text-xs text-slate-500">Contact the clinic</p>
+            <p className="text-sm font-medium text-slate-800">{t('portal.dashboard.contactClinic')}</p>
           </div>
           <a
             href="tel:+966500000000"
             className="text-xs bg-green-50 text-green-700 px-3 py-1.5 rounded-lg font-medium"
           >
-            اتصال
+            {t('portal.dashboard.call')}
           </a>
         </div>
       </div>

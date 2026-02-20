@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useTranslation } from 'react-i18next'
 import { patientApi } from '../../context/PatientAuthContext'
 import {
   ArrowRight,
@@ -32,15 +33,10 @@ interface TimeSlot {
   available: boolean
 }
 
-const STEPS = [
-  { label: 'الخدمة', labelEn: 'Service', icon: Stethoscope },
-  { label: 'الطبيب', labelEn: 'Provider', icon: UserCog },
-  { label: 'الموعد', labelEn: 'Date & Time', icon: CalendarDays },
-  { label: 'تأكيد', labelEn: 'Confirm', icon: ClipboardCheck },
-]
-
 export default function PatientBooking() {
+  const { t, i18n } = useTranslation()
   const navigate = useNavigate()
+  const isRTL = i18n.language === 'ar'
   const [step, setStep] = useState(0)
   const [services, setServices] = useState<ServiceItem[]>([])
   const [providers, setProviders] = useState<ProviderItem[]>([])
@@ -58,6 +54,13 @@ export default function PatientBooking() {
   const [selectedDate, setSelectedDate] = useState('')
   const [selectedTime, setSelectedTime] = useState('')
   const [reason, setReason] = useState('')
+
+  const STEPS = [
+    { label: t('portal.booking.steps.service'), icon: Stethoscope },
+    { label: t('portal.booking.steps.provider'), icon: UserCog },
+    { label: t('portal.booking.steps.datetime'), icon: CalendarDays },
+    { label: t('portal.booking.steps.confirm'), icon: ClipboardCheck },
+  ]
 
   // Load services on mount
   useEffect(() => {
@@ -143,14 +146,13 @@ export default function PatientBooking() {
         error?.response?.data?.error ||
         error?.response?.data?.message ||
         error?.message ||
-        'حدث خطأ أثناء الحجز، يرجى المحاولة مرة أخرى'
+        t('portal.booking.errorDefault')
       setBookingError(msg)
     } finally {
       setSubmitting(false)
     }
   }
 
-  // Get today and next 30 days for date picker min/max
   const today = new Date().toISOString().split('T')[0]
   const maxDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
@@ -160,10 +162,10 @@ export default function PatientBooking() {
         <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
           <Check className="w-8 h-8 text-green-600" />
         </div>
-        <h2 className="text-lg font-bold text-slate-800 mb-1">تم الحجز بنجاح!</h2>
-        <p className="text-sm text-slate-500 mb-1">Appointment booked successfully</p>
+        <h2 className="text-lg font-bold text-slate-800 mb-1">{t('portal.booking.success')}</h2>
+        <p className="text-sm text-slate-500 mb-1">{t('portal.booking.successEn')}</p>
         <p className="text-xs text-slate-400 mb-6">
-          {selectedService?.name} مع {selectedProvider?.displayName}
+          {selectedService?.name} {t('portal.booking.with')} {selectedProvider?.displayName}
           <br />
           {selectedDate} — {selectedTime}
         </p>
@@ -171,7 +173,7 @@ export default function PatientBooking() {
           onClick={() => navigate('/patient/dashboard/appointments')}
           className="bg-teal-500 text-white px-6 py-2.5 rounded-xl text-sm font-medium"
         >
-          عرض المواعيد
+          {t('portal.booking.viewAppointments')}
         </button>
       </div>
     )
@@ -180,7 +182,7 @@ export default function PatientBooking() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <h2 className="text-lg font-bold text-slate-800">حجز موعد جديد</h2>
+      <h2 className="text-lg font-bold text-slate-800">{t('portal.booking.title')}</h2>
 
       {/* Steps indicator */}
       <div className="flex items-center gap-1 bg-white rounded-xl p-3 border border-slate-100">
@@ -211,7 +213,7 @@ export default function PatientBooking() {
         {/* Step 0: Select Service */}
         {step === 0 && (
           <div className="space-y-3">
-            <p className="text-sm text-slate-600 mb-2">اختر الخدمة المطلوبة</p>
+            <p className="text-sm text-slate-600 mb-2">{t('portal.booking.selectService')}</p>
             {loadingServices ? (
               <div className="space-y-2">
                 {[1, 2, 3].map((i) => (
@@ -232,7 +234,7 @@ export default function PatientBooking() {
                     setSelectedTime('')
                   }}
                   className={cn(
-                    'w-full text-right bg-white rounded-xl p-4 border transition-all',
+                    'w-full text-start bg-white rounded-xl p-4 border transition-all',
                     selectedService?.serviceId === svc.serviceId
                       ? 'border-teal-500 ring-2 ring-teal-100'
                       : 'border-slate-100 hover:border-slate-200'
@@ -246,7 +248,7 @@ export default function PatientBooking() {
                       <p className="font-medium text-sm text-slate-800">{svc.name}</p>
                       <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
                         <Clock className="w-3 h-3" />
-                        {svc.durationMin} دقيقة
+                        {svc.durationMin} {t('portal.booking.minutes')}
                       </p>
                     </div>
                     {selectedService?.serviceId === svc.serviceId && (
@@ -262,7 +264,7 @@ export default function PatientBooking() {
         {/* Step 1: Select Provider */}
         {step === 1 && (
           <div className="space-y-3">
-            <p className="text-sm text-slate-600 mb-2">اختر الطبيب</p>
+            <p className="text-sm text-slate-600 mb-2">{t('portal.booking.selectProvider')}</p>
             {loadingProviders ? (
               <div className="space-y-2">
                 {[1, 2].map((i) => (
@@ -274,7 +276,7 @@ export default function PatientBooking() {
               </div>
             ) : providers.length === 0 ? (
               <div className="bg-white rounded-xl p-6 border text-center">
-                <p className="text-sm text-slate-500">لا يوجد أطباء متاحين لهذه الخدمة</p>
+                <p className="text-sm text-slate-500">{t('portal.booking.noProviders')}</p>
               </div>
             ) : (
               providers.map((prov) => (
@@ -286,7 +288,7 @@ export default function PatientBooking() {
                     setSelectedTime('')
                   }}
                   className={cn(
-                    'w-full text-right bg-white rounded-xl p-4 border transition-all',
+                    'w-full text-start bg-white rounded-xl p-4 border transition-all',
                     selectedProvider?.providerId === prov.providerId
                       ? 'border-teal-500 ring-2 ring-teal-100'
                       : 'border-slate-100 hover:border-slate-200'
@@ -320,7 +322,7 @@ export default function PatientBooking() {
           <div className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                اختر التاريخ
+                {t('portal.booking.selectDate')}
               </label>
               <input
                 type="date"
@@ -336,7 +338,7 @@ export default function PatientBooking() {
             {selectedDate && (
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">
-                  المواعيد المتاحة
+                  {t('portal.booking.availableSlots')}
                 </label>
                 {loadingSlots ? (
                   <div className="grid grid-cols-4 gap-2">
@@ -346,8 +348,7 @@ export default function PatientBooking() {
                   </div>
                 ) : slots.filter((s) => s.available).length === 0 ? (
                   <div className="bg-slate-50 rounded-xl p-4 text-center">
-                    <p className="text-sm text-slate-500">لا توجد مواعيد متاحة في هذا اليوم</p>
-                    <p className="text-xs text-slate-400 mt-0.5">No available slots on this date</p>
+                    <p className="text-sm text-slate-500">{t('portal.booking.noSlots')}</p>
                   </div>
                 ) : (
                   <div className="grid grid-cols-4 gap-2">
@@ -381,29 +382,28 @@ export default function PatientBooking() {
           <div className="space-y-4">
             <div className="bg-white rounded-xl border border-slate-100 overflow-hidden">
               <div className="bg-teal-50 px-4 py-3">
-                <h3 className="text-sm font-bold text-teal-800">ملخص الحجز</h3>
-                <p className="text-[10px] text-teal-600">Booking Summary</p>
+                <h3 className="text-sm font-bold text-teal-800">{t('portal.booking.summary')}</h3>
               </div>
               <div className="p-4 space-y-3">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">الخدمة</span>
+                  <span className="text-slate-500">{t('portal.booking.service')}</span>
                   <span className="font-medium text-slate-800">{selectedService?.name}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">الطبيب</span>
+                  <span className="text-slate-500">{t('portal.booking.provider')}</span>
                   <span className="font-medium text-slate-800">{selectedProvider?.displayName}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">التاريخ</span>
+                  <span className="text-slate-500">{t('portal.booking.date')}</span>
                   <span className="font-medium text-slate-800" dir="ltr">{selectedDate}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">الوقت</span>
+                  <span className="text-slate-500">{t('portal.booking.time')}</span>
                   <span className="font-medium text-slate-800" dir="ltr">{selectedTime}</span>
                 </div>
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-500">المدة</span>
-                  <span className="font-medium text-slate-800">{selectedService?.durationMin} دقيقة</span>
+                  <span className="text-slate-500">{t('portal.booking.duration')}</span>
+                  <span className="font-medium text-slate-800">{selectedService?.durationMin} {t('portal.booking.minutes')}</span>
                 </div>
               </div>
             </div>
@@ -411,13 +411,13 @@ export default function PatientBooking() {
             {/* Reason (optional) */}
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                سبب الزيارة <span className="text-slate-400 text-xs">(اختياري)</span>
+                {t('portal.booking.reason')} <span className="text-slate-400 text-xs">{t('portal.booking.reasonOptional')}</span>
               </label>
               <textarea
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 rows={2}
-                placeholder="مثال: متابعة، فحص دوري..."
+                placeholder={t('portal.booking.reasonPlaceholder')}
                 className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
               />
             </div>
@@ -428,7 +428,7 @@ export default function PatientBooking() {
       {/* Booking error */}
       {bookingError && (
         <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
-          <p className="font-medium">حدث خطأ</p>
+          <p className="font-medium">{t('portal.booking.errorOccurred')}</p>
           <p className="text-xs mt-0.5 text-red-500">{bookingError}</p>
         </div>
       )}
@@ -440,8 +440,8 @@ export default function PatientBooking() {
             onClick={() => { setStep(step - 1); setBookingError(null) }}
             className="flex items-center gap-1 text-sm text-slate-600 px-4 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50"
           >
-            <ArrowRight className="w-4 h-4" />
-            السابق
+            {isRTL ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
+            {t('portal.booking.previous')}
           </button>
         )}
         <div className="flex-1" />
@@ -451,8 +451,8 @@ export default function PatientBooking() {
             disabled={!canProceed()}
             className="flex items-center gap-1 text-sm text-white bg-teal-500 px-6 py-2.5 rounded-xl font-medium hover:bg-teal-600 disabled:opacity-40 transition-all"
           >
-            التالي
-            <ArrowLeft className="w-4 h-4" />
+            {t('portal.booking.next')}
+            {isRTL ? <ArrowLeft className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
           </button>
         ) : (
           <button
@@ -465,7 +465,7 @@ export default function PatientBooking() {
             ) : (
               <>
                 <Check className="w-4 h-4" />
-                تأكيد الحجز
+                {t('portal.booking.confirmBooking')}
               </>
             )}
           </button>

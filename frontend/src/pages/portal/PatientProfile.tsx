@@ -1,8 +1,10 @@
 import { useState } from 'react'
+import { useTranslation } from 'react-i18next'
 import { usePatientAuth, patientApi } from '../../context/PatientAuthContext'
 import { User, Phone, Mail, Calendar, Edit3, Check, X, Heart, AlertTriangle } from 'lucide-react'
 
 export default function PatientProfile() {
+  const { t } = useTranslation()
   const { patient, refreshProfile } = usePatientAuth()
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -56,14 +58,14 @@ export default function PatientProfile() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-slate-800">الملف الشخصي</h2>
+        <h2 className="text-lg font-bold text-slate-800">{t('portal.profile.title')}</h2>
         {!editing && (
           <button
             onClick={() => setEditing(true)}
             className="flex items-center gap-1 text-xs text-teal-600 font-medium bg-teal-50 px-3 py-1.5 rounded-lg"
           >
             <Edit3 className="w-3.5 h-3.5" />
-            تعديل
+            {t('portal.profile.edit')}
           </button>
         )}
       </div>
@@ -71,21 +73,21 @@ export default function PatientProfile() {
       {saved && (
         <div className="flex items-center gap-1.5 text-xs text-green-600 bg-green-50 px-4 py-2.5 rounded-xl">
           <Check className="w-3.5 h-3.5" />
-          تم حفظ التغييرات بنجاح
+          {t('portal.profile.saved')}
         </div>
       )}
 
       {/* Personal Info */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
         <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-100">
-          <p className="text-xs font-bold text-slate-600">المعلومات الشخصية</p>
+          <p className="text-xs font-bold text-slate-600">{t('portal.profile.personalInfo')}</p>
         </div>
         <div className="p-4 space-y-4">
           {editing ? (
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[10px] text-slate-400 mb-1">الاسم الأول</label>
+                  <label className="block text-[10px] text-slate-400 mb-1">{t('portal.profile.firstName')}</label>
                   <input
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
@@ -93,7 +95,7 @@ export default function PatientProfile() {
                   />
                 </div>
                 <div>
-                  <label className="block text-[10px] text-slate-400 mb-1">اسم العائلة</label>
+                  <label className="block text-[10px] text-slate-400 mb-1">{t('portal.profile.lastName')}</label>
                   <input
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
@@ -102,7 +104,7 @@ export default function PatientProfile() {
                 </div>
               </div>
               <div>
-                <label className="block text-[10px] text-slate-400 mb-1">الهاتف</label>
+                <label className="block text-[10px] text-slate-400 mb-1">{t('portal.profile.phone')}</label>
                 <input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
@@ -111,7 +113,7 @@ export default function PatientProfile() {
                 />
               </div>
               <div>
-                <label className="block text-[10px] text-slate-400 mb-1">البريد الإلكتروني</label>
+                <label className="block text-[10px] text-slate-400 mb-1">{t('portal.profile.email')}</label>
                 <input
                   type="email"
                   value={email}
@@ -132,14 +134,14 @@ export default function PatientProfile() {
                   ) : (
                     <Check className="w-3.5 h-3.5" />
                   )}
-                  حفظ
+                  {t('portal.profile.save')}
                 </button>
                 <button
                   onClick={handleCancel}
                   className="flex items-center gap-1 text-xs text-slate-500 px-3 py-2 rounded-lg border border-slate-200"
                 >
                   <X className="w-3.5 h-3.5" />
-                  إلغاء
+                  {t('portal.profile.cancel')}
                 </button>
               </div>
             </>
@@ -167,7 +169,7 @@ export default function PatientProfile() {
                       <Phone className="w-4 h-4 text-slate-400" />
                       <span dir="ltr">{c.value}</span>
                       {c.isPrimary && (
-                        <span className="text-[9px] bg-teal-50 text-teal-600 px-1.5 py-0.5 rounded">أساسي</span>
+                        <span className="text-[9px] bg-teal-50 text-teal-600 px-1.5 py-0.5 rounded">{t('portal.profile.primary')}</span>
                       )}
                     </div>
                   ))}
@@ -197,8 +199,8 @@ export default function PatientProfile() {
       {(allergies.length > 0 || conditions.length > 0 || medications.length > 0) && (
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-100">
-            <p className="text-xs font-bold text-slate-600">المعلومات الطبية</p>
-            <p className="text-[10px] text-slate-400">للقراءة فقط</p>
+            <p className="text-xs font-bold text-slate-600">{t('portal.profile.medicalInfo')}</p>
+            <p className="text-[10px] text-slate-400">{t('portal.profile.readOnly')}</p>
           </div>
           <div className="p-4 space-y-4">
             {/* Allergies */}
@@ -206,7 +208,7 @@ export default function PatientProfile() {
               <div>
                 <p className="text-xs font-medium text-red-600 flex items-center gap-1 mb-2">
                   <AlertTriangle className="w-3.5 h-3.5" />
-                  الحساسية
+                  {t('portal.profile.allergies')}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {allergies.map((a) => (
@@ -226,7 +228,7 @@ export default function PatientProfile() {
               <div>
                 <p className="text-xs font-medium text-blue-600 flex items-center gap-1 mb-2">
                   <Heart className="w-3.5 h-3.5" />
-                  الحالات المرضية
+                  {t('portal.profile.conditions')}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {conditions.map((c) => (
@@ -246,7 +248,7 @@ export default function PatientProfile() {
               <div>
                 <p className="text-xs font-medium text-purple-600 flex items-center gap-1 mb-2">
                   <Heart className="w-3.5 h-3.5" />
-                  الأدوية الحالية
+                  {t('portal.profile.medications')}
                 </p>
                 <div className="flex flex-wrap gap-1.5">
                   {medications.map((m) => (
@@ -268,7 +270,7 @@ export default function PatientProfile() {
       {preferences.length > 0 && (
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
           <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-100">
-            <p className="text-xs font-bold text-slate-600">التفضيلات</p>
+            <p className="text-xs font-bold text-slate-600">{t('portal.profile.preferences')}</p>
           </div>
           <div className="p-4">
             <div className="space-y-2">
