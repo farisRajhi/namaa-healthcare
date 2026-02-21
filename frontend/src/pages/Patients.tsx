@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useTranslation } from 'react-i18next'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
-import { Plus, Phone, Mail, Users, X } from 'lucide-react'
-import { formatDate } from '../lib/utils'
+import { Plus, Phone, Mail, Users, ChevronRight } from 'lucide-react'
+import { formatDate, cn } from '../lib/utils'
 import SearchInput from '../components/ui/SearchInput'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import EmptyState from '../components/ui/EmptyState'
@@ -50,13 +51,13 @@ export default function Patients() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [showAddModal, setShowAddModal] = useState(false)
-  const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null)
   const [form, setForm] = useState<PatientForm>(defaultForm)
   const [errors, setErrors] = useState<Partial<Record<keyof PatientForm, string>>>({})
   const { i18n } = useTranslation()
   const isAr = i18n.language === 'ar'
   const queryClient = useQueryClient()
   const { addToast } = useToast()
+  const navigate = useNavigate()
 
   const { data, isLoading } = useQuery({
     queryKey: ['patients', { page, search }],
@@ -179,6 +180,7 @@ export default function Patients() {
                   <th>{isAr ? 'التواصل' : 'Contact'}</th>
                   <th>{isAr ? 'رقم الملف' : 'MRN'}</th>
                   <th>{isAr ? 'تاريخ التسجيل' : 'Registered'}</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -187,7 +189,7 @@ export default function Patients() {
                   const email = patient.contacts.find((c) => c.contactType === 'email')
 
                   return (
-                    <tr key={patient.patientId} className="table-row cursor-pointer" onClick={() => setSelectedPatient(patient)}>
+                    <tr key={patient.patientId} className="table-row cursor-pointer" onClick={() => navigate(`/dashboard/patients/${patient.patientId}`)}>
                       <td>
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl bg-primary-100 flex items-center justify-center flex-shrink-0">
@@ -229,6 +231,9 @@ export default function Patients() {
                       <td>
                         <span className="text-sm text-healthcare-muted">{formatDate(patient.createdAt)}</span>
                       </td>
+                      <td>
+                        <ChevronRight className={cn('h-4 w-4 text-gray-300 group-hover:text-primary-400 transition-colors', isAr && 'rotate-180')} />
+                      </td>
                     </tr>
                   )
                 })}
@@ -264,84 +269,6 @@ export default function Patients() {
           </div>
         )}
       </div>
-
-      {/* Patient Detail Modal */}
-      <Modal
-        open={!!selectedPatient}
-        onClose={() => setSelectedPatient(null)}
-        title={isAr ? 'بيانات المريض' : 'Patient Details'}
-        size="lg"
-      >
-        {selectedPatient && (
-          <div className="space-y-4">
-            {/* Avatar + name */}
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-primary-100 flex items-center justify-center flex-shrink-0">
-                <span className="text-primary-700 font-bold text-xl">
-                  {selectedPatient.firstName.charAt(0)}{selectedPatient.lastName.charAt(0)}
-                </span>
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-healthcare-text">
-                  {selectedPatient.firstName} {selectedPatient.lastName}
-                </h3>
-                {selectedPatient.mrn && (
-                  <p className="text-sm text-healthcare-muted font-mono">{selectedPatient.mrn}</p>
-                )}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4 bg-primary-50/40 rounded-xl p-4">
-              {selectedPatient.dateOfBirth && (
-                <div>
-                  <p className="text-xs text-healthcare-muted mb-1">{isAr ? 'تاريخ الميلاد' : 'Date of Birth'}</p>
-                  <p className="text-sm font-semibold text-healthcare-text">{formatDate(selectedPatient.dateOfBirth)}</p>
-                </div>
-              )}
-              {selectedPatient.sex && (
-                <div>
-                  <p className="text-xs text-healthcare-muted mb-1">{isAr ? 'الجنس' : 'Sex'}</p>
-                  <p className="text-sm font-semibold text-healthcare-text capitalize">
-                    {selectedPatient.sex === 'male' ? (isAr ? 'ذكر' : 'Male') : (isAr ? 'أنثى' : 'Female')}
-                  </p>
-                </div>
-              )}
-              <div>
-                <p className="text-xs text-healthcare-muted mb-1">{isAr ? 'تاريخ التسجيل' : 'Registered'}</p>
-                <p className="text-sm font-semibold text-healthcare-text">{formatDate(selectedPatient.createdAt)}</p>
-              </div>
-            </div>
-
-            {/* Contact info */}
-            {selectedPatient.contacts.length > 0 && (
-              <div>
-                <p className="text-xs text-healthcare-muted mb-2">{isAr ? 'معلومات التواصل' : 'Contact Information'}</p>
-                <div className="space-y-2">
-                  {selectedPatient.contacts.filter(c => c.contactType === 'phone').map(c => (
-                    <div key={c.contactId} className="flex items-center gap-2.5 text-sm text-healthcare-text">
-                      <Phone className="h-4 w-4 text-primary-400 flex-shrink-0" />
-                      <span className="dir-ltr">{c.contactValue}</span>
-                    </div>
-                  ))}
-                  {selectedPatient.contacts.filter(c => c.contactType === 'email').map(c => (
-                    <div key={c.contactId} className="flex items-center gap-2.5 text-sm text-healthcare-text">
-                      <Mail className="h-4 w-4 text-primary-400 flex-shrink-0" />
-                      {c.contactValue}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="flex justify-end pt-2">
-              <button onClick={() => setSelectedPatient(null)} className="btn-outline">
-                <X className="h-4 w-4" />
-                {isAr ? 'إغلاق' : 'Close'}
-              </button>
-            </div>
-          </div>
-        )}
-      </Modal>
 
       {/* Add Patient Modal */}
       <Modal open={showAddModal} onClose={handleCloseModal} title={isAr ? 'إضافة مريض جديد' : 'Add New Patient'} size="lg">

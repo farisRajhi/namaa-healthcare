@@ -9,6 +9,7 @@ import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
 import Patients from './pages/Patients'
+import PatientDetail from './pages/PatientDetail'
 import Appointments from './pages/Appointments'
 import Providers from './pages/Providers'
 import Services from './pages/Services'
@@ -101,6 +102,7 @@ function App() {
       >
         <Route index element={<Dashboard />} />
         <Route path="patients" element={<Patients />} />
+        <Route path="patients/:id" element={<PatientDetail />} />
         <Route path="appointments" element={<Appointments />} />
         <Route path="providers" element={<Providers />} />
         <Route path="services" element={<Services />} />
