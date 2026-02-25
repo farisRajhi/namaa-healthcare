@@ -4,37 +4,9 @@ import { callSessionManager } from '../services/voice/callSession.js';
 import { TwilioVoiceWebhook, TwilioStatusCallback } from '../types/voice.js';
 import { getGreetingMessage } from '../services/voicePrompt.js';
 import { getOutboundVoiceHandler } from '../services/outbound/outboundVoiceHandler.js';
+import { validateTwilioSignature } from '../lib/twilioVerify.js';
 
 const VoiceResponse = twilio.twiml.VoiceResponse;
-
-// Verify Twilio webhook signature
-async function verifyTwilioSignature(request: FastifyRequest, reply: FastifyReply) {
-  // Skip verification in development
-  if (process.env.NODE_ENV === 'development' && process.env.SKIP_TWILIO_VERIFY === 'true') {
-    return;
-  }
-
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
-  if (!authToken) {
-    request.log.warn('TWILIO_AUTH_TOKEN not configured');
-    return reply.code(500).send({ error: 'Twilio not configured' });
-  }
-
-  const signature = request.headers['x-twilio-signature'] as string;
-  if (!signature) {
-    return reply.code(403).send({ error: 'Missing Twilio signature' });
-  }
-
-  const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
-  const url = `${baseUrl}${request.url}`;
-  const params = request.body as Record<string, string>;
-
-  const isValid = twilio.validateRequest(authToken, signature, url, params);
-  if (!isValid) {
-    request.log.warn('Invalid Twilio signature');
-    return reply.code(403).send({ error: 'Invalid signature' });
-  }
-}
 
 // Map Twilio phone number to org from database
 async function getOrgByPhone(app: FastifyInstance, phoneNumber: string): Promise<string | null> {
@@ -60,7 +32,7 @@ export default async function voiceRoutes(app: FastifyInstance) {
    * Twilio calls this when someone calls your phone number
    */
   app.post('/incoming', {
-    preHandler: verifyTwilioSignature,
+    preHandler: validateTwilioSignature,
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const body = request.body as TwilioVoiceWebhook;
 
@@ -171,7 +143,7 @@ export default async function voiceRoutes(app: FastifyInstance) {
    * Twilio calls this when call status changes
    */
   app.post('/status', {
-    preHandler: verifyTwilioSignature,
+    preHandler: validateTwilioSignature,
   }, async (request: FastifyRequest) => {
     const body = request.body as TwilioStatusCallback;
 
@@ -223,7 +195,9 @@ export default async function voiceRoutes(app: FastifyInstance) {
    * POST /api/voice/fallback
    * Twilio calls this if there's an error with the primary webhook
    */
-  app.post('/fallback', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/fallback', {
+    preHandler: validateTwilioSignature,
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
     const body = request.body as TwilioVoiceWebhook;
 
     app.log.error(`Voice fallback triggered for call: ${body.CallSid}`);
@@ -243,7 +217,9 @@ export default async function voiceRoutes(app: FastifyInstance) {
    * POST /api/voice/make-call
    * Make an outbound AI call
    */
-  app.post('/make-call', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/make-call', {
+    preHandler: [app.authenticate],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
     if (!app.twilioConfigured || !app.twilio) {
       return reply.code(500).send({ error: 'Twilio not configured' });
     }
@@ -327,7 +303,9 @@ export default async function voiceRoutes(app: FastifyInstance) {
    * TwiML response for outbound calls — connects to AI voice stream
    * for bidirectional conversation (similar to inbound calls).
    */
-  app.post('/outbound-response', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/outbound-response', {
+    preHandler: validateTwilioSignature,
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
     const body = request.body as TwilioVoiceWebhook;
 
     app.log.info(`Outbound call answered: ${body.CallSid}`);
@@ -459,7 +437,9 @@ export default async function voiceRoutes(app: FastifyInstance) {
    * TwiML handler for campaign-initiated outbound calls via OutboundCaller.
    * Connects to AI voice stream with campaign-specific context.
    */
-  app.post('/outbound-script', async (request: FastifyRequest, reply: FastifyReply) => {
+  app.post('/outbound-script', {
+    preHandler: validateTwilioSignature,
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
     const body = request.body as TwilioVoiceWebhook;
     const query = request.query as Record<string, string>;
 

@@ -1,4 +1,5 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import rateLimit from '@fastify/rate-limit';
 import { z } from 'zod';
 
 // Patient JWT payload is separate from admin JWT
@@ -31,6 +32,19 @@ export async function authenticatePatient(request: FastifyRequest, reply: Fastif
 }
 
 export default async function patientAuthRoutes(app: FastifyInstance) {
+  // Rate-limit patient login: max 5 attempts per 15 minutes per IP
+  // Prevents brute-force of phone + DOB combinations (~36,500 possibilities).
+  await app.register(rateLimit, {
+    max: 5,
+    timeWindow: '15 minutes',
+    keyGenerator: (request: FastifyRequest) => request.ip,
+    errorResponseBuilder: (_request: FastifyRequest, context: { after: string }) => ({
+      statusCode: 429,
+      error: 'Too Many Requests',
+      message: `محاولات كثيرة جداً. حاول مرة أخرى بعد ${context.after}`,
+    }),
+  });
+
   // POST /login — Login with phone + date of birth (MVP auth)
   app.post('/login', async (request: FastifyRequest, reply: FastifyReply) => {
     const body = loginSchema.parse(request.body);

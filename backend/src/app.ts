@@ -83,12 +83,28 @@ export async function buildApp() {
   });
 
   // JWT Authentication
+  // ⚠️  A missing or default JWT_SECRET is a critical security vulnerability.
+  // The server refuses to start without a real secret to prevent signing tokens
+  // with a publicly-known key (QA-3 / CWE-521).
   const jwtSecret = process.env.JWT_SECRET;
-  if (!jwtSecret || jwtSecret === 'your-super-secret-key-change-in-production') {
-    app.log.warn('⚠️  JWT_SECRET is not set or uses the default value. Set a strong secret in .env for production!');
+  const INSECURE_DEFAULTS = new Set([
+    'your-super-secret-key-change-in-production',
+    'secret',
+    'changeme',
+    '',
+  ]);
+  if (!jwtSecret || INSECURE_DEFAULTS.has(jwtSecret)) {
+    // Use console.error so the message is visible even before the logger is ready
+    console.error(
+      '❌  FATAL: JWT_SECRET environment variable is missing or uses an insecure default value.\n' +
+      '    Generate a strong secret and set it in your .env file:\n' +
+      '      node -e "console.log(require(\'crypto\').randomBytes(64).toString(\'hex\'))"\n' +
+      '    Server will not start until JWT_SECRET is properly configured.',
+    );
+    process.exit(1);
   }
   await app.register(jwt, {
-    secret: jwtSecret || 'your-super-secret-key-change-in-production',
+    secret: jwtSecret,
     sign: { expiresIn: '24h' },
   });
 

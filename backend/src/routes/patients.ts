@@ -5,7 +5,8 @@ const createPatientSchema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   dateOfBirth: z.string().optional(),
-  sex: z.string().optional(),
+  // QA-5: enum-validated to prevent arbitrary string injection into medical records
+  sex: z.enum(['male', 'female']).optional(),
   mrn: z.string().optional(),
   phone: z.string().optional(),
   email: z.string().email().optional(),
@@ -63,7 +64,7 @@ export default async function patientsRoutes(app: FastifyInstance) {
   });
 
   // Get single patient
-  app.get<{ Params: { id: string } }>('/:id', async (request) => {
+  app.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const { orgId } = request.user;
     const { id } = request.params;
 
@@ -83,7 +84,7 @@ export default async function patientsRoutes(app: FastifyInstance) {
     });
 
     if (!patient) {
-      return { error: 'Patient not found' };
+      return reply.code(404).send({ error: 'Patient not found' });
     }
 
     return patient;
@@ -118,7 +119,7 @@ export default async function patientsRoutes(app: FastifyInstance) {
   });
 
   // Update patient
-  app.put<{ Params: { id: string } }>('/:id', async (request) => {
+  app.put<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const { orgId } = request.user;
     const { id } = request.params;
     const body = createPatientSchema.partial().parse(request.body);
@@ -135,14 +136,14 @@ export default async function patientsRoutes(app: FastifyInstance) {
     });
 
     if (patient.count === 0) {
-      return { error: 'Patient not found' };
+      return reply.code(404).send({ error: 'Patient not found' });
     }
 
     return { success: true };
   });
 
   // Delete patient
-  app.delete<{ Params: { id: string } }>('/:id', async (request) => {
+  app.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const { orgId } = request.user;
     const { id } = request.params;
 
@@ -151,7 +152,7 @@ export default async function patientsRoutes(app: FastifyInstance) {
     });
 
     if (result.count === 0) {
-      return { error: 'Patient not found' };
+      return reply.code(404).send({ error: 'Patient not found' });
     }
 
     return { success: true };

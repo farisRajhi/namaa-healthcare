@@ -1,7 +1,8 @@
-import { FastifyInstance, FastifyRequest } from 'fastify';
+import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { getWaitlistAutoFill } from '../services/pipelines/waitlistAutoFill.js';
 import { getAppointmentReminderService } from '../services/reminders/appointmentReminder.js';
+import { validateTwilioSignature } from '../lib/twilioVerify.js';
 
 const createAppointmentSchema = z.object({
   providerId: z.string().uuid(),
@@ -78,7 +79,7 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
   });
 
   // Get single appointment
-  app.get<{ Params: { id: string } }>('/:id', async (request) => {
+  app.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const { orgId } = request.user;
     const { id } = request.params;
 
@@ -97,14 +98,14 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
     });
 
     if (!appointment) {
-      return { error: 'Appointment not found' };
+      return reply.code(404).send({ error: 'Appointment not found' });
     }
 
     return appointment;
   });
 
   // Create appointment
-  app.post('/', async (request: FastifyRequest) => {
+  app.post('/', async (request: FastifyRequest, reply) => {
     const { orgId, userId } = request.user;
     const body = createAppointmentSchema.parse(request.body);
 
@@ -114,7 +115,7 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
     });
 
     if (!service) {
-      return { error: 'Service not found' };
+      return reply.code(404).send({ error: 'Service not found' });
     }
 
     const startTs = new Date(body.startTs);
@@ -151,7 +152,7 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
   });
 
   // Update appointment status
-  app.patch<{ Params: { id: string } }>('/:id/status', async (request) => {
+  app.patch<{ Params: { id: string } }>('/:id/status', async (request, reply) => {
     const { orgId, userId } = request.user;
     const { id } = request.params;
     const body = updateStatusSchema.parse(request.body);
@@ -161,7 +162,7 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
     });
 
     if (!existing) {
-      return { error: 'Appointment not found' };
+      return reply.code(404).send({ error: 'Appointment not found' });
     }
 
     const appointment = await app.prisma.appointment.update({
@@ -201,7 +202,7 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
   });
 
   // Check availability for a provider
-  app.get<{ Params: { providerId: string } }>('/availability/:providerId', async (request) => {
+  app.get<{ Params: { providerId: string } }>('/availability/:providerId', async (request, reply) => {
     const { orgId } = request.user;
     const { providerId } = request.params;
     const query = z.object({
@@ -245,7 +246,7 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
     });
 
     if (!service) {
-      return { error: 'Service not found' };
+      return reply.code(404).send({ error: 'Service not found' });
     }
 
     // Calculate available slots
@@ -290,7 +291,9 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
   // Twilio webhook body: From (phone), Body (SMS text containing appointment ID or "إلغاء <id>")
   // This endpoint is intentionally public (auth handled by Twilio signature in prod)
   // ─────────────────────────────────────────────────────────────────────────
-  app.post('/cancel-by-sms', async (request: FastifyRequest, reply) => {
+  app.post('/cancel-by-sms', {
+    preHandler: validateTwilioSignature,
+  }, async (request: FastifyRequest, reply) => {
     const smsSchema = z.object({
       From: z.string(),   // patient phone in E.164
       Body: z.string(),   // raw SMS body

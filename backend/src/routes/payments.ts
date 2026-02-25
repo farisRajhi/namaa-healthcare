@@ -187,28 +187,32 @@ export default async function paymentsRoutes(app: FastifyInstance) {
       const signature = request.headers['x-moyasar-signature'] as string || '';
       const rawBody = JSON.stringify(request.body);
 
-      // Signature verification in production
-      if (process.env.NODE_ENV === 'production' && MOYASAR_SECRET_KEY) {
-        const expectedSig = crypto
-          .createHmac('sha256', MOYASAR_SECRET_KEY)
-          .update(rawBody)
-          .digest('hex');
+      // Signature verification — always enforced regardless of environment
+      // (SECURITY CRIT-05: removing the production-only gate prevents staging/dev bypass)
+      if (!MOYASAR_SECRET_KEY) {
+        app.log.error('[webhook] MOYASAR_SECRET_KEY not configured — rejecting webhook');
+        return reply.code(500).send({ error: 'Webhook not configured' });
+      }
 
-        const sigValid = (() => {
-          try {
-            return crypto.timingSafeEqual(
-              Buffer.from(signature, 'hex'),
-              Buffer.from(expectedSig, 'hex'),
-            );
-          } catch {
-            return false;
-          }
-        })();
+      const expectedSig = crypto
+        .createHmac('sha256', MOYASAR_SECRET_KEY)
+        .update(rawBody)
+        .digest('hex');
 
-        if (!sigValid) {
-          app.log.warn('[webhook] Invalid Moyasar signature');
-          return reply.code(401).send({ error: 'Invalid signature' });
+      const sigValid = (() => {
+        try {
+          return crypto.timingSafeEqual(
+            Buffer.from(signature, 'hex'),
+            Buffer.from(expectedSig, 'hex'),
+          );
+        } catch {
+          return false;
         }
+      })();
+
+      if (!sigValid) {
+        app.log.warn('[webhook] Invalid Moyasar signature');
+        return reply.code(401).send({ error: 'Invalid signature' });
       }
 
       const event = request.body as any;
