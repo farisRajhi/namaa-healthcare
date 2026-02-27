@@ -1,4 +1,4 @@
-{
+﻿{
   "common": {
     "signIn": "Sign in",
     "signUp": "Sign up",
@@ -101,19 +101,19 @@
     },
     "benefits": {
       "title": "Why Healthcare Providers Choose Us",
-      "subtitle": "Join hundreds of clinics and hospitals that have transformed their patient experience with our WhatsApp automation platform.",
+      "subtitle": "Designed for clinics and hospitals to transform their patient experience with our WhatsApp automation platform.",
       "list": {
         "workload": "Reduce administrative workload by 60%",
         "satisfaction": "Increase patient satisfaction scores",
         "slots": "Fill more appointment slots automatically",
-        "hipaa": "HIPAA-compliant secure messaging",
+        "hipaa": "PDPL-compliant secure messaging",
         "integration": "Seamless integration with existing systems"
       },
       "security": {
         "title": "Enterprise Security",
         "subtitle": "Your data is protected",
         "encryption": "End-to-end encryption",
-        "hipaa": "HIPAA compliance ready",
+        "hipaa": "PDPL compliance ready",
         "audits": "Regular security audits",
         "residency": "Data residency options"
       }
@@ -193,7 +193,19 @@
       "viewMessages": "View Messages",
       "viewMessagesDesc": "Check WhatsApp conversations"
     },
-    "statusBreakdown": "This Month's Status Breakdown"
+    "statusBreakdown": "This Month's Status Breakdown",
+    "onboarding": {
+      "title": "🚀 Welcome! Let's set up your clinic",
+      "subtitle": "Complete these steps to start receiving appointments",
+      "addProvider": "Add your first provider",
+      "addProviderDesc": "Register a doctor or practitioner with their specialty",
+      "configureAgent": "Configure AI booking agent",
+      "configureAgentDesc": "Enable automatic WhatsApp and call responses",
+      "setHours": "Set working hours",
+      "setHoursDesc": "Configure available appointment slots for each provider",
+      "testBooking": "Book a test appointment",
+      "testBookingDesc": "Verify the booking system works correctly"
+    }
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -341,7 +353,9 @@
       "errorOccurred": "An error occurred",
       "errorDefault": "Booking failed, please try again",
       "minutes": "min",
-      "with": "with"
+      "with": "with",
+      "prayerTimes": "Prayer times for this day",
+      "prayerTimeWarning": "This time overlaps with {prayer} prayer"
     },
     "profile": {
       "title": "Profile",
@@ -431,5 +445,9 @@
       "english": "English",
       "arabic": "العربية (Arabic)"
     }
+  },
+  "dates": {
+    "hijri": "Hijri Calendar",
+    "gregorian": "Gregorian Calendar"
   }
 }

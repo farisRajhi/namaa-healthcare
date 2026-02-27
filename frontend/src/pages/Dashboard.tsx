@@ -9,6 +9,11 @@ import {
   TrendingUp,
   MessageSquare,
   Activity,
+  UserPlus,
+  Bot,
+  Clock,
+  CalendarCheck,
+  ArrowLeft,
 } from 'lucide-react'
 import {
   AreaChart,
@@ -22,6 +27,7 @@ import {
   Pie,
   Cell,
 } from 'recharts'
+import { formatHijriDate } from '../lib/utils'
 import StatCard from '../components/ui/StatCard'
 import Badge, { getStatusBadgeVariant } from '../components/ui/Badge'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
@@ -65,6 +71,46 @@ export default function Dashboard() {
     )
   }
 
+  const isNewClinic = !overviewLoading && overview && (
+    (overview.totalAppointments === 0 || !overview.totalAppointments) &&
+    (overview.totalPatients === 0 || !overview.totalPatients)
+  )
+
+  const onboardingSteps = [
+    {
+      title: t('dashboard.onboarding.addProvider'),
+      description: t('dashboard.onboarding.addProviderDesc'),
+      icon: UserPlus,
+      iconBg: 'bg-blue-50',
+      iconColor: 'text-blue-600',
+      route: '/providers',
+    },
+    {
+      title: t('dashboard.onboarding.configureAgent'),
+      description: t('dashboard.onboarding.configureAgentDesc'),
+      icon: Bot,
+      iconBg: 'bg-purple-50',
+      iconColor: 'text-purple-600',
+      route: '/agent-builder',
+    },
+    {
+      title: t('dashboard.onboarding.setHours'),
+      description: t('dashboard.onboarding.setHoursDesc'),
+      icon: Clock,
+      iconBg: 'bg-amber-50',
+      iconColor: 'text-amber-600',
+      route: '/doctor-schedule',
+    },
+    {
+      title: t('dashboard.onboarding.testBooking'),
+      description: t('dashboard.onboarding.testBookingDesc'),
+      icon: CalendarCheck,
+      iconBg: 'bg-green-50',
+      iconColor: 'text-green-600',
+      route: '/appointments',
+    },
+  ]
+
   const dateLocale = i18n.language === 'ar' ? 'ar-SA' : 'en-US'
 
   return (
@@ -76,7 +122,10 @@ export default function Dashboard() {
             <h1 className="page-title">{t('dashboard.title')}</h1>
             <StatusDot type="live" label={t('common.live')} />
           </div>
-          <p className="page-subtitle">{t('dashboard.subtitle')}</p>
+          <p className="page-subtitle">
+          {t('dashboard.subtitle')}
+          <span className="block text-xs mt-0.5 text-slate-400">{formatHijriDate(new Date())}</span>
+        </p>
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-healthcare-muted bg-white px-3 py-1.5 rounded-full border border-healthcare-border/30">
@@ -84,6 +133,34 @@ export default function Dashboard() {
           </span>
         </div>
       </div>
+
+      {/* Onboarding Checklist for new clinics */}
+      {isNewClinic && (
+        <div className="bg-gradient-to-br from-teal-50 to-cyan-50 border border-teal-100 rounded-2xl p-6 space-y-4">
+          <div>
+            <h2 className="text-lg font-bold text-teal-900">{t('dashboard.onboarding.title')}</h2>
+            <p className="text-sm text-teal-700 mt-1">{t('dashboard.onboarding.subtitle')}</p>
+          </div>
+          <div className="space-y-3">
+            {onboardingSteps.map((step, i) => (
+              <button
+                key={i}
+                onClick={() => navigate(step.route)}
+                className="w-full flex items-center gap-3 bg-white rounded-xl p-4 border border-teal-100 hover:border-teal-300 hover:shadow-sm transition-all text-start"
+              >
+                <div className={`w-10 h-10 rounded-xl ${step.iconBg} flex items-center justify-center flex-shrink-0`}>
+                  <step.icon className={`w-5 h-5 ${step.iconColor}`} />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-slate-800">{step.title}</p>
+                  <p className="text-xs text-slate-500 mt-0.5">{step.description}</p>
+                </div>
+                <ArrowLeft className="w-4 h-4 text-slate-400 rtl:rotate-180" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -339,3 +416,7 @@ export default function Dashboard() {
     </div>
   )
 }
+
+
+
+

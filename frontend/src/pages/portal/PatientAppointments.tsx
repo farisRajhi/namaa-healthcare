@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { patientApi } from '../../context/PatientAuthContext'
 import { Calendar, Clock, Plus, X, AlertTriangle } from 'lucide-react'
-import { formatDate, formatTime } from '../../lib/utils'
+import { formatTime, formatDateLocale, formatHijriDate } from '../../lib/utils'
 import { cn } from '../../lib/utils'
 
 interface AppointmentItem {
@@ -33,7 +33,7 @@ const statusColors: Record<string, string> = {
 }
 
 export default function PatientAppointments() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const [activeTab, setActiveTab] = useState<TabType>('upcoming')
   const [appointments, setAppointments] = useState<AppointmentItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -159,13 +159,16 @@ export default function PatientAppointments() {
               <div className="flex items-center gap-3 text-xs text-slate-500">
                 <span className="flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5" />
-                  {formatDate(appt.startTs)}
+                  <span>
+                    {formatDateLocale(appt.startTs, i18n.language)}
+                    <span className="block text-[10px] text-slate-400">{formatHijriDate(appt.startTs)}</span>
+                  </span>
                 </span>
                 <span className="flex items-center gap-1">
                   <Clock className="w-3.5 h-3.5" />
                   {formatTime(appt.startTs)}
                 </span>
-                <span className="text-slate-300">â€¢</span>
+                <span className="text-slate-300">•</span>
                 <span>{appt.service.durationMin} {t('portal.appointments.minutes')}</span>
               </div>
 

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { usePatientAuth, patientApi } from '../../context/PatientAuthContext'
 import { Calendar, Pill, Plus, Clock, User, Phone } from 'lucide-react'
-import { formatDate, formatTime } from '../../lib/utils'
+import { formatTime, formatDateLocale, formatHijriDate } from '../../lib/utils'
 
 interface AppointmentItem {
   appointmentId: string
@@ -14,8 +14,10 @@ interface AppointmentItem {
   service: { name: string }
 }
 
+const clinicPhone = import.meta.env.VITE_CLINIC_PHONE || ''
+
 export default function PatientDashboard() {
-  const { t } = useTranslation()
+  const { t, i18n } = useTranslation()
   const { patient } = usePatientAuth()
   const [upcomingAppointments, setUpcomingAppointments] = useState<AppointmentItem[]>([])
   const [loading, setLoading] = useState(true)
@@ -144,7 +146,10 @@ export default function PatientDashboard() {
                 <div className="flex items-center gap-3 mt-2 text-xs text-slate-500">
                   <span className="flex items-center gap-1">
                     <Calendar className="w-3.5 h-3.5" />
-                    {formatDate(appt.startTs)}
+                    <span>
+                      {formatDateLocale(appt.startTs, i18n.language)}
+                      <span className="block text-[10px] text-slate-400">{formatHijriDate(appt.startTs)}</span>
+                    </span>
                   </span>
                   <span className="flex items-center gap-1">
                     <Clock className="w-3.5 h-3.5" />
@@ -158,22 +163,24 @@ export default function PatientDashboard() {
       </div>
 
       {/* Contact Clinic */}
-      <div className="bg-white rounded-xl p-4 border border-slate-100 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
-            <Phone className="w-5 h-5 text-green-600" />
+      {clinicPhone ? (
+        <div className="bg-white rounded-xl p-4 border border-slate-100 shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
+              <Phone className="w-5 h-5 text-green-600" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-medium text-slate-800">{t('portal.dashboard.contactClinic')}</p>
+            </div>
+            <a
+              href={`tel:${clinicPhone}`}
+              className="text-xs bg-green-50 text-green-700 px-3 py-1.5 rounded-lg font-medium"
+            >
+              {t('portal.dashboard.call')}
+            </a>
           </div>
-          <div className="flex-1">
-            <p className="text-sm font-medium text-slate-800">{t('portal.dashboard.contactClinic')}</p>
-          </div>
-          <a
-            href="tel:+966500000000"
-            className="text-xs bg-green-50 text-green-700 px-3 py-1.5 rounded-lg font-medium"
-          >
-            {t('portal.dashboard.call')}
-          </a>
         </div>
-      </div>
+      ) : null}
     </div>
   )
 }
