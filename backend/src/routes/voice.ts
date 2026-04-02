@@ -22,8 +22,7 @@ async function getOrgByPhone(app: FastifyInstance, phoneNumber: string): Promise
     return phoneMapping.orgId;
   }
 
-  // Fallback to default org from env (for backwards compatibility)
-  return process.env.DEFAULT_ORG_ID || null;
+  return null;
 }
 
 export default async function voiceRoutes(app: FastifyInstance) {
@@ -163,13 +162,18 @@ export default async function voiceRoutes(app: FastifyInstance) {
     const newStatus = statusMap[body.CallStatus] || 'completed';
     const isEnded = ['completed', 'failed', 'no-answer', 'busy'].includes(body.CallStatus);
 
+    // Validate recording URL — only accept URLs from Twilio's API domain
+    const recordingUrl = body.RecordingUrl && /^https:\/\/api\.twilio\.com\//.test(body.RecordingUrl)
+      ? body.RecordingUrl
+      : null;
+
     // Update VoiceCall record
     await app.prisma.voiceCall.update({
       where: { twilioCallSid: body.CallSid },
       data: {
         status: newStatus as 'ringing' | 'in_progress' | 'completed' | 'failed' | 'no_answer' | 'busy',
         durationSec: body.CallDuration ? parseInt(body.CallDuration) : null,
-        recordingUrl: body.RecordingUrl,
+        recordingUrl,
         endedAt: isEnded ? new Date() : undefined,
       },
     });

@@ -83,7 +83,7 @@ export default function VoiceTestWidget() {
         headers: { 'Authorization': `Bearer ${token}` },
       })
       const data = await res.json()
-      console.log('Voice test config:', data)
+      // Voice test config loaded
       return data
     },
     refetchInterval: 10000,
@@ -135,11 +135,10 @@ export default function VoiceTestWidget() {
       const message = JSON.parse(event.data)
       switch (message.type) {
         case 'connected':
-          console.log('[VoiceTestWidget] Backend connected, sending start message')
-          // Backend is ready, now send start message
+          // Backend connected, sending start message
           if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             const startMessage = { type: 'start', dialect: selectedDialect }
-            console.log('[VoiceTestWidget] Sending delayed start message:', startMessage)
+            // Sending start message
             wsRef.current.send(JSON.stringify(startMessage))
           }
           break
@@ -149,7 +148,7 @@ export default function VoiceTestWidget() {
           // AI will send its own greeting, don't add hardcoded message
           break
         case 'error':
-          console.error('Server error:', message.message)
+          // Server error received
           setError(message.message || 'Connection error')
           setIsConnecting(false)
           setIsConnected(false)
@@ -182,28 +181,28 @@ export default function VoiceTestWidget() {
     try {
       const token = localStorage.getItem('token')
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const wsUrl = `${protocol}//${window.location.hostname}:3007/api/voice/test?token=${token}`
-      console.log('Connecting to WebSocket:', wsUrl)
+      const wsUrl = `${protocol}//${window.location.host}/api/voice/test?token=${token}`
+      // Connecting to WebSocket
       const ws = new WebSocket(wsUrl)
       wsRef.current = ws
       ws.onopen = () => {
-        console.log('[VoiceTestWidget] WebSocket opened, waiting for backend connected message...')
+        // WebSocket opened, waiting for backend connected message
       }
       ws.onmessage = handleWebSocketMessage
-      ws.onerror = (e) => {
-        console.error('WebSocket error:', e)
+      ws.onerror = () => {
+        console.error('WebSocket connection error')
         setError('فشل الاتصال')
         setIsConnecting(false)
         setIsConnected(false)
       }
-      ws.onclose = (e) => {
-        console.log('WebSocket closed:', e.code, e.reason)
+      ws.onclose = () => {
+        // WebSocket closed
         setIsConnected(false)
         setIsRecording(false)
         stopRecording()
       }
-    } catch (err) {
-      console.error('Connection error:', err)
+    } catch {
+      console.error('WebSocket connection failed')
       setError('فشل الاتصال')
       setIsConnecting(false)
     }

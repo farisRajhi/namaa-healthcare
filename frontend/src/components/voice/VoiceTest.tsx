@@ -136,17 +136,16 @@ export default function VoiceTest() {
   }, [])
 
   const handleWebSocketMessage = useCallback((event: MessageEvent) => {
-    console.log('[VoiceTest] Received WebSocket message:', event.data)
+    // WebSocket message received
     try {
       const message = JSON.parse(event.data)
-      console.log('[VoiceTest] Parsed message:', message)
+      // Parsed message
       switch (message.type) {
         case 'connected':
-          console.log('[VoiceTest] Backend connected, sending start message')
-          // Backend is ready, now send start message
+          // Backend connected, sending start message
           if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
             const startMessage = { type: 'start', dialect: selectedDialect }
-            console.log('[VoiceTest] Sending delayed start message:', startMessage)
+            // Sending delayed start message
             wsRef.current.send(JSON.stringify(startMessage))
           }
           break
@@ -193,25 +192,23 @@ export default function VoiceTest() {
     try {
       const token = localStorage.getItem('token')
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
-      const wsUrl = `${protocol}//${window.location.hostname}:3007/api/voice/test?token=${token}`
+      const wsUrl = `${protocol}//${window.location.host}/api/voice/test?token=${token}`
 
       const ws = new WebSocket(wsUrl)
       wsRef.current = ws
 
       ws.onopen = () => {
-        console.log('[VoiceTest] WebSocket opened, readyState:', ws.readyState)
-        console.log('[VoiceTest] Waiting for backend "connected" message before sending start...')
-        // Don't send start message here - wait for backend to send "connected" first
+        // WebSocket opened - wait for backend to send "connected" first
       }
       ws.onmessage = handleWebSocketMessage
-      ws.onerror = (error) => {
-        console.error('[VoiceTest] WebSocket error:', error)
+      ws.onerror = () => {
+        console.error('[VoiceTest] WebSocket error')
         setError('Connection failed')
         setIsConnecting(false)
         setIsConnected(false)
       }
-      ws.onclose = (event) => {
-        console.log('[VoiceTest] WebSocket closed:', event.code, event.reason)
+      ws.onclose = () => {
+        // WebSocket closed
         setIsConnected(false)
         setIsRecording(false)
         stopRecording()

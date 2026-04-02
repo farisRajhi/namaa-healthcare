@@ -160,6 +160,15 @@ export default async function providersRoutes(app: FastifyInstance) {
       return { error: 'Provider not found' };
     }
 
+    // Verify service belongs to org
+    const service = await app.prisma.service.findFirst({
+      where: { serviceId: body.serviceId, orgId },
+    });
+
+    if (!service) {
+      return { error: 'Service not found' };
+    }
+
     const link = await app.prisma.providerService.create({
       data: {
         providerId: id,

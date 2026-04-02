@@ -109,13 +109,41 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
     const { orgId, userId } = request.user;
     const body = createAppointmentSchema.parse(request.body);
 
-    // Get service to calculate end time
-    const service = await app.prisma.service.findUnique({
-      where: { serviceId: body.serviceId },
+    // Get service to calculate end time (scoped to org)
+    const service = await app.prisma.service.findFirst({
+      where: { serviceId: body.serviceId, orgId },
     });
 
     if (!service) {
       return reply.code(404).send({ error: 'Service not found' });
+    }
+
+    // Validate provider belongs to org
+    const provider = await app.prisma.provider.findFirst({
+      where: { providerId: body.providerId, orgId },
+    });
+    if (!provider) {
+      return reply.code(404).send({ error: 'Provider not found' });
+    }
+
+    // Validate facilityId belongs to org if provided
+    if (body.facilityId) {
+      const facility = await app.prisma.facility.findFirst({
+        where: { facilityId: body.facilityId, orgId },
+      });
+      if (!facility) {
+        return reply.code(404).send({ error: 'Facility not found' });
+      }
+    }
+
+    // Validate departmentId belongs to org if provided
+    if (body.departmentId) {
+      const department = await app.prisma.department.findFirst({
+        where: { departmentId: body.departmentId, orgId },
+      });
+      if (!department) {
+        return reply.code(404).send({ error: 'Department not found' });
+      }
     }
 
     const startTs = new Date(body.startTs);
@@ -209,6 +237,14 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
       date: z.string(),
       serviceId: z.string().uuid(),
     }).parse(request.query);
+
+    // Validate provider belongs to org
+    const providerRecord = await app.prisma.provider.findFirst({
+      where: { providerId, orgId },
+    });
+    if (!providerRecord) {
+      return reply.code(404).send({ error: 'Provider not found' });
+    }
 
     const date = new Date(query.date);
     const dayOfWeek = date.getDay();

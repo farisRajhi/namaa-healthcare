@@ -10,6 +10,7 @@ import formbody from '@fastify/formbody';
 import fastifyStatic from '@fastify/static';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { ZodError } from 'zod';
 import { prismaPlugin } from './plugins/prisma.js';
 import { openaiPlugin } from './plugins/openai.js';
 import { geminiPlugin } from './plugins/gemini.js';
@@ -21,10 +22,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export async function buildApp() {
+  const isProduction = process.env.NODE_ENV === 'production';
+
   const app = Fastify({
     logger: {
       level: process.env.LOG_LEVEL || 'info',
     },
+    trustProxy: isProduction,
     // Allow empty JSON request bodies (e.g. POST /api/chat/new)
     bodyLimit: 1_048_576,
   });
@@ -168,50 +172,13 @@ export async function buildApp() {
   // Global error handler — catches Zod errors, validation errors, etc.
   // MUST be set BEFORE registerRoutes() so encapsulated plugins inherit it
   app.setErrorHandler((error, request, reply) => {
-    // Zod validation errors → 400
-    if (error.name === 'ZodError' || (error as any).issues) {
-      return reply.code(400).send({
-        error: 'Validation Error',
-        message: 'Invalid request data',
-        issues: (error as any).issues?.map((i: any) => ({
-          path: i.path,
-          message: i.message,
-        })),
-      });
+    if (error instanceof ZodError) {
+      return reply.code(400).send({ error: 'Validation error', details: error.issues });
     }
-
-    // Fastify validation errors
-    if (error.validation) {
-      return reply.code(400).send({
-        error: 'Validation Error',
-        message: error.message,
-      });
-    }
-
-    // JWT errors
-    if (error.code === 'FST_JWT_NO_AUTHORIZATION_IN_HEADER' || error.code === 'FST_JWT_AUTHORIZATION_TOKEN_EXPIRED') {
-      return reply.code(401).send({
-        error: 'Unauthorized',
-        message: 'Invalid or expired token',
-      });
-    }
-
-    // Log full error server-side
     request.log.error(error);
-
-    // In production, never leak stack traces
-    const statusCode = error.statusCode || 500;
-    if (process.env.NODE_ENV === 'production') {
-      return reply.code(statusCode).send({
-        error: statusCode >= 500 ? 'Internal Server Error' : error.message,
-        message: statusCode >= 500 ? 'An unexpected error occurred' : error.message,
-      });
-    }
-
-    // In development, include more detail (but still no raw stack in body)
+    const statusCode = error.statusCode ?? 500;
     return reply.code(statusCode).send({
-      error: error.message,
-      code: error.code,
+      error: statusCode >= 500 ? 'Internal server error' : error.message,
     });
   });
 

@@ -9,7 +9,7 @@ const sendMessageSchema = z.object({
   message: z.string().min(1).max(500),
   conversationHistory: z.array(z.object({
     role: z.enum(['user', 'assistant']),
-    content: z.string(),
+    content: z.string().max(2000),
   })).max(20).optional(),
   dialect: z.enum(['gulf', 'egyptian', 'levantine', 'msa']).optional(),
 });
@@ -33,11 +33,7 @@ const MAX_MESSAGES_PER_DAY = 50;
 const DAY_MS = 24 * 60 * 60 * 1000;
 
 function getClientIP(request: FastifyRequest): string {
-  const forwarded = request.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string') {
-    return forwarded.split(',')[0].trim();
-  }
-  return request.ip || 'unknown';
+  return request.ip;
 }
 
 function checkRateLimit(ip: string, sessionId: string): { allowed: boolean; reason?: string } {

@@ -27,10 +27,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const token = localStorage.getItem('token')
-    if (token) {
+    if (token && typeof token === 'string' && token.split('.').length === 3) {
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`
       fetchUser()
     } else {
+      if (token) localStorage.removeItem('token')
       setIsLoading(false)
     }
   }, [])
@@ -47,9 +48,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  const isValidJwt = (token: string): boolean => {
+    if (!token || typeof token !== 'string') return false
+    const parts = token.split('.')
+    return parts.length === 3
+  }
+
   const login = async (email: string, password: string) => {
     const response = await api.post('/api/auth/login', { email, password })
     const { token } = response.data
+    if (!isValidJwt(token)) {
+      throw new Error('Invalid token received from server')
+    }
     localStorage.setItem('token', token)
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`
     await fetchUser()
@@ -58,6 +68,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = async (email: string, password: string, orgName: string) => {
     const response = await api.post('/api/auth/register', { email, password, orgName })
     const { token } = response.data
+    if (!isValidJwt(token)) {
+      throw new Error('Invalid token received from server')
+    }
     localStorage.setItem('token', token)
     api.defaults.headers.common['Authorization'] = `Bearer ${token}`
     await fetchUser()

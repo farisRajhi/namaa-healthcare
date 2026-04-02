@@ -8,13 +8,13 @@ import { ArabicDialect } from '../types/voice.js';
 
 // Schema for demo request
 const voiceDemoSchema = z.object({
-  audio: z.string().optional(), // Base64 encoded audio
-  text: z.string().optional(), // Or direct text input
+  audio: z.string().max(500_000).optional(), // Base64 encoded audio
+  text: z.string().max(500).optional(), // Or direct text input
   dialect: z.enum(['gulf', 'egyptian', 'levantine', 'msa']).optional(),
   conversationHistory: z.array(z.object({
     role: z.enum(['user', 'assistant']),
-    content: z.string(),
-  })).optional(),
+    content: z.string().max(2000),
+  })).max(20).optional(),
 });
 
 // Dialect-specific instructions
