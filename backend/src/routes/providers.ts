@@ -145,6 +145,26 @@ export default async function providersRoutes(app: FastifyInstance) {
     return rule;
   });
 
+  // Delete availability rule
+  app.delete<{ Params: { id: string; ruleId: string } }>('/:id/availability/:ruleId', async (request) => {
+    const { orgId } = request.user;
+    const { id, ruleId } = request.params;
+
+    const provider = await app.prisma.provider.findFirst({
+      where: { providerId: id, orgId },
+    });
+
+    if (!provider) {
+      return { error: 'Provider not found' };
+    }
+
+    await app.prisma.providerAvailabilityRule.deleteMany({
+      where: { ruleId, providerId: id },
+    });
+
+    return { success: true };
+  });
+
   // Assign service to provider
   app.post<{ Params: { id: string } }>('/:id/services', async (request) => {
     const { orgId } = request.user;

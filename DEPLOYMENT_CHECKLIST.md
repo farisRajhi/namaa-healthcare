@@ -1,6 +1,6 @@
-# DEPLOYMENT_CHECKLIST.md — Namaa (نماء) Production Deployment
+# DEPLOYMENT_CHECKLIST.md — Tawafud (توافد) Production Deployment
 
-> **Project:** Namaa AI Medical Receptionist  
+> **Project:** Tawafud AI Medical Receptionist  
 > **Created:** 2026-02-17  
 > **Stack:** Fastify · PostgreSQL 16 · React 18 · Twilio · Gemini · OpenAI · ElevenLabs  
 > **Target:** Saudi Arabia (Riyadh timezone, Arabic-first, NPHIES-aware)
@@ -109,12 +109,12 @@
 
 ### 2.3 Networking
 
-- [ ] **Domain:** Purchase production domain (e.g., `namaa.sa` or `app.namaa.health`)
+- [ ] **Domain:** Purchase production domain (e.g., `tawafud.raskh.app` or `app.tawafud.raskh.app`)
 - [ ] **SSL/TLS:** Certificate for HTTPS (Let's Encrypt or managed cloud cert)
 - [ ] **DNS:** A/CNAME records for:
-  - `app.namaa.sa` → Frontend (Nginx)
-  - `api.namaa.sa` → Backend (Fastify)
-  - `ws.namaa.sa` → WebSocket endpoint (voice streams)
+  - `app.tawafud.raskh.app` → Frontend (Nginx)
+  - `api.tawafud.raskh.app` → Backend (Fastify)
+  - `ws.tawafud.raskh.app` → WebSocket endpoint (voice streams)
 - [ ] **Reverse Proxy:** Nginx or cloud load balancer with:
   - HTTPS termination
   - WebSocket upgrade support (`Connection: Upgrade`)
@@ -149,13 +149,13 @@
 - [ ] Database created: `hospital_booking` (or rename for production)
 - [ ] Database user created with **least-privilege** access:
   ```sql
-  CREATE USER namaa_app WITH PASSWORD '<STRONG_PASSWORD>';
-  GRANT CONNECT ON DATABASE hospital_booking TO namaa_app;
-  GRANT USAGE ON SCHEMA public TO namaa_app;
-  GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO namaa_app;
-  GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO namaa_app;
-  ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO namaa_app;
-  ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO namaa_app;
+  CREATE USER tawafud_app WITH PASSWORD '<STRONG_PASSWORD>';
+  GRANT CONNECT ON DATABASE hospital_booking TO tawafud_app;
+  GRANT USAGE ON SCHEMA public TO tawafud_app;
+  GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO tawafud_app;
+  GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO tawafud_app;
+  ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO tawafud_app;
+  ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT USAGE, SELECT ON SEQUENCES TO tawafud_app;
   ```
 - [ ] Separate read-only user for analytics/reporting
 - [ ] Connection pooling configured (PgBouncer or managed service pool)
@@ -194,7 +194,7 @@
 - [ ] SSL/TLS encryption for database connections enabled
 - [ ] Connection string uses `sslmode=require`:
   ```
-  postgresql://namaa_app:<PASSWORD>@<HOST>:5432/hospital_booking?schema=public&sslmode=require
+  postgresql://tawafud_app:<PASSWORD>@<HOST>:5432/hospital_booking?schema=public&sslmode=require
   ```
 
 ---
@@ -291,17 +291,17 @@
 
 ### 5.2 Webhook Configuration
 
-- [ ] Voice webhook URL: `https://api.namaa.sa/api/voice/incoming` (POST)
-- [ ] Voice status callback URL: `https://api.namaa.sa/api/voice/status` (POST)
+- [ ] Voice webhook URL: `https://api.tawafud.raskh.app/api/voice/incoming` (POST)
+- [ ] Voice status callback URL: `https://api.tawafud.raskh.app/api/voice/status` (POST)
 - [ ] Voice fallback URL configured (plays apology message on backend failure)
-- [ ] WhatsApp webhook URL: `https://api.namaa.sa/api/whatsapp/incoming` (POST)
+- [ ] WhatsApp webhook URL: `https://api.tawafud.raskh.app/api/whatsapp/incoming` (POST)
 - [ ] SMS status callback configured
 - [ ] Twilio signature verification enabled (`SKIP_TWILIO_VERIFY=false`)
 - [ ] `BASE_URL` in backend `.env` matches webhook domain
 
 ### 5.3 Voice Stream (WebSocket)
 
-- [ ] `VOICE_WS_URL` set to `wss://ws.namaa.sa/api/voice/stream-gemini`
+- [ ] `VOICE_WS_URL` set to `wss://ws.tawafud.raskh.app/api/voice/stream-gemini`
 - [ ] WebSocket endpoint accessible via WSS (TLS required by Twilio)
 - [ ] Nginx/LB configured for WebSocket upgrade on voice stream path
 - [ ] Connection timeout tuned for long voice calls (up to 600s / 10 min)
@@ -371,8 +371,8 @@ Internet
 ┌─────────────────────────────────┐
 │  Cloud Load Balancer / Nginx    │
 │  (SSL termination, WebSocket)   │
-│  api.namaa.sa → :3000           │
-│  wss://ws.namaa.sa → :3000      │
+│  api.tawafud.raskh.app → :3000           │
+│  wss://ws.tawafud.raskh.app → :3000      │
 └────────────┬────────────────────┘
              │
     ┌────────▼─────────┐
@@ -393,13 +393,13 @@ Internet
 
 - [ ] **Option B — Nginx Reverse Proxy:**
   ```nginx
-  # /etc/nginx/sites-available/namaa-api
+  # /etc/nginx/sites-available/tawafud-api
   server {
       listen 443 ssl http2;
-      server_name api.namaa.sa;
+      server_name api.tawafud.raskh.app;
 
-      ssl_certificate /etc/letsencrypt/live/api.namaa.sa/fullchain.pem;
-      ssl_certificate_key /etc/letsencrypt/live/api.namaa.sa/privkey.pem;
+      ssl_certificate /etc/letsencrypt/live/api.tawafud.raskh.app/fullchain.pem;
+      ssl_certificate_key /etc/letsencrypt/live/api.tawafud.raskh.app/privkey.pem;
 
       # API routes
       location /api/ {
@@ -453,8 +453,8 @@ BASE_URL=https://abc123.ngrok-free.app
 VOICE_WS_URL=wss://abc123.ngrok-free.app
 
 # AFTER (production)
-BASE_URL=https://api.namaa.sa
-VOICE_WS_URL=wss://api.namaa.sa
+BASE_URL=https://api.tawafud.raskh.app
+VOICE_WS_URL=wss://api.tawafud.raskh.app
 ```
 
 - [ ] Update `BASE_URL` in production `.env`
@@ -478,7 +478,7 @@ Git Push → Build → Test → Docker Build → Push Image → Deploy → Healt
 
 ```yaml
 # .github/workflows/deploy.yml
-name: Deploy Namaa
+name: Deploy Tawafud
 
 on:
   push:
@@ -519,22 +519,22 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build & push backend image
         run: |
-          docker build -t namaa-backend:${{ github.sha }} ./backend
-          docker tag namaa-backend:${{ github.sha }} <REGISTRY>/namaa-backend:latest
-          docker push <REGISTRY>/namaa-backend:latest
+          docker build -t tawafud-backend:${{ github.sha }} ./backend
+          docker tag tawafud-backend:${{ github.sha }} <REGISTRY>/tawafud-backend:latest
+          docker push <REGISTRY>/tawafud-backend:latest
       - name: Build & push frontend image
         run: |
-          docker build -t namaa-frontend:${{ github.sha }} ./frontend
-          docker tag namaa-frontend:${{ github.sha }} <REGISTRY>/namaa-frontend:latest
-          docker push <REGISTRY>/namaa-frontend:latest
+          docker build -t tawafud-frontend:${{ github.sha }} ./frontend
+          docker tag tawafud-frontend:${{ github.sha }} <REGISTRY>/tawafud-frontend:latest
+          docker push <REGISTRY>/tawafud-frontend:latest
       - name: Deploy to production
         run: |
           # SSH to server and pull new images
-          ssh deploy@<SERVER> "cd /opt/namaa && docker compose pull && docker compose up -d"
+          ssh deploy@<SERVER> "cd /opt/tawafud && docker compose pull && docker compose up -d"
       - name: Health check
         run: |
           sleep 30
-          curl -f https://api.namaa.sa/health || exit 1
+          curl -f https://api.tawafud.raskh.app/health || exit 1
 ```
 
 ### 8.3 Pipeline Stages Detail
@@ -556,8 +556,8 @@ jobs:
 | Environment | Branch | Purpose | Domain |
 |-------------|--------|---------|--------|
 | **Development** | `dev` | Local development | `localhost` |
-| **Staging** | `staging` | Pre-production testing | `staging.namaa.sa` |
-| **Production** | `main` | Live system | `app.namaa.sa` |
+| **Staging** | `staging` | Pre-production testing | `staging.tawafud.raskh.app` |
+| **Production** | `main` | Live system | `app.tawafud.raskh.app` |
 
 - [ ] Staging environment mirrors production configuration
 - [ ] Database migrations tested on staging before production
@@ -660,7 +660,7 @@ jobs:
   - Self-managed: `pg_dump` cron job:
     ```bash
     # Daily at 2:00 AM Riyadh time (23:00 UTC)
-    0 23 * * * pg_dump -h localhost -U namaa_app -d hospital_booking -Fc > /backups/namaa_$(date +\%Y\%m\%d).dump
+    0 23 * * * pg_dump -h localhost -U tawafud_app -d hospital_booking -Fc > /backups/tawafud_$(date +\%Y\%m\%d).dump
     ```
 - [ ] **Point-in-time recovery (PITR):**
   - Enable WAL archiving for PostgreSQL
@@ -711,22 +711,22 @@ Run immediately after deployment:
 
 ```powershell
 # Health check
-curl -f https://api.namaa.sa/health
+curl -f https://api.tawafud.raskh.app/health
 
 # Auth flow
-$token = (Invoke-RestMethod -Uri "https://api.namaa.sa/api/auth/login" `
+$token = (Invoke-RestMethod -Uri "https://api.tawafud.raskh.app/api/auth/login" `
   -Method POST -Body '{"email":"admin@test.com","password":"..."}' `
   -ContentType "application/json").token
 
 # Protected endpoint
-Invoke-RestMethod -Uri "https://api.namaa.sa/api/auth/me" `
+Invoke-RestMethod -Uri "https://api.tawafud.raskh.app/api/auth/me" `
   -Headers @{ Authorization = "Bearer $token" }
 
 # Frontend loads
-curl -f https://app.namaa.sa/
+curl -f https://app.tawafud.raskh.app/
 
 # Swagger docs (if enabled)
-curl -f https://api.namaa.sa/docs
+curl -f https://api.tawafud.raskh.app/docs
 ```
 
 ### 11.2 Manual Verification Checklist
@@ -787,14 +787,14 @@ curl -f https://api.namaa.sa/docs
 docker compose -f docker-compose.prod.yml down
 
 # 2. Revert to previous image
-docker tag <REGISTRY>/namaa-backend:previous <REGISTRY>/namaa-backend:latest
-docker tag <REGISTRY>/namaa-frontend:previous <REGISTRY>/namaa-frontend:latest
+docker tag <REGISTRY>/tawafud-backend:previous <REGISTRY>/tawafud-backend:latest
+docker tag <REGISTRY>/tawafud-frontend:previous <REGISTRY>/tawafud-frontend:latest
 
 # 3. Start with previous version
 docker compose -f docker-compose.prod.yml up -d
 
 # 4. Verify health
-curl -f https://api.namaa.sa/health
+curl -f https://api.tawafud.raskh.app/health
 ```
 
 ### 12.2 Database Rollback
@@ -807,7 +807,7 @@ cd backend
 npx prisma migrate resolve --rolled-back <MIGRATION_NAME>
 
 # Option B: Restore from backup
-pg_restore -h <HOST> -U namaa_app -d hospital_booking -c /backups/namaa_<DATE>.dump
+pg_restore -h <HOST> -U tawafud_app -d hospital_booking -c /backups/tawafud_<DATE>.dump
 ```
 
 ### 12.3 Rollback Decision Matrix
@@ -1014,9 +1014,9 @@ Timeline (Riyadh Time — UTC+3):
 - [ ] 06:30 — Run database migration: `npx prisma migrate deploy`
 - [ ] 06:35 — Seed production data (org, admin user, defaults)
 - [ ] 07:00 — Deploy backend: `docker compose up -d backend`
-- [ ] 07:05 — Verify backend health: `curl https://api.namaa.sa/health`
+- [ ] 07:05 — Verify backend health: `curl https://api.tawafud.raskh.app/health`
 - [ ] 07:15 — Deploy frontend: `docker compose up -d frontend`
-- [ ] 07:20 — Verify frontend: `curl https://app.namaa.sa`
+- [ ] 07:20 — Verify frontend: `curl https://app.tawafud.raskh.app`
 - [ ] 07:30 — Run automated smoke tests
 - [ ] 07:45 — Test voice call (real phone → Twilio → backend)
 - [ ] 08:00 — Test WhatsApp message flow
@@ -1060,7 +1060,7 @@ HOST=0.0.0.0
 LOG_LEVEL=info
 
 # ── Database ──────────────────────────────────────
-DATABASE_URL=postgresql://namaa_app:<PASSWORD>@<DB_HOST>:5432/hospital_booking?schema=public&sslmode=require
+DATABASE_URL=postgresql://tawafud_app:<PASSWORD>@<DB_HOST>:5432/hospital_booking?schema=public&sslmode=require
 
 # ── Redis ─────────────────────────────────────────
 REDIS_URL=redis://<REDIS_HOST>:6379
@@ -1070,11 +1070,11 @@ JWT_SECRET=<64+ char cryptographic random>
 WEBHOOK_API_KEY=<random key>
 
 # ── CORS ──────────────────────────────────────────
-CORS_ORIGIN=https://app.namaa.sa,https://namaa.sa
+CORS_ORIGIN=https://app.tawafud.raskh.app,https://tawafud.raskh.app
 
 # ── URLs (replace ngrok) ─────────────────────────
-BASE_URL=https://api.namaa.sa
-VOICE_WS_URL=wss://api.namaa.sa
+BASE_URL=https://api.tawafud.raskh.app
+VOICE_WS_URL=wss://api.tawafud.raskh.app
 
 # ── AI ────────────────────────────────────────────
 OPENAI_API_KEY=sk-prod-...
@@ -1125,13 +1125,13 @@ docker compose -f docker-compose.prod.yml logs -f backend
 docker compose -f docker-compose.prod.yml ps
 
 # ── Backup ────────────────────────────────────────
-pg_dump -h <HOST> -U namaa_app -d hospital_booking -Fc > backup.dump
-pg_restore -h <HOST> -U namaa_app -d hospital_booking -c backup.dump
+pg_dump -h <HOST> -U tawafud_app -d hospital_booking -Fc > backup.dump
+pg_restore -h <HOST> -U tawafud_app -d hospital_booking -c backup.dump
 
 # ── Monitoring ────────────────────────────────────
-curl https://api.namaa.sa/health
+curl https://api.tawafud.raskh.app/health
 docker stats
-docker logs namaa_backend --tail 100 -f
+docker logs tawafud_backend --tail 100 -f
 ```
 
 ---

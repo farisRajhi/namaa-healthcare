@@ -13,6 +13,7 @@ import {
   Clock,
 } from 'lucide-react'
 import { cn, formatDateLocale, formatHijriDate } from '../../lib/utils'
+import { usePrayerTimes } from '../../hooks/usePrayerTimes'
 
 interface ServiceItem {
   serviceId: string
@@ -169,7 +170,7 @@ export default function PatientBooking() {
         <p className="text-xs text-slate-400 mb-6">
           {selectedService?.name} {t('portal.booking.with')} {selectedProvider?.displayName}
           <br />
-          {selectedDate} — {selectedTime}
+          {selectedDate} ï¿½ {selectedTime}
         </p>
         <button
           onClick={() => navigate('/patient/dashboard/appointments')}
@@ -365,7 +366,7 @@ export default function PatientBooking() {
                           ?? {t('portal.booking.prayerTimes')}
                         </p>
                         <div className="flex flex-wrap gap-2">
-                          {prayerTimes.map(p => (
+                          {prayerTimes.map((p: { name: string; nameAr: string; start: string }) => (
                             <span key={p.name} className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
                               {i18n.language === 'ar' ? p.nameAr : p.name} {p.start}
                             </span>

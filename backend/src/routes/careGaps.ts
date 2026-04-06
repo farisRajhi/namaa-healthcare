@@ -42,8 +42,8 @@ const createRuleSchema = z.object({
 const updateRuleSchema = createRuleSchema.partial().omit({ orgId: true });
 
 const listGapsQuerySchema = z.object({
-  page: z.coerce.number().default(1),
-  limit: z.coerce.number().default(50),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
   status: z.string().optional(),
   priority: z.string().optional(),
 });
@@ -179,9 +179,21 @@ export default async function careGapsRoutes(app: FastifyInstance) {
   // -----------------------------------------------------------------------
   app.patch<{ Params: { id: string } }>(
     '/:id',
-    async (request) => {
+    async (request, reply) => {
       const { id } = request.params;
       const body = updateGapStatusSchema.parse(request.body);
+
+      // Verify the care gap belongs to the user's org
+      const gap = await app.prisma.patientCareGap.findUnique({
+        where: { careGapId: id },
+      });
+      if (!gap) {
+        return reply.code(404).send({ error: 'Care gap not found' });
+      }
+      const gapPatient = await app.prisma.patient.findUnique({ where: { patientId: gap.patientId } });
+      if (!gapPatient || gapPatient.orgId !== request.user.orgId) {
+        return reply.code(404).send({ error: 'Care gap not found' });
+      }
 
       const engine = getEngine();
 
@@ -201,10 +213,18 @@ export default async function careGapsRoutes(app: FastifyInstance) {
   // -----------------------------------------------------------------------
   app.get<{ Params: { patientId: string } }>(
     '/risk/:patientId',
-    async (request) => {
+    async (request, reply) => {
       const { patientId } = request.params;
-      const engine = getEngine();
 
+      // Verify patient belongs to user's org
+      const patient = await app.prisma.patient.findFirst({
+        where: { patientId, orgId: request.user.orgId },
+      });
+      if (!patient) {
+        return reply.code(404).send({ error: 'Patient not found' });
+      }
+
+      const engine = getEngine();
       const riskResult = await engine.calculateRiskScore(patientId);
       return riskResult;
     },
@@ -282,9 +302,15 @@ export async function careGapRulesRoutes(app: FastifyInstance) {
   // -----------------------------------------------------------------------
   app.patch<{ Params: { id: string } }>(
     '/:id',
-    async (request) => {
+    async (request, reply) => {
       const { id } = request.params;
       const body = updateRuleSchema.parse(request.body);
+
+      // Verify rule belongs to user's org
+      const existing = await app.prisma.careGapRule.findUnique({ where: { careGapRuleId: id } });
+      if (!existing || existing.orgId !== request.user.orgId) {
+        return reply.code(404).send({ error: 'Rule not found' });
+      }
 
       const engine = getEngine();
 

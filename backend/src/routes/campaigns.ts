@@ -14,7 +14,7 @@ import { requireManager } from '../middleware/rbac.js';
 const createCampaignSchema = z.object({
   name: z.string().min(1),
   nameAr: z.string().optional(),
-  type: z.enum(['recall', 'preventive', 'follow_up', 'satisfaction', 'announcement']),
+  type: z.enum(['recall', 'preventive', 'follow_up', 'satisfaction', 'announcement', 'promotional', 'reminder']),
   targetFilter: z.object({
     minAge: z.number().optional(),
     maxAge: z.number().optional(),
@@ -25,6 +25,12 @@ const createCampaignSchema = z.object({
     previousServiceIds: z.array(z.string().uuid()).optional(),
     excludeWithUpcoming: z.boolean().optional(),
     patientIds: z.array(z.string().uuid()).optional(),
+    // Knowledge Base targeting
+    tags: z.array(z.string()).optional(),
+    serviceInterests: z.array(z.string()).optional(),
+    minEngagementScore: z.number().min(0).max(100).optional(),
+    maxEngagementScore: z.number().min(0).max(100).optional(),
+    channelPreference: z.string().optional(),
   }).optional().default({}),
   channelSequence: z.array(z.enum(['voice', 'sms', 'whatsapp'])).min(1).optional().default(['sms']),
   channel: z.string().optional(), // Convenience alias

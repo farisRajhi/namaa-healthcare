@@ -1,5 +1,5 @@
 /**
- * Namaa (نماء) – شروط الاستخدام
+ * Tawafud (توافد) – شروط الاستخدام
  * Arabic Terms of Service
  */
 
@@ -52,7 +52,7 @@ export default function Terms() {
             <h2 className="text-3xl font-bold text-gray-900 mb-2">شروط الاستخدام</h2>
             <p className="text-gray-500">آخر تحديث: فبراير 2026</p>
             <p className="text-gray-500 text-sm mt-1">
-              يُرجى قراءة هذه الشروط بعناية قبل استخدام منصة نماء
+              يُرجى قراءة هذه الشروط بعناية قبل استخدام منصة توافد
             </p>
           </div>
 
@@ -62,7 +62,7 @@ export default function Terms() {
             <div className="text-sm text-amber-800">
               <p className="font-semibold mb-1">تنبيه مهم</p>
               <p>
-                منصة نماء هي أداة مساعدة إدارية وليست بديلاً عن الرعاية الطبية المتخصصة.
+                منصة توافد هي أداة مساعدة إدارية وليست بديلاً عن الرعاية الطبية المتخصصة.
                 في حالات الطوارئ الطبية، يُرجى الاتصال بالرقم <strong>911</strong> فوراً.
               </p>
             </div>
@@ -76,7 +76,7 @@ export default function Terms() {
                 <span className="text-blue-600">١.</span> قبول الشروط
               </h3>
               <p>
-                باستخدامك لمنصة <strong>نماء (Namaa)</strong> – المساعد الطبي الذكي – سواء عبر الموقع الإلكتروني
+                باستخدامك لمنصة <strong>توافد (Tawafud)</strong> – المساعد الطبي الذكي – سواء عبر الموقع الإلكتروني
                 أو التطبيق أو واجهة برمجية أو خدمة الاتصال الصوتي، فإنك توافق على الالتزام بهذه الشروط وسياسة
                 الخصوصية المرفقة. إذا كنت تستخدم المنصة نيابةً عن منشأة صحية، فإنك تُقر بأن لديك صلاحية
                 قبول هذه الشروط بالنيابة عنها.
@@ -88,7 +88,7 @@ export default function Terms() {
               <h3 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-2">
                 <span className="text-blue-600">٢.</span> وصف الخدمة
               </h3>
-              <p className="mb-3">تُقدم منصة نماء الخدمات التالية:</p>
+              <p className="mb-3">تُقدم منصة توافد الخدمات التالية:</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {[
                   { icon: '📅', title: 'إدارة المواعيد', desc: 'حجز وتعديل وإلغاء المواعيد الطبية' },
@@ -165,10 +165,10 @@ export default function Terms() {
                 <p className="text-blue-900 font-semibold mb-3">إخلاء المسؤولية الطبي</p>
                 <ul className="space-y-2 text-sm text-blue-800">
                   {[
-                    'نماء هي منصة إدارية وليست مزوداً للرعاية الصحية',
+                    'توافد هي منصة إدارية وليست مزوداً للرعاية الصحية',
                     'لا تُشكّل المعلومات المُقدَّمة تشخيصاً طبياً أو وصفة علاجية',
                     'القرارات الطبية النهائية تعود دائماً للطبيب المرخص',
-                    'لا تتحمل نماء مسؤولية قرارات طبية مبنية على محادثات مع المساعد الذكي',
+                    'لا تتحمل توافد مسؤولية قرارات طبية مبنية على محادثات مع المساعد الذكي',
                     'في الطوارئ اتصل بـ 911 أو اذهب لأقرب طوارئ فوراً',
                   ].map((item, i) => (
                     <li key={i} className="flex items-start gap-2">
@@ -189,9 +189,9 @@ export default function Terms() {
                 {[
                   'خطط الاشتراك وأسعارها محددة في اتفاقية الخدمة المنفصلة مع المنشأة',
                   'الفوترة شهرية/سنوية مقدماً، وغير قابلة للاسترداد إلا وفق سياسة الاسترداد',
-                  'التأخر في السداد يمنح نماء حق تعليق الخدمة بعد إشعار 7 أيام',
+                  'التأخر في السداد يمنح توافد حق تعليق الخدمة بعد إشعار 7 أيام',
                   'جميع الأسعار بالريال السعودي وتشمل ضريبة القيمة المضافة (15%)',
-                  'يحق لنماء تعديل الأسعار مع إشعار 60 يوماً مسبقاً',
+                  'يحق لتوافد تعديل الأسعار مع إشعار 60 يوماً مسبقاً',
                 ].map((item, i) => (
                   <li key={i} className="flex items-start gap-2">
                     <span className="text-blue-500 mt-1">•</span>
@@ -207,8 +207,8 @@ export default function Terms() {
                 <span className="text-blue-600">٧.</span> الملكية الفكرية
               </h3>
               <p className="mb-3">
-                جميع عناصر منصة نماء – بما يشمل الكود المصدري، التصاميم، الخوارزميات، نماذج الذكاء الاصطناعي،
-                والمحتوى – هي ملكية فكرية حصرية لنماء أو مرخصيها، وتخضع لحقوق النشر والعلامات التجارية.
+                جميع عناصر منصة توافد – بما يشمل الكود المصدري، التصاميم، الخوارزميات، نماذج الذكاء الاصطناعي،
+                والمحتوى – هي ملكية فكرية حصرية لتوافد أو مرخصيها، وتخضع لحقوق النشر والعلامات التجارية.
               </p>
               <p>
                 تحتفظ المنشآت الصحية بملكية بياناتها الخاصة المحفوظة في المنصة. يمنحك استخدام الخدمة
@@ -255,7 +255,7 @@ export default function Terms() {
               <ul className="space-y-2">
                 {[
                   'يحق للمستخدم إنهاء حسابه في أي وقت عبر إعدادات الحساب أو بالتواصل مع الدعم',
-                  'يحق لنماء تعليق أو إنهاء الحساب عند انتهاك هذه الشروط',
+                  'يحق لتوافد تعليق أو إنهاء الحساب عند انتهاك هذه الشروط',
                   'عند الإنهاء، يمكن تصدير بياناتك خلال 30 يوماً ثم تُحذف بشكل آمن',
                   'الالتزامات المالية المستحقة قبل الإنهاء تظل سارية',
                 ].map((item, i) => (
@@ -279,7 +279,7 @@ export default function Terms() {
               <div className="bg-gray-50 rounded-xl p-4 text-sm">
                 <p className="font-semibold mb-2">آلية تسوية النزاعات:</p>
                 <ol className="list-decimal list-inside space-y-1 text-gray-600">
-                  <li>التواصل المباشر مع فريق دعم نماء (الأولوية القصوى)</li>
+                  <li>التواصل المباشر مع فريق دعم توافد (الأولوية القصوى)</li>
                   <li>التفاوض الودي خلال 30 يوماً</li>
                   <li>الوساطة عبر مركز التحكيم التجاري لدول مجلس التعاون الخليجي</li>
                   <li>التقاضي أمام المحاكم المختصة في مدينة الرياض</li>
@@ -308,8 +308,8 @@ export default function Terms() {
                 {[
                   'إذا أُبطل أي حكم من هذه الشروط، تظل باقي الأحكام سارية المفعول',
                   'تمثل هذه الشروط الاتفاقية الكاملة بين الطرفين وتحل محل أي اتفاقيات سابقة',
-                  'عدم ممارسة نماء لأي حق من حقوقها لا يُعدّ تنازلاً عنه',
-                  'لا يجوز التنازل عن هذه الشروط دون موافقة خطية مسبقة من نماء',
+                  'عدم ممارسة توافد لأي حق من حقوقها لا يُعدّ تنازلاً عنه',
+                  'لا يجوز التنازل عن هذه الشروط دون موافقة خطية مسبقة من توافد',
                 ].map((item, i) => (
                   <li key={i} className="flex items-start gap-2">
                     <span className="text-gray-400 mt-1">•</span>
@@ -325,10 +325,10 @@ export default function Terms() {
                 <span className="text-blue-600">١٣.</span> التواصل معنا
               </h3>
               <div className="bg-blue-50 rounded-xl p-6 border border-blue-100">
-                <p className="font-semibold text-blue-900 mb-4">الفريق القانوني – منصة نماء</p>
+                <p className="font-semibold text-blue-900 mb-4">الفريق القانوني – منصة توافد</p>
                 <div className="space-y-2 text-sm text-blue-800">
-                  <p>📧 البريد الإلكتروني: <a href="mailto:legal@namaa.ai" className="font-medium hover:underline">legal@namaa.ai</a></p>
-                  <p>📧 الدعم التقني: <a href="mailto:support@namaa.ai" className="font-medium hover:underline">support@namaa.ai</a></p>
+                  <p>📧 البريد الإلكتروني: <a href="mailto:legal@tawafud.raskh.app" className="font-medium hover:underline">legal@tawafud.raskh.app</a></p>
+                  <p>📧 الدعم التقني: <a href="mailto:support@tawafud.raskh.app" className="font-medium hover:underline">support@tawafud.raskh.app</a></p>
                   <p>📞 الهاتف: <a href="tel:+966920000000" className="font-medium hover:underline">+966 920 000 000</a></p>
                   <p>📍 العنوان: الرياض، المملكة العربية السعودية</p>
                 </div>
@@ -340,7 +340,7 @@ export default function Terms() {
           {/* Footer */}
           <div className="mt-10 pt-8 border-t border-gray-100 text-center">
             <p className="text-sm text-gray-400">
-              © {new Date().getFullYear()} نماء – جميع الحقوق محفوظة |{' '}
+              © {new Date().getFullYear()} توافد – جميع الحقوق محفوظة |{' '}
               <a href="/privacy" className="text-blue-600 hover:underline">سياسة الخصوصية</a>
             </p>
             <p className="text-xs text-gray-400 mt-1">

@@ -1,5 +1,5 @@
 /**
- * Namaa (نماء) – سياسة الخصوصية
+ * Tawafud (توافد) – سياسة الخصوصية
  * Arabic Privacy Policy – PDPL (Saudi Arabia Personal Data Protection Law) Compliant
  */
 
@@ -64,7 +64,7 @@ export default function PrivacyPolicy() {
                 <span className="text-teal-600">١.</span> المقدمة
               </h3>
               <p>
-                تُعدّ منصة <strong>نماء (Namaa)</strong> مساعداً طبياً ذكياً مخصصاً لتيسير خدمات الرعاية الصحية،
+                تُعدّ منصة <strong>توافد (Tawafud)</strong> مساعداً طبياً ذكياً مخصصاً لتيسير خدمات الرعاية الصحية،
                 تشمل حجز المواعيد، والاستفسارات الطبية، وإدارة الوصفات الطبية، والتواصل مع مرافق الرعاية الصحية.
                 نحن نُولي حماية بياناتك الشخصية أهمية قصوى، ونلتزم بأحكام <strong>نظام حماية البيانات الشخصية السعودي (PDPL)</strong>
                 الصادر بالمرسوم الملكي رقم م/19 لعام 1443هـ ولوائحه التنفيذية.
@@ -255,8 +255,8 @@ export default function PrivacyPolicy() {
               </div>
               <p className="mt-4 text-sm text-gray-600">
                 لممارسة أي من هذه الحقوق، تواصل معنا على:{' '}
-                <a href="mailto:privacy@namaa.ai" className="text-teal-600 hover:underline font-medium">
-                  privacy@namaa.ai
+                <a href="mailto:privacy@tawafud.raskh.app" className="text-teal-600 hover:underline font-medium">
+                  privacy@tawafud.raskh.app
                 </a>
               </p>
             </section>
@@ -334,12 +334,12 @@ export default function PrivacyPolicy() {
                 <span className="text-teal-600">١٢.</span> التواصل معنا
               </h3>
               <div className="bg-teal-50 rounded-xl p-6 border border-teal-100">
-                <p className="font-semibold text-teal-900 mb-4">مسؤول حماية البيانات – منصة نماء</p>
+                <p className="font-semibold text-teal-900 mb-4">مسؤول حماية البيانات – منصة توافد</p>
                 <div className="space-y-2 text-sm text-teal-800">
-                  <p>📧 البريد الإلكتروني: <a href="mailto:privacy@namaa.ai" className="font-medium hover:underline">privacy@namaa.ai</a></p>
+                  <p>📧 البريد الإلكتروني: <a href="mailto:privacy@tawafud.raskh.app" className="font-medium hover:underline">privacy@tawafud.raskh.app</a></p>
                   <p>📞 الهاتف: <a href="tel:+966920000000" className="font-medium hover:underline">+966 920 000 000</a></p>
                   <p>📍 العنوان: الرياض، المملكة العربية السعودية</p>
-                  <p>🌐 الموقع: <a href="https://namaa.ai" className="font-medium hover:underline">namaa.ai</a></p>
+                  <p>🌐 الموقع: <a href="https://tawafud.raskh.app" className="font-medium hover:underline">tawafud.raskh.app</a></p>
                 </div>
               </div>
             </section>
@@ -349,7 +349,7 @@ export default function PrivacyPolicy() {
           {/* Footer */}
           <div className="mt-10 pt-8 border-t border-gray-100 text-center">
             <p className="text-sm text-gray-400">
-              © {new Date().getFullYear()} نماء – جميع الحقوق محفوظة |{' '}
+              © {new Date().getFullYear()} توافد – جميع الحقوق محفوظة |{' '}
               <a href="/terms" className="text-teal-600 hover:underline">شروط الاستخدام</a>
             </p>
             <p className="text-xs text-gray-400 mt-1">

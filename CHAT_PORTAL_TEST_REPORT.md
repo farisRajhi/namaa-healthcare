@@ -1,4 +1,4 @@
-# 🏥 Namaa E2E Test Report — Chat, WebSocket, Patient Portal & Memory
+# 🏥 Tawafud E2E Test Report — Chat, WebSocket, Patient Portal & Memory
 
 **Date:** 2026-02-09  
 **Target:** `http://localhost:3000`  
@@ -125,7 +125,7 @@
 
 | Test | Status | Detail |
 |------|--------|--------|
-| GET /config/:orgId | ✅ PASS | Returns: `orgName=عيادة نماء التجريبية`, `theme=teal` |
+| GET /config/:orgId | ✅ PASS | Returns: `orgName=عيادة توافد التجريبية`, `theme=teal` |
 | GET /config (fallback) | ✅ PASS | Returns default config for unknown org |
 | GET /widget.js | ✅ PASS | Serves JavaScript with correct Content-Type |
 | GET /widget.js (root) | ✅ PASS | Root-level redirect (302) works |

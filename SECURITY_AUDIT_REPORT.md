@@ -1,8 +1,8 @@
-# 🔒 Namaa — Security & Deployment Readiness Audit
+# 🔒 Tawafud — Security & Deployment Readiness Audit
 
 **Audit Date:** 2026-02-09  
 **Auditor:** Automated Security Audit (OpenClaw subagent)  
-**Project:** Namaa AI Medical Receptionist  
+**Project:** Tawafud AI Medical Receptionist  
 **Scope:** Backend (Fastify/TypeScript) + Frontend (React/Vite)
 
 ---
@@ -378,7 +378,7 @@ These indicate the `ConversationalIntelligenceService` interface was updated but
 
 8. **Configure CORS for production domain:**
    ```
-   CORS_ORIGIN=https://app.namaa.sa
+   CORS_ORIGIN=https://tawafud.raskh.app
    ```
 
 9. **Set up database migrations:** Use `prisma migrate deploy` in production (not `db push`).

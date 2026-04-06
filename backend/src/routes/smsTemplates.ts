@@ -38,8 +38,8 @@ const sendSchema = z.object({
 });
 
 const logQuerySchema = z.object({
-  page: z.coerce.number().default(1),
-  limit: z.coerce.number().default(50),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
   channel: z.enum(['sms', 'whatsapp']).optional(),
   status: z.enum(['sent', 'delivered', 'failed', 'read']).optional(),
   patientId: z.string().uuid().optional(),
@@ -57,8 +57,11 @@ export default async function smsTemplatesRoutes(app: FastifyInstance) {
   );
 
   // ──── GET /api/sms-templates/:orgId — List templates ────
-  app.get<{ Params: { orgId: string } }>('/:orgId', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/:orgId', async (request, reply) => {
     const { orgId } = request.params;
+    if (request.user.orgId !== orgId) {
+      return reply.code(403).send({ error: 'Forbidden' });
+    }
 
     const templates = await deflector.listTemplates(orgId);
 
@@ -84,9 +87,15 @@ export default async function smsTemplatesRoutes(app: FastifyInstance) {
   });
 
   // ──── PATCH /api/sms-templates/:id — Update template ────
-  app.patch<{ Params: { id: string } }>('/:id', async (request) => {
+  app.patch<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const { id } = request.params;
     const body = updateTemplateSchema.parse(request.body);
+
+    // Verify template belongs to user's org
+    const existing = await app.prisma.smsTemplate.findUnique({ where: { templateId: id } });
+    if (!existing || existing.orgId !== request.user.orgId) {
+      return reply.code(404).send({ error: 'Template not found' });
+    }
 
     try {
       const updated = await deflector.updateTemplate(id, body as any);
@@ -122,8 +131,14 @@ export default async function smsTemplatesRoutes(app: FastifyInstance) {
   });
 
   // ──── DELETE /api/sms-templates/:id — Soft-delete (deactivate) ────
-  app.delete<{ Params: { id: string } }>('/:id', async (request) => {
+  app.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const { id } = request.params;
+
+    // Verify template belongs to user's org
+    const existing = await app.prisma.smsTemplate.findUnique({ where: { templateId: id } });
+    if (!existing || existing.orgId !== request.user.orgId) {
+      return reply.code(404).send({ error: 'Template not found' });
+    }
 
     try {
       await deflector.updateTemplate(id, { isActive: false });
@@ -180,8 +195,11 @@ export async function smsLogsRoutes(app: FastifyInstance) {
   );
 
   // ──── GET /api/sms-logs/:orgId — View sent message logs ────
-  app.get<{ Params: { orgId: string } }>('/:orgId', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/:orgId', async (request, reply) => {
     const { orgId } = request.params;
+    if (request.user.orgId !== orgId) {
+      return reply.code(403).send({ error: 'Forbidden' });
+    }
     const query = logQuerySchema.parse(request.query);
 
     return deflector.getLogs(orgId, {

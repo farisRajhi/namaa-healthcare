@@ -1,4 +1,4 @@
-# 🏥 Namaa (نماء) — Deployment Readiness Audit
+# 🏥 Tawafud (توافد) — Deployment Readiness Audit
 
 **Audited:** 2026-02-15
 **Auditor:** AI Deployment Auditor
@@ -693,7 +693,7 @@ External Services:
 
 ## Final Verdict
 
-**Namaa is an impressively feature-complete AI medical receptionist.** The architecture is solid, the voice pipeline is sophisticated (dual-engine, dialect-aware, with guardrails), and the breadth of features (appointments, prescriptions, campaigns, care gaps, agent builder, patient portal, fleet management) is remarkable for what appears to be a relatively early-stage project.
+**Tawafud is an impressively feature-complete AI medical receptionist.** The architecture is solid, the voice pipeline is sophisticated (dual-engine, dialect-aware, with guardrails), and the breadth of features (appointments, prescriptions, campaigns, care gaps, agent builder, patient portal, fleet management) is remarkable for what appears to be a relatively early-stage project.
 
 **However, it is NOT ready for production deployment with real patient data.** The security gaps (exposed API keys, no RBAC enforcement, no global rate limiting, default JWT secret) are blocking issues. The absence of automated tests and a CI/CD pipeline also create risk.
 

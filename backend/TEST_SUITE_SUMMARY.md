@@ -297,7 +297,7 @@ npm run test:integration
 
 ### To Run Tests
 1. Ensure PostgreSQL is running on port 5434
-2. Set up test database: `namaa_test`
+2. Set up test database: `tawafud_test`
 3. Run: `npm test`
 
 ### To Add More Tests

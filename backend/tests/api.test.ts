@@ -1,5 +1,5 @@
 /**
- * Comprehensive API tests for Namaa backend
+ * Comprehensive API tests for Tawafud backend
  * Uses Node.js built-in test runner (node:test) — zero installs.
  * Run with: npx tsx --test tests/api.test.ts
  */

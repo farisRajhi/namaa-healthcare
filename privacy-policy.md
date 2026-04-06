@@ -4,7 +4,7 @@
 
 ## 1. Introduction
 
-Welcome to Namaa ("Service," "we," "us," or "our"). This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our AI-powered platform, including interactions through WhatsApp, web applications, and other communication channels.
+Welcome to Tawafud ("Service," "we," "us," or "our"). This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our AI-powered platform, including interactions through WhatsApp, web applications, and other communication channels.
 
 We are committed to protecting your privacy and handling your personal information responsibly. Please read this Privacy Policy carefully. By using our Service, you consent to the practices described in this policy.
 
@@ -191,7 +191,7 @@ If you have questions, concerns, or requests regarding this Privacy Policy or ou
 **Email:** fariisuni@gmail.com
 
 **Address:**
-Namaa
+Tawafud
 Prince Sultan St
 Jazan, Sabya, 85299
 Saudi Arabia

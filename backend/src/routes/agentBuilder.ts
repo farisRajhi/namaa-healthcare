@@ -7,7 +7,6 @@ import { FastifyInstance, FastifyRequest } from 'fastify'
 import { z } from 'zod'
 import { FlowEngine } from '../services/agentBuilder/flowEngine.js'
 import { ALL_TEMPLATES } from '../services/agentBuilder/templates.js'
-import { requireManager } from '../middleware/rbac.js'
 
 // ─── Validation Schemas ──────────────────────────────────
 
@@ -47,8 +46,6 @@ const listFlowsQuerySchema = z.object({
 
 export default async function agentBuilderRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate)
-  // Agent builder is admin/manager only — modifying flows affects live AI behavior
-  app.addHook('preHandler', requireManager)
 
   const engine = new FlowEngine(app.prisma)
 
@@ -240,12 +237,19 @@ export default async function agentBuilderRoutes(app: FastifyInstance) {
       return { error: 'Flow not found', statusCode: 404 }
     }
 
-    // Validate flow has at least a START and END node
+    // Validate flow has at least a START node (or INSTRUCTION nodes for AI customization flows)
     const nodes = existing.nodes as any[]
     const hasStart = nodes.some((n: any) => n.type === 'start')
-    if (!hasStart) {
-      return { error: 'Flow must have a START node to be published', statusCode: 400 }
+    const hasInstructions = nodes.some((n: any) => n.type === 'instruction')
+    if (!hasStart && !hasInstructions) {
+      return { error: 'Flow must have a START or INSTRUCTION node to be published', statusCode: 400 }
     }
+
+    // Deactivate all other flows for this org (only one active at a time)
+    await app.prisma.agentFlow.updateMany({
+      where: { orgId, isActive: true, isTemplate: false, agentFlowId: { not: id } },
+      data: { isActive: false },
+    })
 
     const flow = await app.prisma.agentFlow.update({
       where: { agentFlowId: id },
@@ -287,6 +291,38 @@ export default async function agentBuilderRoutes(app: FastifyInstance) {
       data: {
         id: flow.agentFlowId,
         isActive: flow.isActive,
+      },
+    }
+  })
+
+  // ──── GET /api/agent-builder/active — Get the org's active flow ────
+  app.get('/active', async (request: FastifyRequest) => {
+    const { orgId } = request.user
+
+    const flow = await app.prisma.agentFlow.findFirst({
+      where: { orgId, isActive: true, isTemplate: false },
+      orderBy: { publishedAt: 'desc' },
+    })
+
+    if (!flow) {
+      return { data: null }
+    }
+
+    return {
+      data: {
+        id: flow.agentFlowId,
+        name: flow.name,
+        nameAr: flow.nameAr,
+        description: flow.description,
+        descriptionAr: flow.descriptionAr,
+        nodes: flow.nodes,
+        edges: flow.edges,
+        variables: flow.variables,
+        settings: flow.settings,
+        isActive: flow.isActive,
+        version: flow.version,
+        publishedAt: flow.publishedAt,
+        updatedAt: flow.updatedAt,
       },
     }
   })

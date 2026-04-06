@@ -17,7 +17,7 @@ const subscriptionGuardPlugin: FastifyPluginAsync = async (fastify) => {
       }
 
       try {
-        const subscription = await fastify.prisma.namaaSubscription.findFirst({
+        const subscription = await fastify.prisma.tawafudSubscription.findFirst({
           where: {
             orgId: user.orgId,
             status: 'active',
@@ -28,7 +28,7 @@ const subscriptionGuardPlugin: FastifyPluginAsync = async (fastify) => {
         if (!subscription) {
           return reply.code(402).send({
             error: 'Subscription Required',
-            message: 'An active Namaa subscription is required to access this feature.',
+            message: 'An active Tawafud subscription is required to access this feature.',
             code: 'SUBSCRIPTION_REQUIRED',
             upgradeUrl: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/pricing`,
           });

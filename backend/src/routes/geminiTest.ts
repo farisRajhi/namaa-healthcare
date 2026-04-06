@@ -41,7 +41,7 @@ export default async function geminiTestRoutes(app: FastifyInstance) {
       return reply.code(400).send({ error: 'Message is required' });
     }
 
-    const defaultPrompt = `أنت مساعد ذكي لحجز المواعيد الطبية.
+    const defaultPrompt = `أنت تساعد في حجز المواعيد الطبية.
 تحدث بالعربية بشكل ودود ومختصر.
 ساعد المستخدم في حجز موعد أو الإجابة عن استفساراته.`;
 
@@ -128,7 +128,7 @@ export default async function geminiTestRoutes(app: FastifyInstance) {
       take: 5,
     });
 
-    const systemPrompt = `أنت مساعد ذكي لحجز المواعيد الطبية في ${org?.name || 'العيادة'}.
+    const systemPrompt = `أنت تمثل ${org?.name || 'العيادة'} وتساعد في حجز المواعيد الطبية.
 
 ## الخدمات المتاحة:
 ${services.map(s => `- ${s.name}`).join('\n') || '- فحص عام\n- استشارة'}

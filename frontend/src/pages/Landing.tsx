@@ -2,6 +2,8 @@ import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   MessageCircle,
+  MessageSquare,
+  Mail,
   Calendar,
   Users,
   BarChart3,
@@ -10,15 +12,19 @@ import {
   Zap,
   CheckCircle,
   ArrowRight,
-  Phone,
   Bot,
   Building2,
   PhoneCall,
   Sparkles,
   Heart,
   Globe,
+  Megaphone,
+  Workflow,
+  Brain,
 } from 'lucide-react'
-import VoiceDemoRealtime from '../components/voice/VoiceDemoRealtime'
+// Voice demo hidden from UI — components still available at:
+// ../components/voice/VoiceDemoRealtime
+// ../components/ui/ComingSoonOverlay
 import DemoChatEmbed from '../components/chat/DemoChatEmbed'
 
 export default function Landing() {
@@ -29,6 +35,12 @@ export default function Landing() {
     i18n.changeLanguage(newLang)
   }
 
+  const channels = [
+    { icon: MessageCircle, label: t('landing.channels.whatsapp') },
+    { icon: MessageSquare, label: t('landing.channels.webChat') },
+    { icon: Mail, label: t('landing.channels.sms') },
+  ]
+
   const stats = [
     { value: '50%', label: t('landing.stats.noShows'), icon: '📉' },
     { value: '24/7', label: t('landing.stats.availability'), icon: '🕐' },
@@ -36,49 +48,53 @@ export default function Landing() {
     { value: '< 1min', label: t('landing.stats.responseTime'), icon: '⚡' },
   ]
 
-  const features = [
+  const featureCategories = [
     {
-      icon: MessageCircle,
-      title: t('landing.features.whatsapp.title'),
-      description: t('landing.features.whatsapp.description'),
-      color: 'bg-success-100 text-success-600',
+      title: t('landing.features.categoryChannels'),
+      borderColor: 'border-primary-400',
+      iconColor: 'bg-primary-100 text-primary-600',
+      features: [
+        { icon: MessageCircle, title: t('landing.features.whatsappAI.title'), description: t('landing.features.whatsappAI.description') },
+        { icon: MessageSquare, title: t('landing.features.webChat.title'), description: t('landing.features.webChat.description') },
+        { icon: Mail, title: t('landing.features.smsCampaigns.title'), description: t('landing.features.smsCampaigns.description') },
+      ],
     },
     {
-      icon: Calendar,
-      title: t('landing.features.scheduling.title'),
-      description: t('landing.features.scheduling.description'),
-      color: 'bg-primary-100 text-primary-600',
+      title: t('landing.features.categoryScheduling'),
+      borderColor: 'border-secondary-400',
+      iconColor: 'bg-secondary-100 text-secondary-600',
+      features: [
+        { icon: Calendar, title: t('landing.features.scheduling.title'), description: t('landing.features.scheduling.description') },
+        { icon: Users, title: t('landing.features.patients.title'), description: t('landing.features.patients.description') },
+        { icon: Building2, title: t('landing.features.multiLocation.title'), description: t('landing.features.multiLocation.description') },
+      ],
     },
     {
-      icon: Users,
-      title: t('landing.features.patients.title'),
-      description: t('landing.features.patients.description'),
-      color: 'bg-secondary-100 text-secondary-600',
+      title: t('landing.features.categoryGrowth'),
+      borderColor: 'border-success-400',
+      iconColor: 'bg-success-100 text-success-600',
+      features: [
+        { icon: Megaphone, title: t('landing.features.campaigns.title'), description: t('landing.features.campaigns.description') },
+        { icon: Heart, title: t('landing.features.careGap.title'), description: t('landing.features.careGap.description') },
+        { icon: Clock, title: t('landing.features.reminders.title'), description: t('landing.features.reminders.description') },
+      ],
     },
     {
-      icon: BarChart3,
-      title: t('landing.features.analytics.title'),
-      description: t('landing.features.analytics.description'),
-      color: 'bg-warning-100 text-warning-600',
-    },
-    {
-      icon: Clock,
-      title: t('landing.features.reminders.title'),
-      description: t('landing.features.reminders.description'),
-      color: 'bg-danger-100 text-danger-600',
-    },
-    {
-      icon: Building2,
-      title: t('landing.features.multiLocation.title'),
-      description: t('landing.features.multiLocation.description'),
-      color: 'bg-primary-100 text-primary-700',
+      title: t('landing.features.categoryIntelligence'),
+      borderColor: 'border-warning-400',
+      iconColor: 'bg-warning-100 text-warning-600',
+      features: [
+        { icon: BarChart3, title: t('landing.features.analytics.title'), description: t('landing.features.analytics.description') },
+        { icon: Workflow, title: t('landing.features.agentBuilder.title'), description: t('landing.features.agentBuilder.description') },
+        { icon: Brain, title: t('landing.features.triageRouting.title'), description: t('landing.features.triageRouting.description') },
+      ],
     },
   ]
 
   const steps = [
     {
       step: '01',
-      icon: Phone,
+      icon: Building2,
       title: t('landing.howItWorks.step1.title'),
       description: t('landing.howItWorks.step1.description'),
     },
@@ -90,9 +106,15 @@ export default function Landing() {
     },
     {
       step: '03',
-      icon: Zap,
+      icon: Globe,
       title: t('landing.howItWorks.step3.title'),
       description: t('landing.howItWorks.step3.description'),
+    },
+    {
+      step: '04',
+      icon: Zap,
+      title: t('landing.howItWorks.step4.title'),
+      description: t('landing.howItWorks.step4.description'),
     },
   ]
 
@@ -100,15 +122,16 @@ export default function Landing() {
     t('landing.benefits.list.workload'),
     t('landing.benefits.list.satisfaction'),
     t('landing.benefits.list.slots'),
-    t('landing.benefits.list.hipaa'),
-    t('landing.benefits.list.integration'),
+    t('landing.benefits.list.channels'),
+    t('landing.benefits.list.revenue'),
+    t('landing.benefits.list.compliance'),
   ]
 
   const securityFeatures = [
     t('landing.benefits.security.encryption'),
-    t('landing.benefits.security.hipaa'),
-    t('landing.benefits.security.audits'),
-    t('landing.benefits.security.residency'),
+    t('landing.benefits.security.pdpl'),
+    t('landing.benefits.security.pii'),
+    t('landing.benefits.security.audit'),
   ]
 
   return (
@@ -171,9 +194,17 @@ export default function Landing() {
               {t('landing.hero.title')}{' '}
               <span className="text-gradient">{t('landing.hero.highlight')}</span>
             </h1>
-            <p className="text-lg sm:text-xl text-healthcare-muted mb-10 max-w-2xl mx-auto leading-relaxed">
+            <p className="text-lg sm:text-xl text-healthcare-muted mb-8 max-w-2xl mx-auto leading-relaxed">
               {t('landing.hero.subtitle')}
             </p>
+            <div className="flex flex-wrap justify-center gap-3 mb-10">
+              {channels.map((channel) => (
+                <div key={channel.label} className="inline-flex items-center gap-2 bg-white/80 backdrop-blur text-primary-700 px-4 py-2 rounded-full text-sm font-medium border border-primary-200/50 shadow-sm">
+                  <channel.icon className="w-4 h-4" />
+                  {channel.label}
+                </div>
+              ))}
+            </div>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
                 to="/register"
@@ -216,17 +247,26 @@ export default function Landing() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {features.map((feature) => (
-              <div
-                key={feature.title}
-                className="card-interactive p-8 group"
-              >
-                <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 ${feature.color} transition-transform group-hover:scale-110`}>
-                  <feature.icon className="w-7 h-7" />
+          <div className="space-y-12">
+            {featureCategories.map((category) => (
+              <div key={category.title}>
+                <div className={`border-s-4 ${category.borderColor} ps-4 mb-6`}>
+                  <h3 className="text-lg font-heading font-semibold text-healthcare-text">{category.title}</h3>
                 </div>
-                <h3 className="text-xl font-heading font-semibold text-healthcare-text mb-3">{feature.title}</h3>
-                <p className="text-healthcare-muted leading-relaxed">{feature.description}</p>
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {category.features.map((feature) => (
+                    <div
+                      key={feature.title}
+                      className="card-interactive p-8 group"
+                    >
+                      <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 ${category.iconColor} transition-transform group-hover:scale-110`}>
+                        <feature.icon className="w-7 h-7" />
+                      </div>
+                      <h3 className="text-xl font-heading font-semibold text-healthcare-text mb-3">{feature.title}</h3>
+                      <p className="text-healthcare-muted leading-relaxed">{feature.description}</p>
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
@@ -245,11 +285,11 @@ export default function Landing() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {steps.map((item, index) => (
               <div key={item.step} className="text-center relative">
                 {index < steps.length - 1 && (
-                  <div className="hidden md:block absolute top-8 start-[60%] w-[80%] h-0.5 bg-primary-200 -z-10" />
+                  <div className="hidden lg:block absolute top-8 start-[55%] w-[90%] h-0.5 bg-primary-200 -z-10" />
                 )}
                 <div className="inline-flex items-center justify-center w-16 h-16 bg-teal-gradient rounded-2xl mb-6 shadow-btn relative">
                   <item.icon className="w-7 h-7 text-white" />
@@ -281,9 +321,8 @@ export default function Landing() {
             </p>
           </div>
 
-          <div className="grid lg:grid-cols-2 gap-8 items-start">
+          <div className="max-w-2xl mx-auto">
             <DemoChatEmbed />
-            <VoiceDemoRealtime />
           </div>
 
           <div className="mt-12 flex flex-wrap justify-center gap-4">

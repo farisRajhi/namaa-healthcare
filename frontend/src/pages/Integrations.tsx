@@ -404,7 +404,11 @@ export default function Integrations() {
           <div>
             <label className="input-label">{isAr ? 'الحدث' : 'Event'}</label>
             <select value={webhookForm.event} onChange={(e) => setWebhookForm({ ...webhookForm, event: e.target.value })} className="select">
-              {webhookEvents.map((ev) => <option key={ev} value={ev}>{ev}</option>)}
+              {webhookEvents.map((ev) => (
+                <option key={ev} value={ev} disabled={ev.startsWith('call.')}>
+                  {ev}{ev.startsWith('call.') ? ` (${i18n.language === 'ar' ? 'قريباً' : 'Coming Soon'})` : ''}
+                </option>
+              ))}
             </select>
           </div>
           <div>

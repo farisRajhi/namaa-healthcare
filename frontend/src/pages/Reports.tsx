@@ -8,7 +8,6 @@ import {
   Users,
   Phone,
   Megaphone,
-  Pill,
   TrendingUp,
   Building2,
   UserCog,
@@ -26,11 +25,12 @@ import {
   Cell,
 } from 'recharts'
 import StatCard from '../components/ui/StatCard'
+import ComingSoonOverlay from '../components/ui/ComingSoonOverlay'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 
 const COLORS = ['#0891B2', '#059669', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899']
 
-type ExportType = 'appointments' | 'patients' | 'calls' | 'campaigns' | 'prescriptions'
+type ExportType = 'appointments' | 'patients' | 'calls' | 'campaigns'
 
 export default function Reports() {
   const { i18n } = useTranslation()
@@ -96,12 +96,11 @@ export default function Reports() {
     }
   }
 
-  const exportButtons: { type: ExportType; icon: React.ElementType; labelAr: string; labelEn: string }[] = [
+  const exportButtons: { type: ExportType; icon: React.ElementType; labelAr: string; labelEn: string; comingSoon?: boolean }[] = [
     { type: 'appointments', icon: Calendar, labelAr: 'المواعيد', labelEn: 'Appointments' },
     { type: 'patients', icon: Users, labelAr: 'المرضى', labelEn: 'Patients' },
-    { type: 'calls', icon: Phone, labelAr: 'المكالمات', labelEn: 'Calls' },
+    { type: 'calls', icon: Phone, labelAr: 'المكالمات', labelEn: 'Calls', comingSoon: true },
     { type: 'campaigns', icon: Megaphone, labelAr: 'الحملات', labelEn: 'Campaigns' },
-    { type: 'prescriptions', icon: Pill, labelAr: 'الوصفات', labelEn: 'Prescriptions' },
   ]
 
   return (
@@ -173,13 +172,15 @@ export default function Reports() {
               iconBg="bg-secondary-100"
               iconColor="text-secondary-600"
             />
-            <StatCard
-              icon={Phone}
-              value={summary?.calls?.total || 0}
-              label={isAr ? 'المكالمات' : 'Voice Calls'}
-              iconBg="bg-warning-100"
-              iconColor="text-warning-600"
-            />
+            <ComingSoonOverlay>
+              <StatCard
+                icon={Phone}
+                value={summary?.calls?.total || 0}
+                label={isAr ? 'المكالمات' : 'Voice Calls'}
+                iconBg="bg-warning-100"
+                iconColor="text-warning-600"
+              />
+            </ComingSoonOverlay>
           </div>
 
           {/* Appointment Status Breakdown */}
@@ -327,20 +328,27 @@ export default function Reports() {
               {isAr ? 'تصدير البيانات بتنسيق CSV للفترة المحددة' : 'Export data in CSV format for the selected period'}
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-              {exportButtons.map(({ type, icon: Icon, labelAr, labelEn }) => (
-                <button
-                  key={type}
-                  onClick={() => handleExport(type)}
-                  disabled={exporting !== null}
-                  className="card-interactive p-4 text-center group border border-healthcare-border/30 hover:border-primary-300"
-                >
-                  <div className="w-10 h-10 mx-auto rounded-xl bg-primary-50 flex items-center justify-center mb-2 group-hover:bg-primary-100 transition-colors">
-                    {exporting === type ? <LoadingSpinner size="sm" /> : <Icon className="h-5 w-5 text-primary-500" />}
-                  </div>
-                  <p className="text-sm font-medium text-healthcare-text">{isAr ? labelAr : labelEn}</p>
-                  <p className="text-[10px] text-healthcare-muted mt-0.5">CSV</p>
-                </button>
-              ))}
+              {exportButtons.map(({ type, icon: Icon, labelAr, labelEn, comingSoon }) => {
+                const button = (
+                  <button
+                    key={type}
+                    onClick={() => !comingSoon && handleExport(type)}
+                    disabled={exporting !== null || comingSoon}
+                    className="card-interactive p-4 text-center group border border-healthcare-border/30 hover:border-primary-300"
+                  >
+                    <div className="w-10 h-10 mx-auto rounded-xl bg-primary-50 flex items-center justify-center mb-2 group-hover:bg-primary-100 transition-colors">
+                      {exporting === type ? <LoadingSpinner size="sm" /> : <Icon className="h-5 w-5 text-primary-500" />}
+                    </div>
+                    <p className="text-sm font-medium text-healthcare-text">{isAr ? labelAr : labelEn}</p>
+                    <p className="text-[10px] text-healthcare-muted mt-0.5">CSV</p>
+                  </button>
+                )
+                return comingSoon ? (
+                  <ComingSoonOverlay key={type}>{button}</ComingSoonOverlay>
+                ) : (
+                  <div key={type}>{button}</div>
+                )
+              })}
             </div>
           </div>
         </>

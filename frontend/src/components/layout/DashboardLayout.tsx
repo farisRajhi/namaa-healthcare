@@ -12,29 +12,16 @@ import {
   LogOut,
   Menu,
   X,
-  Phone,
-  UserCog,
-  FolderTree,
-  Building2,
-  Pill,
   HelpCircle,
   Megaphone,
   Bell,
-  BarChart3,
-  Truck,
-  ShieldCheck,
-  Plug,
-  FileText,
   Search,
   Globe,
   ChevronDown,
-  Briefcase,
   Activity,
-  MessageSquare,
-  ClipboardList,
   Workflow,
-  FileBarChart,
-  CalendarDays,
+  Brain,
+  HeartPulse,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -61,49 +48,37 @@ const getNavigation = (t: (key: string) => string): NavGroup[] => [
   {
     group: t('nav.groups.operations'),
     items: [
-      { name: t('nav.callCenter'), href: '/dashboard/call-center', icon: Phone },
       { name: t('nav.appointments'), href: '/dashboard/appointments', icon: Calendar },
-      { name: t('nav.prescriptions'), href: '/dashboard/prescriptions', icon: Pill },
-      { name: t('nav.reminders'), href: '/dashboard/reminders', icon: Bell },
-      { name: t('nav.waitlist'), href: '/dashboard/waitlist', icon: ClipboardList },
-      { name: t('nav.doctorSchedule'), href: '/dashboard/doctor-schedule', icon: CalendarDays },
       { name: t('nav.agentBuilder'), href: '/dashboard/agent-builder', icon: Workflow },
+      { name: t('nav.knowledgeBase'), href: '/dashboard/knowledge-base', icon: Brain },
+      { name: t('nav.faq'), href: '/dashboard/faq', icon: HelpCircle },
     ],
   },
   {
     group: t('nav.groups.management'),
     items: [
       { name: t('nav.patients'), href: '/dashboard/patients', icon: Users },
-      { name: t('nav.providers'), href: '/dashboard/providers', icon: UserCog },
-      { name: t('nav.departments'), href: '/dashboard/departments', icon: FolderTree },
-      { name: t('nav.facilities'), href: '/dashboard/facilities', icon: Building2 },
-      { name: t('nav.branches'), href: '/dashboard/branches', icon: Building2 },
-      { name: t('nav.services'), href: '/dashboard/services', icon: Briefcase },
+      { name: t('nav.clinicSetup'), href: '/dashboard/management', icon: Activity },
     ],
   },
   {
     group: t('nav.groups.marketing'),
     items: [
+      { name: t('nav.patientEngagement'), href: '/dashboard/patient-engagement', icon: HeartPulse },
       { name: t('nav.campaigns'), href: '/dashboard/campaigns', icon: Megaphone },
-      { name: t('nav.smsTemplates'), href: '/dashboard/sms-templates', icon: MessageSquare },
-      { name: t('nav.faq'), href: '/dashboard/faq', icon: HelpCircle },
     ],
   },
-  {
-    group: t('nav.groups.analytics'),
-    items: [
-      { name: t('nav.analyticsDashboard'), href: '/dashboard/analytics', icon: BarChart3 },
-      { name: t('nav.fleet'), href: '/dashboard/fleet', icon: Truck },
-      { name: t('nav.quality'), href: '/dashboard/quality', icon: ShieldCheck },
-      { name: t('nav.reports'), href: '/dashboard/reports', icon: FileBarChart },
-      { name: t('nav.audit'), href: '/dashboard/audit', icon: FileText },
-    ],
-  },
+  // Hidden until features are ready:
+  // {
+  //   group: t('nav.groups.analytics'),
+  //   items: [
+  //     { name: t('nav.analyticsDashboard'), href: '/dashboard/analytics', icon: BarChart3 },
+  //     { name: t('nav.reports'), href: '/dashboard/reports', icon: FileBarChart },
+  //   ],
+  // },
   {
     group: t('nav.groups.system'),
     items: [
-      { name: t('nav.generalManagement'), href: '/dashboard/management', icon: Activity },
-      { name: t('nav.integrations'), href: '/dashboard/integrations', icon: Plug },
       { name: t('nav.settings'), href: '/dashboard/settings', icon: Settings },
     ],
   },
@@ -137,7 +112,7 @@ export default function DashboardLayout() {
         </div>
         <div className="flex-1 min-w-0">
           <h1 className="font-heading font-bold text-lg text-healthcare-text leading-none">{t('landing.brand')}</h1>
-          <p className="text-[10px] text-healthcare-muted font-medium tracking-wide">NAMAA HEALTH AI</p>
+          <p className="text-[10px] text-healthcare-muted font-medium tracking-wide">TAWAFUD HEALTH AI</p>
         </div>
       </div>
 

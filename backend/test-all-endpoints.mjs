@@ -41,7 +41,7 @@ async function test(group, endpoint, method, path, body = null, opts = {}) {
 }
 
 async function run() {
-  console.log('=== NAMAA API ENDPOINT TESTS ===\n');
+  console.log('=== TAWAFUD API ENDPOINT TESTS ===\n');
 
   // ==================== AUTH ====================
   console.log('\n--- AUTH ---');

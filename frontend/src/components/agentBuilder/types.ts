@@ -153,6 +153,24 @@ export const NODE_PALETTE: NodePaletteItem[] = [
   { type: 'end', label: 'نهاية', description: 'إنهاء المحادثة', icon: 'Square', color: '#dc2626' },
 ]
 
+// ─── LLM Instructions Settings (AI Personality Customization) ───
+export interface FaqOverrideItem {
+  id: string
+  question: string
+  answer: string
+}
+
+export interface LLMInstructionsSettings {
+  greeting?: { ar: string; en: string }
+  tone?: string
+  tonePreset?: 'formal' | 'friendly' | 'professional' | 'custom'
+  businessRules?: string[]
+  escalationTriggers?: string[]
+  bookingInstructions?: string
+  faqOverrides?: FaqOverrideItem[]
+  customInstructions?: string[]
+}
+
 // ─── Flow Structure (for editor canvas, using @xyflow/react) ───
 export interface FlowNodePosition {
   x: number

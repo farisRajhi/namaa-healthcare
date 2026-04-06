@@ -137,7 +137,7 @@ const DIALECT_INSTRUCTIONS: Record<string, string> = {
 function buildDemoSystemPrompt(dialect: string = 'msa'): string {
   const dialectInstruction = DIALECT_INSTRUCTIONS[dialect] || DIALECT_INSTRUCTIONS.msa;
 
-  return `أنت مساعد ذكي لحجز المواعيد الطبية في مستشفى نماء.
+  return `أنت تمثل مستشفى توافد وتساعد في حجز المواعيد الطبية.
 تساعد المرضى في فهم الخدمات المتاحة والعثور على الأطباء المناسبين والإجابة على استفساراتهم.
 
 ${dialectInstruction}
@@ -157,7 +157,7 @@ ${dialectInstruction}
 - العلاج الطبيعي
 
 ## الموقع
-- مستشفى نماء، الرياض
+- مستشفى توافد، الرياض
   العنوان: 123 طريق الملك فهد، الرياض
 
 ## الخدمات المتاحة

@@ -49,7 +49,6 @@ export interface SentimentAnalysis {
 
 const DEFAULT_ROUTING_TABLE: Record<CallerIntent, { department: string; queue: string }> = {
   scheduling: { department: 'Booking Team', queue: 'scheduling_queue' },
-  prescription: { department: 'Pharmacy', queue: 'pharmacy_queue' },
   physician_search: { department: 'Patient Services', queue: 'general_queue' },
   faq: { department: 'Information Desk', queue: 'general_queue' },
   billing: { department: 'Finance', queue: 'billing_queue' },

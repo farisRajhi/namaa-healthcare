@@ -1,21 +1,22 @@
 import { PrismaClient } from '@prisma/client';
 import { seedFlowTemplates } from '../src/services/agentBuilder/seedTemplates.js';
+import { seedPatientHabits } from './seedPatientHabits.js';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Seeding Namaa database...\n');
+  console.log('🌱 Seeding Tawafud database...\n');
 
   // ─── 1. Organization (idempotent upsert) ────────────────────────────
   // Find existing org by name to avoid duplicates across seed runs
   const existingOrg = await prisma.org.findFirst({
-    where: { name: 'مستشفى نماء التخصصي' },
+    where: { name: 'مستشفى توافد التخصصي' },
   });
   const org = existingOrg
     ? existingOrg
     : await prisma.org.create({
         data: {
-          name: 'مستشفى نماء التخصصي',
+          name: 'مستشفى توافد التخصصي',
           defaultTimezone: 'Asia/Riyadh',
         },
       });
@@ -24,8 +25,9 @@ async function main() {
   // If org already existed, skip the rest to avoid duplicates
   if (existingOrg) {
     console.log('\n♻️ Seed data already exists — skipping. To re-seed, reset the database first.');
-    // Still seed templates (they use upsert internally)
+    // Still seed templates and patient habits (they use upsert/idempotent checks internally)
     await seedFlowTemplates(prisma, org.orgId);
+    await seedPatientHabits(prisma, org.orgId);
     console.log('\n🎉 Seed check complete.');
     return;
   }
@@ -451,74 +453,7 @@ async function main() {
   });
   console.log('✅ 2 Escalation rules created');
 
-  // ─── 12. Prescriptions with Refills ───────────────────────────────
-  const rx1 = await prisma.prescription.create({
-    data: {
-      orgId: org.orgId,
-      patientId: patients[1].patientId, // نورة - diabetic
-      providerId: drAhmed.providerId,
-      medicationName: 'Metformin',
-      medicationNameAr: 'ميتفورمين',
-      dosage: '500mg',
-      frequency: 'twice_daily',
-      refillsRemaining: 3,
-      refillsTotal: 6,
-      status: 'active',
-      startDate: addDays(now, -90),
-      pharmacyName: 'صيدلية الدواء',
-      pharmacyPhone: '+966551111111',
-      refills: {
-        create: [
-          { requestedVia: 'whatsapp', status: 'dispensed', processedAt: addDays(now, -60), processedBy: 'pharmacist' },
-          { requestedVia: 'voice', status: 'dispensed', processedAt: addDays(now, -30), processedBy: 'pharmacist' },
-        ],
-      },
-    },
-  });
-
-  const rx2 = await prisma.prescription.create({
-    data: {
-      orgId: org.orgId,
-      patientId: patients[2].patientId, // محمد - hypertension
-      providerId: drAhmed.providerId,
-      medicationName: 'Amlodipine',
-      medicationNameAr: 'أملوديبين',
-      dosage: '5mg',
-      frequency: 'once_daily',
-      refillsRemaining: 5,
-      refillsTotal: 6,
-      status: 'active',
-      startDate: addDays(now, -60),
-      pharmacyName: 'صيدلية النهدي',
-      pharmacyPhone: '+966552222222',
-      refills: {
-        create: [
-          { requestedVia: 'sms', status: 'dispensed', processedAt: addDays(now, -30), processedBy: 'pharmacist' },
-        ],
-      },
-    },
-  });
-
-  const rx3 = await prisma.prescription.create({
-    data: {
-      orgId: org.orgId,
-      patientId: patients[0].patientId, // عبدالرحمن
-      providerId: drAhmed.providerId,
-      medicationName: 'Paracetamol',
-      medicationNameAr: 'باراسيتامول',
-      dosage: '500mg',
-      frequency: 'as_needed',
-      refillsRemaining: 0,
-      refillsTotal: 1,
-      status: 'completed',
-      startDate: addDays(now, -30),
-      endDate: addDays(now, -15),
-      notes: 'للصداع',
-    },
-  });
-  console.log('✅ 3 Prescriptions with refill history created');
-
-  // ─── 13. Campaign ─────────────────────────────────────────────────
+  // ─── 12. Campaign ─────────────────────────────────────────────────
   const campaign = await prisma.campaign.create({
     data: {
       orgId: org.orgId,
@@ -612,8 +547,8 @@ async function main() {
   await prisma.facilityConfig.create({
     data: {
       facilityId: facilityJazan.facilityId,
-      greetingEn: 'Welcome to Namaa Specialist Hospital - Jazan Branch! How can we help you today?',
-      greetingAr: 'أهلاً بكم في مستشفى نماء التخصصي - الفرع الرئيسي بجازان! كيف يمكننا مساعدتكم؟',
+      greetingEn: 'Welcome to Tawafud Specialist Hospital - Jazan Branch! How can we help you today?',
+      greetingAr: 'أهلاً بكم في مستشفى توافد التخصصي - الفرع الرئيسي بجازان! كيف يمكننا مساعدتكم؟',
       businessHours: {
         sun: { open: '08:00', close: '22:00' },
         mon: { open: '08:00', close: '22:00' },
@@ -633,8 +568,8 @@ async function main() {
   await prisma.facilityConfig.create({
     data: {
       facilityId: facilitySabya.facilityId,
-      greetingEn: 'Welcome to Namaa Specialist Hospital - Sabya Branch! How can we assist you?',
-      greetingAr: 'أهلاً بكم في مستشفى نماء التخصصي - فرع صبيا! كيف يمكننا خدمتكم؟',
+      greetingEn: 'Welcome to Tawafud Specialist Hospital - Sabya Branch! How can we assist you?',
+      greetingAr: 'أهلاً بكم في مستشفى توافد التخصصي - فرع صبيا! كيف يمكننا خدمتكم؟',
       businessHours: {
         sun: { open: '08:00', close: '20:00' },
         mon: { open: '08:00', close: '20:00' },
@@ -654,6 +589,9 @@ async function main() {
 
   // ─── Agent Builder Templates ──────────────────────────────
   await seedFlowTemplates(prisma, org.orgId);
+
+  // ─── Patient Habits: Services, Care Gap Rules, Campaigns, Offers ──
+  await seedPatientHabits(prisma, org.orgId);
 
   console.log('\n🎉 Seeding complete! All data inserted successfully.');
 }

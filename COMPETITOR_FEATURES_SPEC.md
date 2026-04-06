@@ -1,13 +1,13 @@
-# Competitor Features Research & Implementation Spec for Namaa
+# Competitor Features Research & Implementation Spec for Tawafud
 # Based on: Hyro Health + Syllable AI (ActiumHealth)
 
-> **Purpose**: This document maps every feature from Hyro Health and Syllable AI into actionable implementation tasks for the Namaa (ai-agent) project. Each feature includes what it does, why it matters, and exactly how to build it in the existing Namaa stack (Fastify + Prisma + PostgreSQL + Twilio + OpenAI/Gemini + React frontend).
+> **Purpose**: This document maps every feature from Hyro Health and Syllable AI into actionable implementation tasks for the Tawafud (ai-agent) project. Each feature includes what it does, why it matters, and exactly how to build it in the existing Tawafud stack (Fastify + Prisma + PostgreSQL + Twilio + OpenAI/Gemini + React frontend).
 
 ---
 
 ## Table of Contents
 
-1. [Current Namaa State](#1-current-namaa-state)
+1. [Current Tawafud State](#1-current-tawafud-state)
 2. [INBOUND — Call Center AI](#2-inbound--call-center-ai)
 3. [INBOUND — Appointment Scheduling](#3-inbound--appointment-scheduling)
 4. [INBOUND — Patient Identification & Verification](#4-inbound--patient-identification--verification)
@@ -38,9 +38,9 @@
 
 ---
 
-## 1. Current Namaa State
+## 1. Current Tawafud State
 
-**What Namaa already has:**
+**What Tawafud already has:**
 - ✅ Multi-org/multi-facility architecture (Prisma schema)
 - ✅ Appointment booking with provider availability rules
 - ✅ Patient management with contacts & memory
@@ -56,7 +56,7 @@
 - ✅ Dashboard frontend
 - ✅ i18n (Arabic + English)
 
-**What Namaa is missing (from Hyro + Syllable):**
+**What Tawafud is missing (from Hyro + Syllable):**
 - ❌ Prescription/medication management
 - ❌ Smart call routing with escalation rules
 - ❌ SMS deflection (call-to-text)
@@ -654,7 +654,7 @@ FILE: frontend/src/components/chat/EmbeddableWidget.tsx (NEW)
 ```
 - [ ] **Standalone Chat Widget** — `<script>` embed for any website:
   ```html
-  <script src="https://namaa.ai/widget.js" data-org="ORG_ID" data-lang="ar"></script>
+  <script src="https://tawafud.raskh.app/widget.js" data-org="ORG_ID" data-lang="ar"></script>
   ```
 - [ ] **Widget Features**:
   - Floating button (bottom-right)
@@ -705,7 +705,7 @@ FILE: backend/src/services/outbound/outboundCaller.ts (NEW)
   1. System identifies patients needing outreach (see Predictive Analytics)
   2. Queue outbound calls with priority
   3. AI calls patient using Twilio
-  4. Natural conversation: "Hi {name}, this is Namaa from {facility}..."
+  4. Natural conversation: "Hi {name}, this is Tawafud from {facility}..."
   5. Purpose: schedule appointment, remind about medication, follow-up
   6. If patient wants to book → transition to scheduling flow
   7. If no answer → try again later, or send SMS/WhatsApp
@@ -713,7 +713,7 @@ FILE: backend/src/services/outbound/outboundCaller.ts (NEW)
   ```json
   {
     "campaign": "annual_checkup_reminder",
-    "greeting_ar": "السلام عليكم {patient_name}، معك نماء من {facility_name}",
+    "greeting_ar": "السلام عليكم {patient_name}، معك توافد من {facility_name}",
     "purpose_ar": "نود تذكيرك بموعد الفحص السنوي. هل تود حجز موعد؟",
     "if_yes": "scheduling_flow",
     "if_no": "thank_and_end",
@@ -1290,7 +1290,7 @@ model Role {
 
 ## 22. PLATFORM — Multi-Language & Dialect Support
 
-### What Namaa Already Has:
+### What Tawafud Already Has:
 - Arabic dialect detection (Gulf, Egyptian, Levantine, MSA)
 - i18n (AR + EN)
 
@@ -1347,7 +1347,7 @@ FILE: backend/src/services/ai/guardrails.ts (NEW)
 
 ## 24. AI — Patient Memory & Context
 
-### What Namaa Already Has:
+### What Tawafud Already Has:
 - `PatientMemory` model (preference, condition, allergy, medication, etc.)
 - Conversation summaries
 

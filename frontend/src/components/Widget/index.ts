@@ -1,2 +1,2 @@
-export { default as NamaaWidget } from './NamaaWidget'
-export type { NamaaWidgetProps } from './NamaaWidget'
+export { default as TawafudWidget } from './TawafudWidget'
+export type { TawafudWidgetProps } from './TawafudWidget'

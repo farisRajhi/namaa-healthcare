@@ -148,7 +148,7 @@ export default function Pricing({ lang = 'en' }: PricingProps) {
       {/* Header */}
       <div className="text-center mb-12">
         <h1 className="text-4xl font-bold text-white mb-4">
-          {isRTL ? 'اختر خطة نماء' : 'Choose Your Namaa Plan'}
+          {isRTL ? 'اختر خطة توافد' : 'Choose Your Tawafud Plan'}
         </h1>
         <p className="text-slate-400 text-lg max-w-2xl mx-auto">
           {isRTL

@@ -1,6 +1,6 @@
 # 🚀 Quick Start Deployment Guide
 
-Simplified deployment guide for Namaa AI Medical Receptionist.
+Simplified deployment guide for Tawafud AI Medical Receptionist.
 
 ## Prerequisites
 
@@ -14,8 +14,8 @@ Simplified deployment guide for Namaa AI Medical Receptionist.
 
 ```bash
 # Clone repository
-git clone https://github.com/farisRajhi/ai-agent.git /opt/namaa
-cd /opt/namaa
+git clone https://github.com/farisRajhi/ai-agent.git /opt/tawafud
+cd /opt/tawafud
 
 # Configure environment
 cp .env.example .env

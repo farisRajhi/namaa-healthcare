@@ -80,7 +80,7 @@ const DEFAULT_SCHEDULE: ReminderScheduleConfig = {
 const DEFAULT_CONFIG: ReminderServiceConfig = {
   smsFromNumber: process.env.TWILIO_PHONE_NUMBER || '',
   whatsappFromNumber: process.env.TWILIO_WHATSAPP_NUMBER || 'whatsapp:+14155238886',
-  baseUrl: process.env.BASE_URL || 'https://api.namaa.ai',
+  baseUrl: process.env.BASE_URL || 'https://api.tawafud.raskh.app',
   defaultTimezone: 'Asia/Riyadh',
 };
 

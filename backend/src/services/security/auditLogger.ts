@@ -63,6 +63,17 @@ const SENSITIVE_PATTERNS: {
 
   // Quality scores
   { method: 'GET', pathPattern: /^\/api\/analytics\/quality/, action: 'quality.viewed', resource: 'call_quality' },
+
+  // Authentication events
+  { method: 'POST', pathPattern: /^\/api\/auth\/login\/?$/, action: 'auth.login_attempt', resource: 'auth' },
+  { method: 'POST', pathPattern: /^\/api\/auth\/register\/?$/, action: 'auth.register', resource: 'auth' },
+
+  // Patient portal access
+  { method: 'POST', pathPattern: /^\/api\/patient-portal\/login\/?$/, action: 'patient_portal.login_attempt', resource: 'patient_auth' },
+  { method: 'GET', pathPattern: /^\/api\/patient-portal\//, action: 'patient_portal.accessed', resource: 'patient_portal' },
+
+  // Care gaps (sensitive health data)
+  { method: 'GET', pathPattern: /^\/api\/care-gaps\//, action: 'care_gaps.viewed', resource: 'care_gap' },
 ];
 
 // ── Audit Logger Service ────────────────────────────────
@@ -212,8 +223,8 @@ export class AuditLoggerService {
  * Extract client IP from request.
  */
 function getClientIP(request: FastifyRequest): string {
-  const forwarded = request.headers['x-forwarded-for'];
-  if (typeof forwarded === 'string') return forwarded.split(',')[0].trim();
+  // Use Fastify's request.ip which respects the trustProxy setting
+  // This prevents IP spoofing via X-Forwarded-For when trustProxy is false
   return request.ip;
 }
 
@@ -238,26 +249,31 @@ function extractResourceId(path: string): string | undefined {
 export function registerAuditMiddleware(app: FastifyInstance): void {
   const auditLogger = new AuditLoggerService(app.prisma);
 
+  // Auth-related patterns that should be logged even on failure (and even without auth)
+  const AUTH_PATTERNS = new Set(['auth.login_attempt', 'auth.register', 'patient_portal.login_attempt']);
+
   app.addHook('onResponse', async (request: FastifyRequest, reply: FastifyReply) => {
-    // Only audit authenticated requests
-    if (!request.user) return;
-
-    // Only audit successful responses
-    if (reply.statusCode >= 400) return;
-
     const method = request.method;
     const path = request.url.split('?')[0]; // Strip query params
 
     for (const pattern of SENSITIVE_PATTERNS) {
       if (method === pattern.method && pattern.pathPattern.test(path)) {
+        const isAuthPattern = AUTH_PATTERNS.has(pattern.action);
+
+        // For non-auth patterns: only audit authenticated + successful responses
+        if (!isAuthPattern) {
+          if (!request.user) break;
+          if (reply.statusCode >= 400) break;
+        }
+
         const resourceId = extractResourceId(path);
 
         // Fire and forget — don't block the response
         auditLogger
           .log({
-            orgId: request.user.orgId,
-            userId: request.user.userId,
-            action: pattern.action,
+            orgId: request.user?.orgId ?? 'unknown',
+            userId: request.user?.userId,
+            action: reply.statusCode >= 400 ? `${pattern.action}.failed` : pattern.action,
             resource: pattern.resource,
             resourceId,
             details: {

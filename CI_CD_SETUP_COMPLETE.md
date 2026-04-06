@@ -58,8 +58,8 @@
 
 ```bash
 # Clone repository
-git clone https://github.com/farisRajhi/ai-agent.git /opt/namaa
-cd /opt/namaa
+git clone https://github.com/farisRajhi/ai-agent.git /opt/tawafud
+cd /opt/tawafud
 
 # Configure environment
 cp .env.example .env
@@ -130,7 +130,7 @@ chmod +x deploy.sh
 | `VPS_USERNAME` | SSH username |
 | `VPS_SSH_KEY` | Private SSH key |
 | `VPS_PORT` | SSH port (default: 22) |
-| `VPS_PROJECT_PATH` | Deployment path (e.g., `/opt/namaa`) |
+| `VPS_PROJECT_PATH` | Deployment path (e.g., `/opt/tawafud`) |
 | `VPS_URL` | Production URL (e.g., `https://your-domain.com`) |
 | `DOCKER_USERNAME` | Docker Hub username (optional) |
 | `DOCKER_PASSWORD` | Docker Hub password (optional) |

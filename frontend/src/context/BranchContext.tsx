@@ -38,7 +38,7 @@ const BranchContext = createContext<BranchContextValue>({
   reload: () => {},
 })
 
-const STORAGE_KEY = 'namaa_selected_branch'
+const STORAGE_KEY = 'tawafud_selected_branch'
 
 export function BranchProvider({ children }: { children: ReactNode }) {
   const { isAuthenticated } = useAuth()
@@ -55,7 +55,7 @@ export function BranchProvider({ children }: { children: ReactNode }) {
     if (!isAuthenticated) return
     setLoading(true)
     fetch('/api/branches', {
-      headers: { Authorization: `Bearer ${localStorage.getItem('namaa_token') ?? ''}` },
+      headers: { Authorization: `Bearer ${localStorage.getItem('token') ?? ''}` },
     })
       .then((r) => r.json())
       .then((json) => {

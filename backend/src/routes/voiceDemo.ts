@@ -50,7 +50,7 @@ const DIALECT_INSTRUCTIONS: Record<string, string> = {
 
 // Build system prompt with dialect
 function buildDemoSystemPrompt(dialect: ArabicDialect): string {
-  return `أنت مساعد ذكي لحجز المواعيد الطبية. هذه نسخة تجريبية.
+  return `أنت تساعد في حجز المواعيد الطبية. هذه نسخة تجريبية.
 
 ## قواعد المحادثة
 - اجعل ردودك قصيرة ومباشرة (جملة إلى جملتين)

@@ -56,7 +56,7 @@ async function test(group, endpoint, method, path, body = null, opts = {}) {
 
 async function run() {
   console.log('========================================');
-  console.log('    NAMAA API COMPREHENSIVE TEST');
+  console.log('    TAWAFUD API COMPREHENSIVE TEST');
   console.log(`    Org: ${ORG_ID}`);
   console.log('========================================\n');
 

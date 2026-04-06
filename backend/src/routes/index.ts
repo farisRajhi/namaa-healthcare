@@ -11,8 +11,6 @@ import facilitiesRoutes from './facilities.js';
 import webhooksRoutes from './webhooks.js';
 import analyticsRoutes from './analytics.js';
 import analyticsEnhancedRoutes from './analyticsEnhanced.js';
-import fleetRoutes from './fleet.js';
-import auditRoutes from './audit.js';
 import chatRoutes from './chat.js';
 import chatWebSocketRoutes from './chatWebSocket.js';
 import voiceRoutes from './voice.js';
@@ -28,15 +26,12 @@ import { registerAuditMiddleware } from '../services/security/auditLogger.js';
 import outboundRoutes from './outbound.js';
 import remindersRoutes from './reminders.js';
 import careGapsRoutes, { careGapRulesRoutes } from './careGaps.js';
-import callCenterRoutes from './callCenter.js';
-import waitlistRoutes from './waitlist.js';
-import prescriptionsRoutes from './prescriptions.js';
 import faqRoutes, { triageRulesRoutes } from './faq.js';
 import smsTemplatesRoutes, { smsLogsRoutes } from './smsTemplates.js';
-import schedulerRoutes from './scheduler.js';
 import patientMemoryRoutes from './patientMemory.js';
 import widgetRoutes from './widget.js';
 import whatsappChatRoutes from './whatsappChat.js';
+import baileysWhatsAppRoutes from './baileysWhatsApp.js';
 import patientAuthRoutes from './patientAuth.js';
 import patientPortalRoutes from './patientPortal.js';
 import agentBuilderRoutes from './agentBuilder.js';
@@ -49,6 +44,10 @@ import subscriptionRoutes from './subscription.js';
 import callSummariesRoutes from './callSummaries.js';
 import publicBookingRoutes from './publicBooking.js';
 import branchRoutes from './branches.js';
+import usageRoutes from './usage.js';
+import offerRoutes from './offers.js';
+import marketingConsentRoutes from './marketingConsent.js';
+import audienceAnalyticsRoutes from './audienceAnalytics.js';
 
 export async function registerRoutes(app: FastifyInstance) {
   // Register auth plugin
@@ -71,9 +70,14 @@ export async function registerRoutes(app: FastifyInstance) {
   // WhatsApp conversational AI routes (secured by Twilio signature)
   await app.register(whatsappChatRoutes, { prefix: '/api/whatsapp' });
 
-  // Voice demo routes (public - for testing)
-  await app.register(voiceDemoRoutes, { prefix: '/api/voice' });
-  await app.register(voiceDemoRealtimeRoutes, { prefix: '/api/voice' });
+  // Baileys WhatsApp Web routes (QR pairing, session management)
+  await app.register(baileysWhatsAppRoutes, { prefix: '/api/baileys-whatsapp' });
+
+  // Voice demo routes — disabled in production (unauthenticated, burns API quota)
+  if (process.env.NODE_ENV !== 'production') {
+    await app.register(voiceDemoRoutes, { prefix: '/api/voice' });
+    await app.register(voiceDemoRealtimeRoutes, { prefix: '/api/voice' });
+  }
 
   // Demo chat routes (public - for landing page demo)
   await app.register(demoChatRoutes, { prefix: '/api/demo-chat' });
@@ -93,8 +97,10 @@ export async function registerRoutes(app: FastifyInstance) {
     });
   });
 
-  // Gemini test routes (public - for testing Gemini integration)
-  await app.register(geminiTestRoutes, { prefix: '/api/gemini-test' });
+  // Gemini test routes — disabled in production (unauthenticated, burns API quota)
+  if (process.env.NODE_ENV !== 'production') {
+    await app.register(geminiTestRoutes, { prefix: '/api/gemini-test' });
+  }
 
   // Voice test routes (authenticated - for management dashboard)
   await app.register(voiceTestRoutes, { prefix: '/api/voice' });
@@ -112,9 +118,6 @@ export async function registerRoutes(app: FastifyInstance) {
   await app.register(chatWebSocketRoutes, { prefix: '/api/chat' });
   await app.register(phoneNumbersRoutes, { prefix: '/api/phone-numbers' });
 
-  // Prescription management
-  await app.register(prescriptionsRoutes, { prefix: '/api/prescriptions' });
-
   // FAQ & Triage
   await app.register(faqRoutes, { prefix: '/api/faq' });
   await app.register(triageRulesRoutes, { prefix: '/api/triage-rules' });
@@ -122,12 +125,6 @@ export async function registerRoutes(app: FastifyInstance) {
   // SMS Templates & Logs
   await app.register(smsTemplatesRoutes, { prefix: '/api/sms-templates' });
   await app.register(smsLogsRoutes, { prefix: '/api/sms-logs' });
-
-  // Call Center (inbound core)
-  await app.register(callCenterRoutes, { prefix: '/api/call-center' });
-
-  // Waitlist management
-  await app.register(waitlistRoutes, { prefix: '/api/waitlist' });
 
   // Outbound & Campaign routes
   await app.register(outboundRoutes, { prefix: '/api/outbound' });
@@ -141,15 +138,6 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // Enhanced Analytics (Conversational Intelligence, QA, Call Drivers)
   await app.register(analyticsEnhancedRoutes, { prefix: '/api/analytics-v2' });
-
-  // Fleet Management (multi-tenant facility management)
-  await app.register(fleetRoutes, { prefix: '/api/fleet' });
-
-  // Scheduler management routes
-  await app.register(schedulerRoutes, { prefix: '/api/scheduler' });
-
-  // Audit Log routes
-  await app.register(auditRoutes, { prefix: '/api/audit' });
 
   // Campaign routes (org-scoped: /api/campaigns/:orgId)
   await app.register(campaignRoutes, { prefix: '/api/campaigns' });
@@ -181,6 +169,18 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // Branch management (multi-clinic/multi-branch)
   await app.register(branchRoutes, { prefix: '/api/branches' });
+
+  // AI usage tracking
+  await app.register(usageRoutes, { prefix: '/api/usage' });
+
+  // WhatsApp Marketing Offers
+  await app.register(offerRoutes, { prefix: '/api/offers' });
+
+  // Marketing Consent (PDPL compliance)
+  await app.register(marketingConsentRoutes, { prefix: '/api/consent' });
+
+  // Audience Analytics (segments, behavior patterns, targeting preview)
+  await app.register(audienceAnalyticsRoutes, { prefix: '/api/audience' });
 
   // Register audit trail middleware (auto-logs sensitive route access)
   registerAuditMiddleware(app);

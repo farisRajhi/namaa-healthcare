@@ -2,7 +2,7 @@
 
 ## 🎯 Mission Accomplished
 
-A complete, production-ready test suite has been successfully created for the Namaa (نماء) AI Medical Receptionist backend.
+A complete, production-ready test suite has been successfully created for the Tawafud (توافد) AI Medical Receptionist backend.
 
 ---
 

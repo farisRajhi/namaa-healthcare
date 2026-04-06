@@ -22,6 +22,8 @@
     "inactive": "Inactive",
     "all": "All",
     "noData": "No data available yet",
+    "comingSoon": "Coming Soon",
+    "comingSoonVoice": "Voice features coming soon",
     "previous": "Previous",
     "next": "Next",
     "saving": "Saving...",
@@ -37,12 +39,17 @@
     "total": "Total"
   },
   "landing": {
-    "brand": "Namaa",
+    "brand": "Tawafud",
     "badge": "AI-Powered Healthcare Automation",
     "hero": {
-      "title": "Transform Patient Booking with",
-      "highlight": "WhatsApp AI",
-      "subtitle": "Automate appointment scheduling, reduce no-shows, and grow your healthcare practice with intelligent WhatsApp conversations that work 24/7."
+      "title": "The AI-Powered Platform for",
+      "highlight": "Modern Healthcare",
+      "subtitle": "Automate patient communication across WhatsApp, web chat, and SMS. Reduce no-shows, fill schedules, and grow your practice with AI that works 24/7."
+    },
+    "channels": {
+      "whatsapp": "WhatsApp",
+      "webChat": "Web Chat",
+      "sms": "SMS"
     },
     "cta": {
       "trial": "Start Free Trial",
@@ -56,72 +63,105 @@
       "responseTime": "Response Time"
     },
     "features": {
-      "title": "Everything You Need to Grow",
-      "subtitle": "A complete suite of tools to automate patient communication and streamline your operations.",
-      "whatsapp": {
-        "title": "WhatsApp Integration",
-        "description": "Connect with patients on their favorite messaging app. Send reminders, confirmations, and updates automatically."
+      "title": "Everything Your Clinic Needs",
+      "subtitle": "A complete AI platform to automate patient engagement, streamline operations, and grow revenue.",
+      "categoryChannels": "AI Communication",
+      "categoryScheduling": "Smart Scheduling & Patient Care",
+      "categoryGrowth": "Outbound & Growth",
+      "categoryIntelligence": "Intelligence & Automation",
+      "whatsappAI": {
+        "title": "WhatsApp AI",
+        "description": "Bidirectional AI conversations for booking, reminders, and patient support on WhatsApp."
+      },
+      "webChat": {
+        "title": "Web Chat Widget",
+        "description": "Embeddable AI chat widget for your website. Patients book appointments directly from your site."
+      },
+      "smsCampaigns": {
+        "title": "SMS Campaigns",
+        "description": "Outbound SMS templates and bulk messaging for reminders, follow-ups, and marketing."
       },
       "scheduling": {
         "title": "Smart Scheduling",
-        "description": "AI-powered appointment booking that understands natural language and finds the perfect time slot."
+        "description": "AI-powered booking with natural language, public booking links, and waitlist auto-fill."
       },
       "patients": {
         "title": "Patient Management",
-        "description": "Keep track of patient records, preferences, and history all in one centralized dashboard."
+        "description": "Centralized records, AI memory of preferences and history, and a self-service patient portal."
       },
-      "analytics": {
-        "title": "Analytics Dashboard",
-        "description": "Track bookings, monitor trends, and gain insights to optimize your practice performance."
+      "multiLocation": {
+        "title": "Multi-Location",
+        "description": "Manage multiple branches, departments, and providers from a single dashboard."
+      },
+      "campaigns": {
+        "title": "Outbound Campaigns",
+        "description": "Multi-channel campaigns via SMS and WhatsApp with audience targeting and tracking."
+      },
+      "careGap": {
+        "title": "Care Gap Outreach",
+        "description": "Predictive outreach for preventive care. Automatically identify and contact patients due for checkups."
       },
       "reminders": {
         "title": "Automated Reminders",
-        "description": "Reduce no-shows with smart appointment reminders sent at the right time."
+        "description": "Multi-channel reminders via SMS and WhatsApp to reduce no-shows by up to 50%."
       },
-      "multiLocation": {
-        "title": "Multi-Location Support",
-        "description": "Manage multiple facilities, departments, and providers from a single platform."
+      "analytics": {
+        "title": "Analytics & Reports",
+        "description": "Appointment trends, patient growth, revenue estimates, and CSV exports for all data."
+      },
+      "agentBuilder": {
+        "title": "Agent Builder",
+        "description": "No-code visual flow editor. Customize AI behaviors, greetings, and escalation rules."
+      },
+      "triageRouting": {
+        "title": "AI Triage & Routing",
+        "description": "Automated symptom triage with severity classification and smart routing to the right provider."
       }
     },
     "howItWorks": {
       "title": "How It Works",
-      "subtitle": "Get started in minutes with our simple setup process.",
+      "subtitle": "Go from setup to live in under 30 minutes.",
       "step1": {
-        "title": "Connect WhatsApp",
-        "description": "Link your business WhatsApp number to start receiving messages from patients."
+        "title": "Set Up Your Clinic",
+        "description": "Add your providers, services, locations, and working hours."
       },
       "step2": {
-        "title": "Configure AI Agent",
-        "description": "Set up your services, providers, and availability. The AI learns your preferences."
+        "title": "Configure Your AI",
+        "description": "Customize greetings, booking rules, and responses with the no-code Agent Builder."
       },
       "step3": {
-        "title": "Go Live",
-        "description": "Start accepting bookings automatically. Monitor and manage everything from your dashboard."
+        "title": "Connect Your Channels",
+        "description": "Link WhatsApp, embed the chat widget on your website, and configure SMS."
+      },
+      "step4": {
+        "title": "Go Live & Grow",
+        "description": "Start accepting bookings, launch campaigns, and track everything from your dashboard."
       }
     },
     "benefits": {
-      "title": "Why Healthcare Providers Choose Us",
-      "subtitle": "Designed for clinics and hospitals to transform their patient experience with our WhatsApp automation platform.",
+      "title": "Why Healthcare Providers Choose Tawafud",
+      "subtitle": "Built for clinics and hospitals across Saudi Arabia and the Gulf. One platform to automate every patient touchpoint.",
       "list": {
         "workload": "Reduce administrative workload by 60%",
-        "satisfaction": "Increase patient satisfaction scores",
-        "slots": "Fill more appointment slots automatically",
-        "hipaa": "PDPL-compliant secure messaging",
-        "integration": "Seamless integration with existing systems"
+        "satisfaction": "Increase patient satisfaction and retention",
+        "slots": "Fill schedules with smart waitlist & auto-fill",
+        "channels": "Reach patients on WhatsApp, web chat, and SMS",
+        "revenue": "Grow revenue with outbound campaigns and offers",
+        "compliance": "PDPL-compliant with end-to-end encryption"
       },
       "security": {
         "title": "Enterprise Security",
         "subtitle": "Your data is protected",
         "encryption": "End-to-end encryption",
-        "hipaa": "PDPL compliance ready",
-        "audits": "Regular security audits",
-        "residency": "Data residency options"
+        "pdpl": "PDPL & data protection compliance",
+        "pii": "PII redaction & role-based access",
+        "audit": "Audit logging & data residency"
       }
     },
     "demo": {
       "badge": "Try It Free Now",
       "title": "Try the AI Assistant",
-      "subtitle": "Interact with our AI assistant via text chat or voice",
+      "subtitle": "Interact with our AI assistant and see how it handles patient conversations",
       "tryNow": "Try Now",
       "features": {
         "dialects": "Understands Arabic dialects",
@@ -131,11 +171,11 @@
     },
     "finalCta": {
       "title": "Ready to Transform Your Practice?",
-      "subtitle": "Start your free trial today. No credit card required."
+      "subtitle": "Join clinics across Saudi Arabia already using Tawafud. Start your free trial today."
     },
     "footer": {
-      "copyright": "Namaa. All rights reserved.",
-      "tagline": "AI-powered medical receptionist platform for clinics and hospitals.",
+      "copyright": "Tawafud. All rights reserved.",
+      "tagline": "AI-powered healthcare automation platform for clinics and hospitals.",
       "product": "Product",
       "pricing": "Pricing",
       "access": "Access",
@@ -213,11 +253,12 @@
     "patients": "Patients",
     "services": "Services",
     "management": "Management",
+    "clinicSetup": "Clinic Setup",
     "settings": "Settings",
     "callCenter": "Call Center",
-    "prescriptions": "Prescriptions",
     "faq": "FAQ",
     "campaigns": "Campaigns",
+    "offers": "Offers",
     "reminders": "Reminders",
     "analyticsDashboard": "Analytics Dashboard",
     "fleet": "Fleet Management",
@@ -230,6 +271,10 @@
     "facilities": "Facilities",
     "smsTemplates": "SMS Templates",
     "waitlist": "Waitlist",
+    "marketingHub": "Marketing Hub",
+    "knowledgeBase": "Knowledge Base",
+    "patientInsights": "Patient Insights",
+    "patientEngagement": "Patient Engagement",
     "agentBuilder": "Agent Builder",
     "branches": "Branches",
     "doctorSchedule": "Doctor Schedule",
@@ -265,15 +310,14 @@
     }
   },
   "portal": {
-    "brand": "Namaa",
-    "brandSub": "NAMAA HEALTH",
+    "brand": "Tawafud",
+    "brandSub": "TAWAFUD HEALTH",
     "patientPortal": "Patient Portal",
     "logout": "Logout",
     "dataProtected": "Your data is fully protected and encrypted",
     "nav": {
       "home": "Home",
       "appointments": "Appointments",
-      "prescriptions": "Prescriptions",
       "profile": "Profile"
     },
     "login": {
@@ -376,30 +420,6 @@
       "medications": "Current Medications",
       "preferences": "Preferences"
     },
-    "prescriptions": {
-      "title": "Prescriptions",
-      "noPrescriptions": "No prescriptions on file",
-      "noPrescriptionsEn": "No prescriptions on file",
-      "dosage": "Dosage",
-      "frequency": "Frequency",
-      "refillsRemaining": "Refills Remaining",
-      "pharmacy": "Pharmacy",
-      "pendingRefill": "Refill request under review",
-      "refillSuccess": "Refill request sent successfully",
-      "requestRefill": "Request Refill",
-      "frequencies": {
-        "once_daily": "Once daily",
-        "twice_daily": "Twice daily",
-        "three_daily": "Three times daily",
-        "as_needed": "As needed"
-      },
-      "statuses": {
-        "active": "Active",
-        "expired": "Expired",
-        "completed": "Completed",
-        "cancelled": "Cancelled"
-      }
-    },
     "statuses": {
       "booked": "Booked",
       "confirmed": "Confirmed",
@@ -428,9 +448,22 @@
       "endpoints": "Webhook Endpoints"
     },
     "whatsapp": {
-      "title": "WhatsApp Business",
-      "notice": "WhatsApp Business API integration is configured through n8n workflows. Make sure you have set up the WhatsApp nodes in your n8n instance.",
-      "phoneNumber": "Business Phone Number"
+      "title": "WhatsApp Connection",
+      "subtitle": "Link your WhatsApp to let the AI receptionist respond to patients automatically.",
+      "scanPrompt": "Scan the QR code with your WhatsApp app to connect",
+      "scanInstructions": "Open WhatsApp > Settings > Linked Devices > Link a Device",
+      "connect": "Connect WhatsApp",
+      "disconnect": "Disconnect",
+      "reconnect": "Reconnect",
+      "connecting": "Connecting...",
+      "waitingQr": "Generating QR code...",
+      "connected": "Connected",
+      "disconnected": "Not Connected",
+      "linkedPhone": "Linked Phone",
+      "linkedName": "WhatsApp Name",
+      "statusActive": "AI receptionist is active and responding to messages",
+      "statusInactive": "Connect your WhatsApp to start receiving patient messages",
+      "confirmDisconnect": "Are you sure you want to disconnect WhatsApp? The AI will stop responding to messages."
     },
     "notifications": {
       "title": "Notifications",
@@ -449,5 +482,39 @@
   "dates": {
     "hijri": "Hijri Calendar",
     "gregorian": "Gregorian Calendar"
+  },
+  "agentBuilder": {
+    "title": "Agent Builder",
+    "subtitle": "Create and manage automated conversation flows",
+    "tabs": {
+      "personality": "AI Personality",
+      "flow": "Conversation Flow",
+      "analytics": "Analytics"
+    },
+    "personality": {
+      "title": "AI Personality",
+      "subtitle": "Customize how the AI interacts with patients",
+      "greeting": "Greeting",
+      "greetingDesc": "How the AI greets patients",
+      "tone": "Response Tone",
+      "toneDesc": "AI personality and tone of voice",
+      "rules": "Business Rules",
+      "rulesDesc": "Rules the AI must always follow",
+      "escalation": "Escalation Triggers",
+      "escalationDesc": "When to transfer the conversation to a human agent",
+      "booking": "Booking Instructions",
+      "bookingDesc": "How the AI handles appointment booking",
+      "faq": "Custom Answers",
+      "faqDesc": "Specific answers for common questions",
+      "custom": "Additional Instructions",
+      "customDesc": "Free-form instructions to customize AI behavior"
+    },
+    "simulator": {
+      "title": "Conversation Simulator",
+      "quickTest": "Quick test:",
+      "testGreeting": "Test Greeting",
+      "testBooking": "Test Booking",
+      "testEscalation": "Test Escalation"
+    }
   }
 }

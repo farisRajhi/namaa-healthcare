@@ -31,7 +31,7 @@ model Facility {
   region       String?
   postalCode   String?       @map("postal_code")
   country      String?
-  /// URL-friendly slug for patient self-booking links (e.g. "namaa-riyadh")
+  /// URL-friendly slug for patient self-booking links (e.g. "tawafud-riyadh")
   clinicSlug   String?       @unique @map("clinic_slug")
   createdAt    DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
   appointments Appointment[]
@@ -142,6 +142,8 @@ model Patient {
   patientLinks MessagingUserPatientLink[]
   contacts    PatientContact[]
   memories    PatientMemory[]
+  insight     PatientInsight?
+  tags        PatientTag[]
 
   @@unique([orgId, mrn])
   @@map("patients")
@@ -180,17 +182,69 @@ model PatientMemory {
   @@map("patient_memories")
 }
 
+model PatientInsight {
+  insightId             String    @id @default(dbgenerated("gen_random_uuid()")) @map("insight_id") @db.Uuid
+  patientId             String    @unique @map("patient_id") @db.Uuid
+  orgId                 String    @map("org_id") @db.Uuid
+
+  totalAppointments     Int       @default(0) @map("total_appointments")
+  completedAppointments Int       @default(0) @map("completed_appointments")
+  noShowCount           Int       @default(0) @map("no_show_count")
+  cancelledCount        Int       @default(0) @map("cancelled_count")
+  completionRate        Float     @default(0) @map("completion_rate")
+
+  preferredServiceIds   String[]  @map("preferred_service_ids") @db.Uuid
+  preferredProviderIds  String[]  @map("preferred_provider_ids") @db.Uuid
+  preferredDayOfWeek    Int?      @map("preferred_day_of_week") @db.SmallInt
+  preferredTimeSlot     String?   @map("preferred_time_slot")
+
+  channelPreference     String?   @map("channel_preference")
+  engagementScore       Int       @default(50) @map("engagement_score")
+  returnLikelihood      Int       @default(50) @map("return_likelihood")
+  avgVisitIntervalDays  Int?      @map("avg_visit_interval_days")
+  lastScoreFactors      Json?     @map("last_score_factors")
+  lastInteractionAt     DateTime? @map("last_interaction_at") @db.Timestamptz(6)
+  totalConversations    Int       @default(0) @map("total_conversations")
+  lifetimeValue         Int       @default(0) @map("lifetime_value")
+
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  patient               Patient   @relation(fields: [patientId], references: [patientId], onDelete: Cascade)
+
+  @@index([orgId, engagementScore])
+  @@index([orgId, returnLikelihood])
+  @@index([orgId, lastInteractionAt])
+  @@map("patient_insights")
+}
+
+model PatientTag {
+  tagId     String   @id @default(dbgenerated("gen_random_uuid()")) @map("tag_id") @db.Uuid
+  orgId     String   @map("org_id") @db.Uuid
+  patientId String   @map("patient_id") @db.Uuid
+  tag       String
+  source    String   @default("manual")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  patient   Patient  @relation(fields: [patientId], references: [patientId], onDelete: Cascade)
+
+  @@unique([orgId, patientId, tag])
+  @@index([orgId, tag])
+  @@map("patient_tags")
+}
+
 // ─── Messaging ──────────────────────────────────────────────
 
 model MessagingUser {
-  messagingUserId String                     @id @default(dbgenerated("gen_random_uuid()")) @map("messaging_user_id") @db.Uuid
-  orgId           String                     @map("org_id") @db.Uuid
-  channel         channel
-  externalUserId  String                     @map("external_user_id")
-  phoneE164       String?                    @map("phone_e164")
-  displayName     String?                    @map("display_name")
-  createdAt       DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
-  patientLinks    MessagingUserPatientLink[]
+  messagingUserId     String                     @id @default(dbgenerated("gen_random_uuid()")) @map("messaging_user_id") @db.Uuid
+  orgId               String                     @map("org_id") @db.Uuid
+  channel             channel
+  externalUserId      String                     @map("external_user_id")
+  phoneE164           String?                    @map("phone_e164")
+  displayName         String?                    @map("display_name")
+  lastSessionSnapshot Json?                      @map("last_session_snapshot")
+  createdAt           DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
+  patientLinks        MessagingUserPatientLink[]
 
   @@unique([orgId, channel, externalUserId])
   @@map("messaging_users")
@@ -212,21 +266,22 @@ model MessagingUserPatientLink {
 // ─── Conversations ──────────────────────────────────────────
 
 model Conversation {
-  conversationId    String                @id @default(dbgenerated("gen_random_uuid()")) @map("conversation_id") @db.Uuid
-  orgId             String                @map("org_id") @db.Uuid
-  messagingUserId   String                @map("messaging_user_id") @db.Uuid
-  channel           channel
-  externalThreadId  String                @map("external_thread_id")
-  patientId         String?               @map("patient_id") @db.Uuid
-  status            conversation_status   @default(active)
-  currentStep       String                @default("start") @map("current_step")
-  context           Json                  @default("{}")
-  lastActivityAt    DateTime              @default(now()) @map("last_activity_at") @db.Timestamptz(6)
-  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
-  messages          ConversationMessage[]
-  summaries         ConversationSummary[]
-  extractedMemories PatientMemory[]       @relation("MemorySource")
-  voiceCalls        VoiceCall[]
+  conversationId         String                @id @default(dbgenerated("gen_random_uuid()")) @map("conversation_id") @db.Uuid
+  orgId                  String                @map("org_id") @db.Uuid
+  messagingUserId        String                @map("messaging_user_id") @db.Uuid
+  channel                channel
+  externalThreadId       String                @map("external_thread_id")
+  patientId              String?               @map("patient_id") @db.Uuid
+  previousConversationId String?               @map("previous_conversation_id") @db.Uuid
+  status                 conversation_status   @default(active)
+  currentStep            String                @default("start") @map("current_step")
+  context                Json                  @default("{}")
+  lastActivityAt         DateTime              @default(now()) @map("last_activity_at") @db.Timestamptz(6)
+  createdAt              DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
+  messages               ConversationMessage[]
+  summaries              ConversationSummary[]
+  extractedMemories      PatientMemory[]       @relation("MemorySource")
+  voiceCalls             VoiceCall[]
 
   @@unique([orgId, channel, externalThreadId])
   @@map("conversations")
@@ -282,6 +337,8 @@ model Appointment {
   conversationId          String?                    @map("conversation_id") @db.Uuid
   reason                  String?
   notes                   String?
+  offerId                 String?                    @map("offer_id") @db.Uuid
+  promoCode               String?                    @map("promo_code")
   createdAt               DateTime                   @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt               DateTime                   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   statusHistory           AppointmentStatusHistory[]
@@ -302,8 +359,8 @@ model AppointmentStatusHistory {
   changedBy     String             @map("changed_by")
   changedAt     DateTime           @default(now()) @map("changed_at") @db.Timestamptz(6)
   reason        String?
-  oldStatus     AppointmentStatus? @map("old_status")
-  newStatus     AppointmentStatus  @map("new_status")
+  oldStatus     appointment_status? @map("old_status")
+  newStatus     appointment_status  @map("new_status")
   appointment   Appointment        @relation(fields: [appointmentId], references: [appointmentId], onDelete: Cascade)
 
   @@map("appointment_status_history")
@@ -522,9 +579,12 @@ model Campaign {
   maxCallsPerHour Int              @default(50) @map("max_calls_per_hour")
   startDate       DateTime?        @map("start_date") @db.Timestamptz(6)
   endDate         DateTime?        @map("end_date") @db.Timestamptz(6)
+  offerId         String?          @map("offer_id") @db.Uuid
+  salaryDayOnly   Boolean          @default(false) @map("salary_day_only")
   createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
   targets         CampaignTarget[]
+  offer           Offer?           @relation(fields: [offerId], references: [offerId])
 
   @@index([orgId, status])
   @@map("campaigns")
@@ -537,14 +597,117 @@ model CampaignTarget {
   status       String    @default("pending")
   attempts     Int       @default(0)
   lastChannel  String?   @map("last_channel")
-  bookedApptId String?   @map("booked_appt_id") @db.Uuid
-  notes        String?
-  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt    DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
-  campaign     Campaign  @relation(fields: [campaignId], references: [campaignId], onDelete: Cascade)
+  bookedApptId  String?   @map("booked_appt_id") @db.Uuid
+  offerId       String?   @map("offer_id") @db.Uuid
+  offerRedeemed Boolean   @default(false) @map("offer_redeemed")
+  notes         String?
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  campaign      Campaign  @relation(fields: [campaignId], references: [campaignId], onDelete: Cascade)
 
   @@index([campaignId, status])
   @@map("campaign_targets")
+}
+
+// ─── Offers (WhatsApp Marketing) ────────────────────────────
+
+model Offer {
+  offerId         String            @id @default(dbgenerated("gen_random_uuid()")) @map("offer_id") @db.Uuid
+  orgId           String            @map("org_id") @db.Uuid
+  name            String
+  nameAr          String?           @map("name_ar")
+  description     String?
+  descriptionAr   String?           @map("description_ar")
+
+  // Offer mechanics
+  offerType       String            @map("offer_type") // percentage_discount, fixed_discount, free_addon, bundle, loyalty_reward
+  discountValue   Int?              @map("discount_value") // percentage (e.g. 20) or fixed amount in halalas
+  discountUnit    String?           @map("discount_unit") // percent | sar
+  promoCode       String?           @unique @map("promo_code")
+
+  // Scope
+  serviceIds      String[]          @map("service_ids") @db.Uuid
+  providerIds     String[]          @map("provider_ids") @db.Uuid
+  facilityIds     String[]          @map("facility_ids") @db.Uuid
+
+  // Validity
+  validFrom       DateTime          @map("valid_from") @db.Timestamptz(6)
+  validUntil      DateTime          @map("valid_until") @db.Timestamptz(6)
+  maxRedemptions  Int?              @map("max_redemptions")
+  perPatientLimit Int               @default(1) @map("per_patient_limit")
+
+  // Targeting
+  targetPreset    String?           @map("target_preset") // lapsed_90, lapsed_180, high_value, new_patient, care_gap, at_risk, birthday_month, custom
+  targetFilter    Json              @default("{}") @map("target_filter")
+
+  // Status
+  status          String            @default("draft") // draft, active, paused, expired, archived
+
+  // Messaging
+  messageAr       String?           @map("message_ar")
+  messageEn       String?           @map("message_en")
+
+  // Analytics (denormalized)
+  totalSent       Int               @default(0) @map("total_sent")
+  totalRedeemed   Int               @default(0) @map("total_redeemed")
+  totalRevenue    Int               @default(0) @map("total_revenue") // in halalas
+
+  createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime          @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  redemptions     OfferRedemption[]
+  campaigns       Campaign[]
+
+  @@index([orgId, status])
+  @@index([promoCode])
+  @@index([orgId, validUntil])
+  @@map("offers")
+}
+
+model OfferRedemption {
+  redemptionId     String    @id @default(dbgenerated("gen_random_uuid()")) @map("redemption_id") @db.Uuid
+  offerId          String    @map("offer_id") @db.Uuid
+  patientId        String    @map("patient_id") @db.Uuid
+  appointmentId    String?   @map("appointment_id") @db.Uuid
+  campaignTargetId String?   @map("campaign_target_id") @db.Uuid
+
+  // Revenue tracking
+  originalPrice    Int?      @map("original_price") // halalas
+  discountAmount   Int?      @map("discount_amount") // halalas
+  finalPrice       Int?      @map("final_price") // halalas
+
+  channel          String?   // whatsapp, sms, voice, web
+  promoCodeUsed    String?   @map("promo_code_used")
+  status           String    @default("pending") // pending, confirmed, completed, cancelled
+  redeemedAt       DateTime  @default(now()) @map("redeemed_at") @db.Timestamptz(6)
+
+  offer            Offer     @relation(fields: [offerId], references: [offerId], onDelete: Cascade)
+
+  @@index([offerId, patientId])
+  @@index([appointmentId])
+  @@map("offer_redemptions")
+}
+
+model MarketingConsent {
+  consentId         String    @id @default(dbgenerated("gen_random_uuid()")) @map("consent_id") @db.Uuid
+  patientId         String    @map("patient_id") @db.Uuid
+  orgId             String    @map("org_id") @db.Uuid
+
+  smsMarketing      Boolean   @default(false) @map("sms_marketing")
+  whatsappMarketing Boolean   @default(false) @map("whatsapp_marketing")
+  voiceMarketing    Boolean   @default(false) @map("voice_marketing")
+  emailMarketing    Boolean   @default(false) @map("email_marketing")
+
+  consentSource     String    @map("consent_source") // booking_form, whatsapp_optin, portal, manual, api
+  consentText       String?   @map("consent_text")
+  ipAddress         String?   @map("ip_address")
+
+  grantedAt         DateTime  @default(now()) @map("granted_at") @db.Timestamptz(6)
+  revokedAt         DateTime? @map("revoked_at") @db.Timestamptz(6)
+
+  @@unique([patientId, orgId])
+  @@index([orgId, whatsappMarketing])
+  @@map("marketing_consents")
 }
 
 // ─── Care Gaps ──────────────────────────────────────────────
@@ -685,65 +848,6 @@ model Integration {
   @@map("integrations")
 }
 
-// ─── Prescriptions ──────────────────────────────────────────
-
-model Prescription {
-  prescriptionId    String                @id @default(dbgenerated("gen_random_uuid()")) @map("prescription_id") @db.Uuid
-  orgId             String                @map("org_id") @db.Uuid
-  patientId         String                @map("patient_id") @db.Uuid
-  providerId        String                @map("provider_id") @db.Uuid
-  medicationName    String                @map("medication_name")
-  medicationNameAr  String?               @map("medication_name_ar")
-  dosage            String
-  frequency         String
-  refillsRemaining  Int                   @default(0) @map("refills_remaining")
-  refillsTotal      Int                   @default(0) @map("refills_total")
-  status            String                @default("active")
-  startDate         DateTime              @map("start_date") @db.Date
-  endDate           DateTime?             @map("end_date") @db.Date
-  pharmacyName      String?               @map("pharmacy_name")
-  pharmacyPhone     String?               @map("pharmacy_phone")
-  notes             String?
-  createdAt         DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt         DateTime              @default(now()) @map("updated_at") @db.Timestamptz(6)
-  reminders         MedicationReminder[]
-  refills           PrescriptionRefill[]
-
-  @@index([patientId, status])
-  @@map("prescriptions")
-}
-
-model PrescriptionRefill {
-  refillId       String       @id @default(dbgenerated("gen_random_uuid()")) @map("refill_id") @db.Uuid
-  prescriptionId String       @map("prescription_id") @db.Uuid
-  requestedVia   String       @map("requested_via")
-  conversationId String?      @map("conversation_id") @db.Uuid
-  status         String       @default("pending")
-  requestedAt    DateTime     @default(now()) @map("requested_at") @db.Timestamptz(6)
-  processedAt    DateTime?    @map("processed_at") @db.Timestamptz(6)
-  processedBy    String?      @map("processed_by")
-  notes          String?
-  prescription   Prescription @relation(fields: [prescriptionId], references: [prescriptionId], onDelete: Cascade)
-
-  @@index([prescriptionId])
-  @@map("prescription_refills")
-}
-
-model MedicationReminder {
-  reminderId     String       @id @default(dbgenerated("gen_random_uuid()")) @map("reminder_id") @db.Uuid
-  patientId      String       @map("patient_id") @db.Uuid
-  prescriptionId String       @map("prescription_id") @db.Uuid
-  channel        String
-  scheduleTime   String       @map("schedule_time")
-  isActive       Boolean      @default(true) @map("is_active")
-  lastSentAt     DateTime?    @map("last_sent_at") @db.Timestamptz(6)
-  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
-  prescription   Prescription @relation(fields: [prescriptionId], references: [prescriptionId], onDelete: Cascade)
-
-  @@index([patientId, isActive])
-  @@map("medication_reminders")
-}
-
 // ─── Patient Verification ───────────────────────────────────
 
 model PatientVerification {
@@ -799,7 +903,7 @@ model SmsTemplate {
 
 // ─── Moyasar Payment & Subscription ─────────────────────────
 
-model NamaaSubscription {
+model TawafudSubscription {
   id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   orgId      String   @map("org_id") @db.Uuid
   plan       String   // starter, professional, enterprise
@@ -811,10 +915,10 @@ model NamaaSubscription {
   updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   @@index([orgId, status])
-  @@map("namaa_subscriptions")
+  @@map("tawafud_subscriptions")
 }
 
-model NamaaPayment {
+model TawafudPayment {
   id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   orgId        String   @map("org_id") @db.Uuid
   amount       Int      // in halalas (SAR cents)
@@ -832,7 +936,23 @@ model NamaaPayment {
 
   @@index([orgId, status])
   @@index([moyasarId])
-  @@map("namaa_payments")
+  @@map("tawafud_payments")
+}
+
+// ─── AI Usage Tracking ──────────────────────────────────────
+
+model AiUsageCounter {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId         String   @map("org_id") @db.Uuid
+  year          Int
+  month         Int      // 1-12
+  responseCount Int      @default(0) @map("response_count")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([orgId, year, month])
+  @@index([orgId])
+  @@map("ai_usage_counters")
 }
 
 // ─── Users / Roles ──────────────────────────────────────────
@@ -904,38 +1024,6 @@ model WebhookSubscription {
 
 // ─── Enums ──────────────────────────────────────────────────
 
-enum Channel {
-  telegram
-  whatsapp
-  web
-  phone
-  front_desk
-  api
-}
-
-enum ConversationStatus {
-  active
-  closed
-  handoff
-}
-
-enum MessageDirection {
-  in
-  out
-}
-
-enum AppointmentStatus {
-  held
-  booked
-  confirmed
-  checked_in
-  in_progress
-  completed
-  cancelled
-  no_show
-  expired
-}
-
 enum MemoryType {
   preference
   condition
@@ -944,6 +1032,10 @@ enum MemoryType {
   family_history
   lifestyle
   note
+  interest
+  service_interest
+  behavioral
+  satisfaction
 }
 
 enum appointment_status {
@@ -1000,4 +1092,36 @@ enum speaker_type {
 enum phone_number_type {
   twilio_owned
   forwarded
+}
+
+// ─── WhatsApp Baileys Sessions ─────────────────────────────
+
+model WhatsAppSession {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId     String   @unique @map("org_id") @db.Uuid
+  /// Auth credentials JSON blob from Baileys
+  creds     Json?
+  /// Whether the session is currently connected
+  connected Boolean  @default(false)
+  /// The phone number linked (e.g. "+966501234567")
+  phone     String?
+  /// Display name from WhatsApp profile
+  name      String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("whatsapp_sessions")
+}
+
+model WhatsAppSessionKey {
+  id    String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId String @map("org_id") @db.Uuid
+  /// Key identifier (e.g. "pre-key-1", "session-jid", "sender-key-...")
+  key   String
+  /// JSON value for this key
+  value Json
+
+  @@unique([orgId, key])
+  @@index([orgId])
+  @@map("whatsapp_session_keys")
 }

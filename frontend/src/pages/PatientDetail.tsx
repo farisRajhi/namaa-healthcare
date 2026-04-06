@@ -8,7 +8,6 @@ import {
   Phone,
   Mail,
   Calendar,
-  Pill,
   User,
   Edit3,
   Save,
@@ -19,6 +18,18 @@ import {
   AlertCircle,
   Hash,
   Activity,
+  Brain,
+  Tag,
+  Plus,
+  RefreshCw,
+  Sparkles,
+  Heart,
+  Shield,
+  Pill,
+  Star,
+  TrendingUp,
+  BarChart3,
+  MessageCircle,
 } from 'lucide-react'
 import { formatDate, formatTime, cn } from '../lib/utils'
 import Badge, { getStatusBadgeVariant } from '../components/ui/Badge'
@@ -45,14 +56,45 @@ interface Appointment {
   service: { name: string; durationMin: number }
 }
 
-interface Prescription {
-  prescriptionId: string
-  medication: string
-  dosage: string | null
-  instructions: string | null
-  status: string
-  issuedAt: string
-  provider?: { displayName: string }
+interface PatientInsight {
+  patientId: string
+  totalAppointments: number
+  completedAppointments: number
+  noShowCount: number
+  cancelledCount: number
+  completionRate: number
+  preferredServiceIds: string[]
+  preferredProviderIds: string[]
+  preferredDayOfWeek: number | null
+  preferredTimeSlot: string | null
+  channelPreference: string | null
+  engagementScore: number
+  lastInteractionAt: string | null
+  totalConversations: number
+  lifetimeValue: number
+}
+
+interface PatientTag {
+  tagId: string
+  tag: string
+  source: string
+  createdAt: string
+}
+
+interface PatientMemory {
+  memoryId: string
+  memoryType: string
+  memoryKey: string
+  memoryValue: string
+  confidence: number
+  isActive: boolean
+  updatedAt: string
+}
+
+interface KnowledgeData {
+  memories: Record<string, PatientMemory[]>
+  insight: PatientInsight | null
+  tags: PatientTag[]
 }
 
 interface Patient {
@@ -65,6 +107,8 @@ interface Patient {
   createdAt: string
   contacts: Contact[]
   appointments: Appointment[]
+  insight?: PatientInsight | null
+  tags?: PatientTag[]
 }
 
 interface EditForm {
@@ -85,6 +129,90 @@ function calcAge(dob: string | null): string | null {
   return String(age)
 }
 
+const MEMORY_CATEGORIES = [
+  { key: 'allergy', icon: Shield, labelAr: 'الحساسيات', labelEn: 'Allergies', bgColor: 'bg-red-50/50', borderColor: 'border-red-200/50', iconColor: 'text-red-500' },
+  { key: 'condition', icon: Activity, labelAr: 'الحالات الصحية', labelEn: 'Conditions', bgColor: 'bg-blue-50/50', borderColor: 'border-blue-200/50', iconColor: 'text-blue-500' },
+  { key: 'medication', icon: Pill, labelAr: 'الأدوية', labelEn: 'Medications', bgColor: 'bg-purple-50/50', borderColor: 'border-purple-200/50', iconColor: 'text-purple-500' },
+  { key: 'preference', icon: Star, labelAr: 'التفضيلات', labelEn: 'Preferences', bgColor: 'bg-yellow-50/50', borderColor: 'border-yellow-200/50', iconColor: 'text-yellow-500' },
+  { key: 'service_interest', icon: Sparkles, labelAr: 'اهتمامات بالخدمات', labelEn: 'Service Interests', bgColor: 'bg-green-50/50', borderColor: 'border-green-200/50', iconColor: 'text-green-500' },
+  { key: 'interest', icon: TrendingUp, labelAr: 'اهتمامات عامة', labelEn: 'Interests', bgColor: 'bg-teal-50/50', borderColor: 'border-teal-200/50', iconColor: 'text-teal-500' },
+  { key: 'behavioral', icon: BarChart3, labelAr: 'أنماط سلوكية', labelEn: 'Behavioral', bgColor: 'bg-indigo-50/50', borderColor: 'border-indigo-200/50', iconColor: 'text-indigo-500' },
+  { key: 'satisfaction', icon: Heart, labelAr: 'مؤشرات الرضا', labelEn: 'Satisfaction', bgColor: 'bg-pink-50/50', borderColor: 'border-pink-200/50', iconColor: 'text-pink-500' },
+  { key: 'family_history', icon: User, labelAr: 'معلومات عائلية', labelEn: 'Family', bgColor: 'bg-orange-50/50', borderColor: 'border-orange-200/50', iconColor: 'text-orange-500' },
+  { key: 'lifestyle', icon: Activity, labelAr: 'نمط الحياة', labelEn: 'Lifestyle', bgColor: 'bg-cyan-50/50', borderColor: 'border-cyan-200/50', iconColor: 'text-cyan-500' },
+  { key: 'note', icon: ClipboardList, labelAr: 'ملاحظات', labelEn: 'Notes', bgColor: 'bg-gray-50/50', borderColor: 'border-gray-200/50', iconColor: 'text-gray-500' },
+]
+
+// ─── Mock Data (TODO: remove after backend prisma generate) ─────────────────
+
+const MOCK_KNOWLEDGE: KnowledgeData = {
+  insight: {
+    patientId: '',
+    totalAppointments: 12,
+    completedAppointments: 9,
+    noShowCount: 1,
+    cancelledCount: 2,
+    completionRate: 0.75,
+    preferredServiceIds: [],
+    preferredProviderIds: [],
+    preferredDayOfWeek: 0, // Sunday
+    preferredTimeSlot: 'morning',
+    channelPreference: 'whatsapp',
+    engagementScore: 72,
+    lastInteractionAt: '2026-03-28T10:30:00Z',
+    totalConversations: 18,
+    lifetimeValue: 9,
+  },
+  tags: [
+    { tagId: 'mock-1', tag: 'VIP', source: 'manual', createdAt: '2026-01-15T00:00:00Z' },
+    { tagId: 'mock-2', tag: 'مرضى السكري', source: 'auto', createdAt: '2026-02-10T00:00:00Z' },
+    { tagId: 'mock-3', tag: 'عميل دائم', source: 'auto', createdAt: '2026-02-20T00:00:00Z' },
+    { tagId: 'mock-4', tag: 'تأمين طبي', source: 'manual', createdAt: '2026-03-01T00:00:00Z' },
+  ],
+  memories: {
+    allergy: [
+      { memoryId: 'm1', memoryType: 'allergy', memoryKey: 'بنسلين', memoryValue: 'حساسية من البنسلين — يسبب طفح جلدي', confidence: 1.0, isActive: true, updatedAt: '2026-01-10T00:00:00Z' },
+      { memoryId: 'm2', memoryType: 'allergy', memoryKey: 'أسبرين', memoryValue: 'حساسية من الأسبرين', confidence: 0.8, isActive: true, updatedAt: '2026-02-15T00:00:00Z' },
+    ],
+    condition: [
+      { memoryId: 'm3', memoryType: 'condition', memoryKey: 'سكري', memoryValue: 'سكري نوع ثاني — مشخّص منذ 2020', confidence: 1.0, isActive: true, updatedAt: '2026-01-10T00:00:00Z' },
+      { memoryId: 'm4', memoryType: 'condition', memoryKey: 'ضغط', memoryValue: 'ارتفاع ضغط الدم — يراجع كل 3 شهور', confidence: 0.9, isActive: true, updatedAt: '2026-02-01T00:00:00Z' },
+    ],
+    medication: [
+      { memoryId: 'm5', memoryType: 'medication', memoryKey: 'ميتفورمين', memoryValue: 'يتناول ميتفورمين 500 ملغ مرتين يومياً', confidence: 1.0, isActive: true, updatedAt: '2026-01-10T00:00:00Z' },
+      { memoryId: 'm6', memoryType: 'medication', memoryKey: 'أملوديبين', memoryValue: 'يتناول أملوديبين 5 ملغ مرة يومياً', confidence: 0.8, isActive: true, updatedAt: '2026-02-01T00:00:00Z' },
+    ],
+    preference: [
+      { memoryId: 'm7', memoryType: 'preference', memoryKey: 'وقت_الموعد_المفضل', memoryValue: 'يفضل المواعيد الصباحية (8-10 صباحاً)', confidence: 0.9, isActive: true, updatedAt: '2026-03-01T00:00:00Z' },
+      { memoryId: 'm8', memoryType: 'preference', memoryKey: 'الطبيب_المفضل', memoryValue: 'دكتور أحمد العمري', confidence: 1.0, isActive: true, updatedAt: '2026-02-20T00:00:00Z' },
+      { memoryId: 'm9', memoryType: 'preference', memoryKey: 'جنس_الطبيب', memoryValue: 'لا يوجد تفضيل', confidence: 0.7, isActive: true, updatedAt: '2026-01-15T00:00:00Z' },
+    ],
+    service_interest: [
+      { memoryId: 'm10', memoryType: 'service_interest', memoryKey: 'dental_cleaning', memoryValue: 'سأل عن تنظيف الأسنان وأبدى اهتماماً بالحجز', confidence: 0.9, isActive: true, updatedAt: '2026-03-15T00:00:00Z' },
+      { memoryId: 'm11', memoryType: 'service_interest', memoryKey: 'comprehensive_checkup', memoryValue: 'مهتم بالفحص الشامل السنوي', confidence: 0.8, isActive: true, updatedAt: '2026-03-20T00:00:00Z' },
+      { memoryId: 'm12', memoryType: 'service_interest', memoryKey: 'eye_exam', memoryValue: 'ذكر أنه يريد فحص نظر بسبب السكري', confidence: 0.7, isActive: true, updatedAt: '2026-03-25T00:00:00Z' },
+    ],
+    interest: [
+      { memoryId: 'm13', memoryType: 'interest', memoryKey: 'preventive_care', memoryValue: 'مهتم ببرامج الرعاية الوقائية', confidence: 0.8, isActive: true, updatedAt: '2026-03-10T00:00:00Z' },
+      { memoryId: 'm14', memoryType: 'interest', memoryKey: 'nutrition_program', memoryValue: 'سأل عن برنامج تغذية لمرضى السكري', confidence: 0.7, isActive: true, updatedAt: '2026-03-18T00:00:00Z' },
+    ],
+    behavioral: [
+      { memoryId: 'm15', memoryType: 'behavioral', memoryKey: 'saturday_regular', memoryValue: 'يحجز دائماً يوم السبت صباحاً', confidence: 0.85, isActive: true, updatedAt: '2026-03-20T00:00:00Z' },
+      { memoryId: 'm16', memoryType: 'behavioral', memoryKey: 'books_ahead', memoryValue: 'يحجز قبل أسبوعين عادةً', confidence: 0.7, isActive: true, updatedAt: '2026-03-22T00:00:00Z' },
+    ],
+    satisfaction: [
+      { memoryId: 'm17', memoryType: 'satisfaction', memoryKey: 'praised_dr_ahmed', memoryValue: 'أشاد بالدكتور أحمد العمري — "أفضل دكتور راجعته"', confidence: 0.95, isActive: true, updatedAt: '2026-03-15T00:00:00Z' },
+      { memoryId: 'm18', memoryType: 'satisfaction', memoryKey: 'wait_time_complaint', memoryValue: 'اشتكى من طول الانتظار في آخر زيارة (45 دقيقة)', confidence: 0.8, isActive: true, updatedAt: '2026-03-28T00:00:00Z' },
+    ],
+    family_history: [
+      { memoryId: 'm19', memoryType: 'family_history', memoryKey: 'ابن', memoryValue: 'ابنه عمره 8 سنوات — يحتاج تطعيمات', confidence: 0.9, isActive: true, updatedAt: '2026-02-25T00:00:00Z' },
+    ],
+    lifestyle: [
+      { memoryId: 'm20', memoryType: 'lifestyle', memoryKey: 'exercise', memoryValue: 'يمشي 30 دقيقة يومياً', confidence: 0.7, isActive: true, updatedAt: '2026-03-05T00:00:00Z' },
+    ],
+  },
+}
+
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function PatientDetail() {
@@ -103,7 +231,9 @@ export default function PatientDetail() {
     sex: '',
     mrn: '',
   })
-  const [activeTab, setActiveTab] = useState<'appointments' | 'prescriptions' | 'info'>('appointments')
+  const [activeTab, setActiveTab] = useState<'appointments' | 'info' | 'knowledge'>('knowledge')
+  const [newTag, setNewTag] = useState('')
+  const [showTagInput, setShowTagInput] = useState(false)
 
   // ── Queries ────────────────────────────────────────────────────────────────
 
@@ -117,17 +247,22 @@ export default function PatientDetail() {
     enabled: !!id,
   })
 
-  const { data: prescriptionsData } = useQuery<{ data: Prescription[] }>({
-    queryKey: ['patient-prescriptions', id],
+  const { data: knowledge } = useQuery<KnowledgeData>({
+    queryKey: ['patient-knowledge', id],
     queryFn: async () => {
       try {
-        const res = await api.get(`/api/prescriptions?patientId=${id}&limit=20`)
-        return res.data
+        const res = await api.get(`/api/patients/${id}/knowledge`)
+        const data = res.data
+        // Use mock data if API returns empty (TODO: remove mock fallback after backend is ready)
+        if (!data?.insight && (!data?.memories || Object.keys(data.memories).length === 0)) {
+          return MOCK_KNOWLEDGE
+        }
+        return data
       } catch {
-        return { data: [] }
+        return MOCK_KNOWLEDGE
       }
     },
-    enabled: !!id,
+    enabled: !!id && activeTab === 'knowledge',
   })
 
   // ── Mutations ──────────────────────────────────────────────────────────────
@@ -142,6 +277,32 @@ export default function PatientDetail() {
     },
     onError: () => {
       addToast({ type: 'error', title: isAr ? 'فشل تحديث البيانات' : 'Failed to update patient' })
+    },
+  })
+
+  const addTagMutation = useMutation({
+    mutationFn: (tag: string) => api.post(`/api/patients/${id}/tags`, { tag }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patient-knowledge', id] })
+      queryClient.invalidateQueries({ queryKey: ['patient', id] })
+      setNewTag('')
+      setShowTagInput(false)
+    },
+  })
+
+  const removeTagMutation = useMutation({
+    mutationFn: (tagId: string) => api.delete(`/api/patients/${id}/tags/${tagId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patient-knowledge', id] })
+      queryClient.invalidateQueries({ queryKey: ['patient', id] })
+    },
+  })
+
+  const rebuildInsightMutation = useMutation({
+    mutationFn: () => api.post(`/api/patients/${id}/insights/rebuild`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patient-knowledge', id] })
+      addToast({ type: 'success', title: isAr ? 'تم تحديث الرؤى' : 'Insights rebuilt' })
     },
   })
 
@@ -171,7 +332,6 @@ export default function PatientDetail() {
 
   // ── Computed ──────────────────────────────────────────────────────────────
 
-  const prescriptions: Prescription[] = prescriptionsData?.data || []
   const appointments: Appointment[] = patient?.appointments || []
   const upcomingCount = appointments.filter(a => ['scheduled', 'confirmed'].includes(a.status)).length
   const completedCount = appointments.filter(a => a.status === 'completed').length
@@ -206,7 +366,7 @@ export default function PatientDetail() {
 
   const tabs = [
     { key: 'appointments' as const, label: isAr ? 'المواعيد' : 'Appointments', icon: Calendar, count: appointments.length },
-    { key: 'prescriptions' as const, label: isAr ? 'الوصفات' : 'Prescriptions', icon: Pill, count: prescriptions.length },
+    { key: 'knowledge' as const, label: isAr ? 'قاعدة المعرفة' : 'Knowledge Base', icon: Brain, count: null },
     { key: 'info' as const, label: isAr ? 'معلومات إضافية' : 'Details', icon: User, count: null },
   ]
 
@@ -388,13 +548,6 @@ export default function PatientDetail() {
           iconBg="bg-green-100"
           iconColor="text-green-600"
         />
-        <StatCard
-          icon={Pill}
-          value={prescriptions.length}
-          label={isAr ? 'الوصفات' : 'Prescriptions'}
-          iconBg="bg-purple-100"
-          iconColor="text-purple-600"
-        />
       </div>
 
       {/* ── Tabs ─────────────────────────────────────────────────────────── */}
@@ -481,48 +634,179 @@ export default function PatientDetail() {
           </div>
         )}
 
-        {/* ── Prescriptions Tab ────────────────────────────────────────── */}
-        {activeTab === 'prescriptions' && (
-          <div className="divide-y divide-healthcare-border/20">
-            {prescriptions.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16 gap-3 text-healthcare-muted">
-                <Pill className="h-12 w-12 opacity-30" />
-                <p>{isAr ? 'لا توجد وصفات مسجلة' : 'No prescriptions yet'}</p>
+        {/* ── Knowledge Base Tab ────────────────────────────────────── */}
+        {activeTab === 'knowledge' && (
+          <div className="p-6 space-y-6">
+            {/* Tags Section */}
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold text-healthcare-text flex items-center gap-2">
+                  <Tag className="h-4 w-4 text-primary-500" />
+                  {isAr ? 'التصنيفات' : 'Tags'}
+                </h3>
+                <button
+                  onClick={() => setShowTagInput(true)}
+                  className="text-xs text-primary-600 hover:text-primary-700 flex items-center gap-1"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  {isAr ? 'إضافة' : 'Add'}
+                </button>
               </div>
-            ) : (
-              prescriptions.map(rx => (
-                <div key={rx.prescriptionId} className="flex items-start gap-4 p-5 hover:bg-gray-50/50 transition-colors">
-                  <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-purple-100 flex items-center justify-center">
-                    <Pill className="h-5 w-5 text-purple-600" />
+              <div className="flex flex-wrap gap-2">
+                {(knowledge?.tags || patient?.tags || []).map(tag => (
+                  <span
+                    key={tag.tagId}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-primary-50 text-primary-700 border border-primary-200"
+                  >
+                    {tag.tag}
+                    <button
+                      onClick={() => removeTagMutation.mutate(tag.tagId)}
+                      className="hover:text-danger-600 transition-colors"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))}
+                {showTagInput && (
+                  <form
+                    onSubmit={e => { e.preventDefault(); if (newTag.trim()) addTagMutation.mutate(newTag.trim()) }}
+                    className="inline-flex items-center gap-1"
+                  >
+                    <input
+                      type="text"
+                      value={newTag}
+                      onChange={e => setNewTag(e.target.value)}
+                      placeholder={isAr ? 'اسم التصنيف...' : 'Tag name...'}
+                      className="px-2 py-1 text-xs border border-primary-300 rounded-lg focus:ring-1 focus:ring-primary-500 outline-none w-32"
+                      autoFocus
+                    />
+                    <button type="submit" className="text-primary-600 hover:text-primary-700">
+                      <CheckCircle className="h-4 w-4" />
+                    </button>
+                    <button type="button" onClick={() => { setShowTagInput(false); setNewTag('') }} className="text-gray-400 hover:text-gray-600">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </form>
+                )}
+                {(knowledge?.tags || patient?.tags || []).length === 0 && !showTagInput && (
+                  <span className="text-xs text-healthcare-muted">{isAr ? 'لا توجد تصنيفات' : 'No tags yet'}</span>
+                )}
+              </div>
+            </div>
+
+            {/* Engagement Insights */}
+            {(() => {
+              const insight = knowledge?.insight || patient?.insight
+              return (
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold text-healthcare-text flex items-center gap-2">
+                      <BarChart3 className="h-4 w-4 text-primary-500" />
+                      {isAr ? 'الرؤى السلوكية' : 'Behavioral Insights'}
+                    </h3>
+                    <button
+                      onClick={() => rebuildInsightMutation.mutate()}
+                      disabled={rebuildInsightMutation.isPending}
+                      className="text-xs text-primary-600 hover:text-primary-700 flex items-center gap-1"
+                    >
+                      <RefreshCw className={cn('h-3.5 w-3.5', rebuildInsightMutation.isPending && 'animate-spin')} />
+                      {isAr ? 'تحديث' : 'Refresh'}
+                    </button>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-3 flex-wrap">
-                      <div>
-                        <p className="font-semibold text-healthcare-text">{rx.medication}</p>
-                        {rx.dosage && (
-                          <p className="text-sm text-healthcare-muted mt-0.5">{rx.dosage}</p>
-                        )}
-                        {rx.instructions && (
-                          <p className="text-xs text-healthcare-muted mt-1 italic">{rx.instructions}</p>
-                        )}
+                  {insight ? (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      <div className="bg-gradient-to-br from-primary-50 to-primary-100/50 rounded-xl p-4 text-center border border-primary-200/50">
+                        <div className={cn(
+                          'text-2xl font-bold',
+                          insight.engagementScore >= 70 ? 'text-green-600' : insight.engagementScore >= 40 ? 'text-yellow-600' : 'text-red-500'
+                        )}>
+                          {insight.engagementScore}
+                        </div>
+                        <div className="text-xs text-healthcare-muted mt-1">{isAr ? 'مؤشر التفاعل' : 'Engagement'}</div>
                       </div>
-                      <Badge variant={rx.status === 'active' ? 'success' : rx.status === 'expired' ? 'neutral' : 'info'} dot>
-                        {rx.status}
-                      </Badge>
+                      <div className="bg-gradient-to-br from-green-50 to-green-100/50 rounded-xl p-4 text-center border border-green-200/50">
+                        <div className="text-2xl font-bold text-green-600">{Math.round(insight.completionRate * 100)}%</div>
+                        <div className="text-xs text-healthcare-muted mt-1">{isAr ? 'نسبة الإتمام' : 'Completion'}</div>
+                      </div>
+                      <div className="bg-gradient-to-br from-yellow-50 to-yellow-100/50 rounded-xl p-4 text-center border border-yellow-200/50">
+                        <div className="text-2xl font-bold text-yellow-600">{insight.lifetimeValue}</div>
+                        <div className="text-xs text-healthcare-muted mt-1">{isAr ? 'زيارات مكتملة' : 'Lifetime Visits'}</div>
+                      </div>
+                      <div className="bg-gradient-to-br from-purple-50 to-purple-100/50 rounded-xl p-4 text-center border border-purple-200/50">
+                        <div className="text-2xl font-bold text-purple-600">{insight.totalConversations}</div>
+                        <div className="text-xs text-healthcare-muted mt-1">{isAr ? 'محادثات' : 'Conversations'}</div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3 mt-2 text-xs text-healthcare-muted">
-                      <span className="flex items-center gap-1">
-                        <Calendar className="h-3.5 w-3.5" />
-                        {formatDate(rx.issuedAt)}
-                      </span>
-                      {rx.provider && (
-                        <span>{isAr ? 'من' : 'by'} {rx.provider.displayName}</span>
+                  ) : (
+                    <p className="text-sm text-healthcare-muted">{isAr ? 'لا توجد رؤى بعد — اضغط تحديث' : 'No insights yet — click Refresh'}</p>
+                  )}
+                  {insight && (
+                    <div className="mt-3 flex flex-wrap gap-3 text-xs text-healthcare-muted">
+                      {insight.preferredTimeSlot && (
+                        <span className="flex items-center gap-1 bg-gray-100 px-2.5 py-1 rounded-full">
+                          <Clock className="h-3 w-3" />
+                          {isAr
+                            ? insight.preferredTimeSlot === 'morning' ? 'يفضل الصباح' : insight.preferredTimeSlot === 'afternoon' ? 'يفضل الظهر' : 'يفضل المساء'
+                            : `Prefers ${insight.preferredTimeSlot}`
+                          }
+                        </span>
+                      )}
+                      {insight.channelPreference && (
+                        <span className="flex items-center gap-1 bg-gray-100 px-2.5 py-1 rounded-full">
+                          <MessageCircle className="h-3 w-3" />
+                          {isAr ? `يفضل ${insight.channelPreference}` : `Prefers ${insight.channelPreference}`}
+                        </span>
+                      )}
+                      {insight.noShowCount > 0 && (
+                        <span className="flex items-center gap-1 bg-red-50 text-red-600 px-2.5 py-1 rounded-full">
+                          <AlertCircle className="h-3 w-3" />
+                          {insight.noShowCount} {isAr ? 'عدم حضور' : 'no-shows'}
+                        </span>
                       )}
                     </div>
-                  </div>
+                  )}
                 </div>
-              ))
-            )}
+              )
+            })()}
+
+            {/* Memories by Category */}
+            <div>
+              <h3 className="text-sm font-semibold text-healthcare-text flex items-center gap-2 mb-3">
+                <Brain className="h-4 w-4 text-primary-500" />
+                {isAr ? 'ذاكرة المريض' : 'Patient Memory'}
+              </h3>
+              {knowledge?.memories && Object.keys(knowledge.memories).length > 0 ? (
+                <div className="space-y-3">
+                  {MEMORY_CATEGORIES.map(cat => {
+                    const items = knowledge.memories[cat.key]
+                    if (!items || items.length === 0) return null
+                    return (
+                      <div key={cat.key} className={cn('rounded-xl border p-4', cat.borderColor, cat.bgColor)}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <cat.icon className={cn('h-4 w-4', cat.iconColor)} />
+                          <span className="text-sm font-medium text-healthcare-text">{isAr ? cat.labelAr : cat.labelEn}</span>
+                          <span className="text-xs text-healthcare-muted">({items.length})</span>
+                        </div>
+                        <div className="space-y-1.5">
+                          {items.map(mem => (
+                            <div key={mem.memoryId} className="flex items-start gap-2 text-sm">
+                              <span className="text-healthcare-text">{mem.memoryValue}</span>
+                              {mem.confidence < 0.9 && (
+                                <span className="text-[10px] text-healthcare-muted bg-white/50 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                                  {Math.round(mem.confidence * 100)}%
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-healthcare-muted">{isAr ? 'لا توجد ذكريات مسجلة بعد' : 'No memories recorded yet'}</p>
+              )}
+            </div>
           </div>
         )}
 

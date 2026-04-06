@@ -16,12 +16,11 @@
 import cron from 'node-cron';
 import { PrismaClient } from '@prisma/client';
 import { AppointmentReminderService } from '../reminders/appointmentReminder.js';
-import { CampaignManager } from '../campaigns/campaignManager.js';
+import { CampaignManager, getCampaignManager } from '../campaigns/campaignManager.js';
 import { PredictiveEngine } from '../analytics/predictiveEngine.js';
-import { RxManager } from '../prescription/rxManager.js';
-import { QualityAnalyzerService as QualityAnalyzer } from '../analytics/qualityAnalyzer.js';
 import { CareGapCampaignPipeline } from '../pipelines/careGapCampaign.js';
-import { WaitlistAutoFill } from '../pipelines/waitlistAutoFill.js';
+import { getInsightBuilder } from '../patient/insightBuilder.js';
+import { OfferManager } from '../offers/offerManager.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -305,85 +304,7 @@ export class TaskScheduler {
         },
       },
 
-      // 4. Medication Reminders — every 30 minutes
-      {
-        name: 'medication-reminders',
-        schedule: '*/30 * * * *',
-        description: 'Check for due medication reminders and send SMS/WhatsApp notifications',
-        enabled: true,
-        handler: async () => {
-          const rxManager = new RxManager(this.prisma);
-          // Get current time in HH:MM format (Asia/Riyadh)
-          const now = new Date();
-          const riyadhTime = now.toLocaleTimeString('en-GB', {
-            timeZone: 'Asia/Riyadh',
-            hour: '2-digit',
-            minute: '2-digit',
-            hour12: false,
-          });
-          const dueReminders = await rxManager.getDueReminders(riyadhTime);
-
-          for (const reminder of dueReminders) {
-            try {
-              await rxManager.markReminderSent(reminder.reminderId);
-              // TODO: actually send the SMS/WhatsApp via Twilio
-            } catch (err: any) {
-              console.error(`[Scheduler]   → Failed to process medication reminder ${reminder.reminderId}:`, err?.message);
-            }
-          }
-
-          console.log(`[Scheduler]   → Processed ${dueReminders.length} medication reminders`);
-        },
-      },
-
-      // 5. Quality Analysis — every hour
-      {
-        name: 'quality-analysis',
-        schedule: '0 * * * *',
-        description: 'Analyze un-scored closed conversations for quality metrics',
-        enabled: true,
-        handler: async () => {
-          const analyzer = new QualityAnalyzer(this.prisma);
-          const orgs = await this.prisma.org.findMany({
-            select: { orgId: true },
-          });
-          let totalAnalyzed = 0;
-          for (const org of orgs) {
-            try {
-              const count = await analyzer.analyzeUnscored(org.orgId, 50);
-              totalAnalyzed += count;
-            } catch (err: any) {
-              console.error(`[Scheduler]   → Quality analysis failed for org ${org.orgId}:`, err?.message);
-            }
-          }
-          console.log(`[Scheduler]   → Analyzed ${totalAnalyzed} conversations`);
-        },
-      },
-
-      // 6. Waitlist Expiry — every hour
-      {
-        name: 'waitlist-expiry',
-        schedule: '0 * * * *',
-        description: 'Expire waitlist entries older than 7 days',
-        enabled: true,
-        handler: async () => {
-          const sevenDaysAgo = new Date();
-          sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-          const result = await this.prisma.waitlist.updateMany({
-            where: {
-              status: 'waiting',
-              createdAt: { lt: sevenDaysAgo },
-            },
-            data: {
-              status: 'expired',
-            },
-          });
-          console.log(`[Scheduler]   → Expired ${result.count} waitlist entries`);
-        },
-      },
-
-      // 7. Hold Expiration — every minute
+      // 4. Hold Expiration — every minute
       {
         name: 'hold-expiration',
         schedule: '* * * * *',
@@ -465,6 +386,15 @@ export class TaskScheduler {
           let sent = 0;
           let skipped = 0;
 
+          // SECURITY: Instantiate Twilio client once outside the loop; fail fast if creds missing
+          const accountSid = process.env.TWILIO_ACCOUNT_SID;
+          const authToken = process.env.TWILIO_AUTH_TOKEN;
+          const fromNumber = process.env.TWILIO_PHONE_NUMBER;
+          if (!accountSid || !authToken || !fromNumber) {
+            throw new Error('Twilio credentials not configured for SMS reminders');
+          }
+          const twilioClient = (await import('twilio')).default(accountSid, authToken);
+
           for (const apt of appointments) {
             try {
               const phone = apt.patient?.contacts?.[0]?.contactValue;
@@ -475,15 +405,11 @@ export class TaskScheduler {
               });
               const body =
                 `تذكير: لديك موعد غداً مع ${apt.provider.displayName} الساعة ${timeStr}. ` +
-                `للإلغاء أرسل "إلغاء ${apt.appointmentId}"`;
+                `للتأكيد أرسل 1، للإلغاء أرسل 2`;
 
-              const twilioClient = (await import('twilio')).default(
-                process.env.TWILIO_ACCOUNT_SID,
-                process.env.TWILIO_AUTH_TOKEN,
-              );
               await twilioClient.messages.create({
                 to: phone,
-                from: process.env.TWILIO_PHONE_NUMBER!,
+                from: fromNumber,
                 body,
               });
 
@@ -510,20 +436,85 @@ export class TaskScheduler {
         },
       },
 
-      // 10. Waitlist Expiry Re-notify — every 30 minutes
+      // 10. Offer Expiry — daily at midnight AST
       {
-        name: 'waitlist-expiry-renotify',
-        schedule: '*/30 * * * *',
-        description: 'Expire waitlist notifications older than 2 hours and notify the next candidate in queue',
+        name: 'offer-expiry',
+        schedule: '0 0 * * *',
+        description: 'Expire active offers that have passed their validUntil date',
         enabled: true,
+        timezone: 'Asia/Riyadh',
         handler: async () => {
-          const waitlistAutoFill = new WaitlistAutoFill(this.prisma);
-          const expired = await waitlistAutoFill.processExpiredNotifications();
+          const offerManager = new OfferManager(this.prisma, null);
+          const expired = await offerManager.expireOverdueOffers();
           if (expired > 0) {
-            console.log(`[Scheduler]   → Processed ${expired} expired waitlist notifications`);
+            console.log(`[Scheduler]   → Expired ${expired} overdue offers`);
           }
         },
       },
+
+      // 11. Patient Insights Rebuild — daily at 3:00 AM AST
+      {
+        name: 'patient-insights-rebuild',
+        schedule: '0 3 * * *',
+        description: 'Recompute engagement scores and behavioral insights for all patients',
+        enabled: true,
+        timezone: 'Asia/Riyadh',
+        handler: async () => {
+          const builder = getInsightBuilder(this.prisma);
+          const orgs = await this.prisma.org.findMany({ select: { orgId: true } });
+          let totalPatients = 0;
+          for (const org of orgs) {
+            try {
+              const count = await builder.rebuildAllInsights(org.orgId);
+              totalPatients += count;
+            } catch (err: any) {
+              console.error(`[Scheduler]   → Insight rebuild failed for org ${org.orgId}:`, err?.message);
+            }
+          }
+          console.log(`[Scheduler]   ✓ Patient insights rebuilt for ${totalPatients} patients across ${orgs.length} orgs`);
+        },
+      },
+
+      // 12. Salary Day Campaigns — 10 AM on 25th-27th of each month
+      {
+        name: 'salary-day-campaigns',
+        schedule: '0 10 25-27 * *',
+        description: 'Activate and execute salary-day campaigns (Saudi payday: 25th-27th)',
+        enabled: true,
+        timezone: 'Asia/Riyadh',
+        handler: async () => {
+          // Find draft salary-day campaigns and start them
+          const draftCampaigns = await this.prisma.campaign.findMany({
+            where: { salaryDayOnly: true, status: 'draft' },
+          });
+
+          let started = 0;
+          for (const campaign of draftCampaigns) {
+            try {
+              const cm = getCampaignManager(this.prisma, null);
+              await cm.startCampaign(campaign.campaignId);
+              started++;
+            } catch (err: any) {
+              console.error(`[Scheduler]   → Failed to start salary-day campaign ${campaign.name}:`, err?.message);
+            }
+          }
+
+          // Execute active salary-day campaigns
+          const cm = getCampaignManager(this.prisma, null);
+          const results = await cm.executeAllActiveCampaigns();
+          const salaryResults = results.filter(r => r.enqueued > 0 || r.processed > 0);
+
+          // Auto-complete salary-day campaigns on the 28th
+          const riyadhNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Riyadh' }));
+          if (riyadhNow.getDate() === 27) {
+            // Last salary day — campaigns will be completed by normal execution flow
+            // or on next campaign-executor run when endDate passes
+          }
+
+          console.log(`[Scheduler]   ✓ Salary day: ${started} campaigns started, ${salaryResults.length} campaigns processed`);
+        },
+      },
+
     ];
   }
 }

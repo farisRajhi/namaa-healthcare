@@ -1,4 +1,4 @@
-# Namaa — Deployment Infrastructure Report
+# Tawafud — Deployment Infrastructure Report
 
 **Date:** 2026-02-10  
 **Commit:** `1aaf38e` — `feat: add deployment infrastructure (Dockerfiles, docker-compose, nginx, env template)`  
@@ -72,7 +72,7 @@
 - **Base:** `node:20-alpine`
 - **Stages:** 3 (deps → build → production)
 - **Prisma:** Generated in both build and production stages
-- **Security:** Non-root user `namaa` (uid 1001)
+- **Security:** Non-root user `tawafud` (uid 1001)
 - **Init:** `dumb-init` for proper signal handling
 - **Health check:** `curl -f http://localhost:3000/health`
 - **Production deps:** `npm ci --omit=dev`
@@ -101,7 +101,7 @@
 - **Frontend** depends on healthy backend
 - **All services:** `restart: unless-stopped`
 - **Named volumes:** `app_postgres_data`, `redis_data`
-- **Custom bridge network:** `namaa_network`
+- **Custom bridge network:** `tawafud_network`
 - **n8n:** Optional — activated with `docker compose --profile n8n up`
 - **Environment:** All vars from `.env` with sensible defaults
 

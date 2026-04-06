@@ -3,8 +3,225 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
-import { Building, Globe, Bell, Webhook, Languages, Save, CheckCircle, User } from 'lucide-react'
+import { Building, Bell, Languages, Save, CheckCircle, User, WifiOff, QrCode, Power, Smartphone, AlertCircle } from 'lucide-react'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
+
+function WhatsAppConnectionCard() {
+  const { t, i18n } = useTranslation()
+  const queryClient = useQueryClient()
+  const isAr = i18n.language === 'ar'
+
+  // Track whether the user actively initiated a connect
+  const [userInitiatedConnect, setUserInitiatedConnect] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  // Determine poll interval based on state
+  const needsFastPoll = userInitiatedConnect
+
+  // Main status query — polls fast when connecting, slow otherwise
+  const { data: statusData } = useQuery({
+    queryKey: ['baileys-status'],
+    queryFn: async () => {
+      const res = await api.get('/api/baileys-whatsapp/status')
+      return res.data
+    },
+    refetchInterval: needsFastPoll ? 2000 : 30000,
+    retry: 2,
+  })
+
+  const status: string = statusData?.status || 'disconnected'
+  const isConnected = status === 'connected'
+  const isQr = status === 'qr'
+  const isConnecting = status === 'connecting'
+  const phone = statusData?.phone
+  const name = statusData?.name
+  const qr = statusData?.qrDataUrl || null
+
+  // Stop fast-polling once connected
+  useEffect(() => {
+    if (isConnected && userInitiatedConnect) {
+      setUserInitiatedConnect(false)
+      setError(null)
+    }
+  }, [isConnected, userInitiatedConnect])
+
+  // Connect mutation
+  const connectMutation = useMutation({
+    mutationFn: async () => {
+      setError(null)
+      const res = await api.post('/api/baileys-whatsapp/connect')
+      return res.data
+    },
+    onSuccess: () => {
+      setUserInitiatedConnect(true)
+      queryClient.invalidateQueries({ queryKey: ['baileys-status'] })
+    },
+    onError: (err: any) => {
+      setError(err?.response?.data?.message || (isAr ? 'فشل الاتصال' : 'Connection failed'))
+      setUserInitiatedConnect(false)
+    },
+  })
+
+  // Disconnect mutation
+  const disconnectMutation = useMutation({
+    mutationFn: async () => {
+      const res = await api.post('/api/baileys-whatsapp/disconnect')
+      return res.data
+    },
+    onSuccess: () => {
+      setUserInitiatedConnect(false)
+      setError(null)
+      queryClient.invalidateQueries({ queryKey: ['baileys-status'] })
+    },
+    onError: (err: any) => {
+      setError(err?.response?.data?.message || (isAr ? 'فشل قطع الاتصال' : 'Disconnect failed'))
+    },
+  })
+
+  const handleConnect = () => {
+    connectMutation.mutate()
+  }
+
+  const handleDisconnect = () => {
+    if (window.confirm(t('settings.whatsapp.confirmDisconnect'))) {
+      disconnectMutation.mutate()
+    }
+  }
+
+  // Determine what to show
+  const showQr = !isConnected && (isQr || (userInitiatedConnect && qr))
+  const showLoading = !isConnected && (isConnecting || connectMutation.isPending) && !qr
+  const showDisconnected = !isConnected && !showQr && !showLoading && !connectMutation.isPending
+
+  return (
+    <div className="card p-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center gap-3">
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
+            isConnected ? 'bg-[#25D366]/10' : 'bg-gray-100'
+          }`}>
+            <svg className={`h-5 w-5 ${isConnected ? 'text-[#25D366]' : 'text-gray-400'}`} viewBox="0 0 24 24" fill="currentColor">
+              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+            </svg>
+          </div>
+          <div>
+            <h2 className="text-lg font-heading font-semibold text-healthcare-text">{t('settings.whatsapp.title')}</h2>
+            <p className="text-xs text-healthcare-muted">{t('settings.whatsapp.subtitle')}</p>
+          </div>
+        </div>
+        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+          isConnected
+            ? 'bg-[#25D366]/10 text-[#25D366]'
+            : isConnecting || isQr
+              ? 'bg-amber-50 text-amber-600'
+              : 'bg-gray-100 text-gray-500'
+        }`}>
+          {isConnected ? (
+            <><div className="w-1.5 h-1.5 rounded-full bg-[#25D366] animate-pulse" /> {t('settings.whatsapp.connected')}</>
+          ) : isConnecting || isQr ? (
+            <><div className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> {t('settings.whatsapp.connecting')}</>
+          ) : (
+            <><WifiOff className="h-3 w-3" /> {t('settings.whatsapp.disconnected')}</>
+          )}
+        </div>
+      </div>
+
+      {/* Error message */}
+      {error && (
+        <div className="mb-4 p-3 bg-red-50 border border-red-200/50 rounded-xl flex items-center gap-2">
+          <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
+          <p className="text-sm text-red-700">{error}</p>
+        </div>
+      )}
+
+      {/* Connected state */}
+      {isConnected && (
+        <div className="space-y-4">
+          <div className="p-4 bg-[#25D366]/5 border border-[#25D366]/20 rounded-xl">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-2 h-2 rounded-full bg-[#25D366] animate-pulse" />
+              <p className="text-sm font-medium text-[#25D366]">{t('settings.whatsapp.statusActive')}</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {phone && (
+                <div className="p-3 bg-white/60 rounded-lg">
+                  <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">{t('settings.whatsapp.linkedPhone')}</p>
+                  <p className="text-sm font-semibold text-gray-800 dir-ltr">{phone}</p>
+                </div>
+              )}
+              {name && (
+                <div className="p-3 bg-white/60 rounded-lg">
+                  <p className="text-[11px] text-gray-500 uppercase tracking-wide mb-0.5">{t('settings.whatsapp.linkedName')}</p>
+                  <p className="text-sm font-semibold text-gray-800">{name}</p>
+                </div>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={handleDisconnect}
+            disabled={disconnectMutation.isPending}
+            className="btn-outline text-red-600 border-red-200 hover:bg-red-50 flex items-center gap-2 text-sm"
+          >
+            {disconnectMutation.isPending ? <LoadingSpinner size="sm" /> : <Power className="h-4 w-4" />}
+            {t('settings.whatsapp.disconnect')}
+          </button>
+        </div>
+      )}
+
+      {/* QR Code state */}
+      {showQr && (
+        <div className="space-y-3">
+          <div className="flex flex-col items-center py-2">
+            <div className="relative p-4 bg-white rounded-2xl shadow-md border border-gray-100 mb-4">
+              {qr ? (
+                <img src={qr} alt="WhatsApp QR Code" className="w-56 h-56 sm:w-64 sm:h-64" />
+              ) : (
+                <div className="w-56 h-56 sm:w-64 sm:h-64 flex items-center justify-center bg-gray-50 rounded-xl">
+                  <LoadingSpinner size="lg" />
+                </div>
+              )}
+            </div>
+            <div className="text-center max-w-xs">
+              <p className="text-sm font-medium text-healthcare-text mb-1">{t('settings.whatsapp.scanPrompt')}</p>
+              <div className="flex items-center justify-center gap-2 text-xs text-healthcare-muted">
+                <Smartphone className="h-3.5 w-3.5" />
+                <p>{t('settings.whatsapp.scanInstructions')}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Loading / waiting for QR */}
+      {showLoading && (
+        <div className="flex flex-col items-center py-10">
+          <div className="relative">
+            <div className="w-16 h-16 rounded-full border-4 border-gray-100 border-t-[#25D366] animate-spin" />
+          </div>
+          <p className="text-sm text-healthcare-muted mt-4">{t('settings.whatsapp.waitingQr')}</p>
+        </div>
+      )}
+
+      {/* Disconnected state */}
+      {showDisconnected && (
+        <div className="space-y-4">
+          <div className="p-4 bg-gray-50/80 border border-gray-200/50 rounded-xl">
+            <p className="text-sm text-gray-600">{t('settings.whatsapp.statusInactive')}</p>
+          </div>
+          <button
+            onClick={handleConnect}
+            disabled={connectMutation.isPending}
+            className="btn-primary flex items-center gap-2 bg-[#25D366] hover:bg-[#20BD5A] border-[#25D366] hover:border-[#20BD5A]"
+          >
+            {connectMutation.isPending ? <LoadingSpinner size="sm" /> : <QrCode className="h-4 w-4" />}
+            {t('settings.whatsapp.connect')}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function Settings() {
   const { user } = useAuth()
@@ -194,54 +411,8 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* n8n Webhook */}
-        <div className="card p-6">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-10 h-10 rounded-xl bg-secondary-100 flex items-center justify-center">
-              <Webhook className="h-5 w-5 text-secondary-600" />
-            </div>
-            <h2 className="text-lg font-heading font-semibold text-healthcare-text">{t('settings.n8n.title')}</h2>
-          </div>
-          <div className="space-y-4">
-            <div>
-              <label className="input-label">{t('settings.n8n.apiKey')}</label>
-              <div className="flex gap-2 max-w-md">
-                <input type="password" defaultValue="••••••••••••••••" readOnly className="input bg-primary-50/30" />
-                <button className="btn-outline flex-shrink-0">{t('settings.n8n.regenerate')}</button>
-              </div>
-              <p className="input-hint">{t('settings.n8n.apiKeyHint')}</p>
-            </div>
-            <div>
-              <label className="input-label">{t('settings.n8n.endpoints')}</label>
-              <div className="space-y-2 max-w-md">
-                {['POST /api/webhooks/availability', 'POST /api/webhooks/book', 'POST /api/webhooks/patient'].map((ep) => (
-                  <div key={ep} className="p-3 bg-primary-50/50 rounded-lg font-mono text-xs text-primary-700 border border-primary-200/30">
-                    {ep}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* WhatsApp */}
-        <div className="card p-6">
-          <div className="flex items-center gap-3 mb-5">
-            <div className="w-10 h-10 rounded-xl bg-success-50 flex items-center justify-center">
-              <Globe className="h-5 w-5 text-success-500" />
-            </div>
-            <h2 className="text-lg font-heading font-semibold text-healthcare-text">{t('settings.whatsapp.title')}</h2>
-          </div>
-          <div className="space-y-4">
-            <div className="p-4 bg-warning-50 border border-warning-200/50 rounded-xl">
-              <p className="text-sm text-warning-800">{t('settings.whatsapp.notice')}</p>
-            </div>
-            <div>
-              <label className="input-label">{t('settings.whatsapp.phoneNumber')}</label>
-              <input type="text" placeholder="+966 XX XXX XXXX" className="input max-w-xs dir-ltr" />
-            </div>
-          </div>
-        </div>
+        {/* WhatsApp Baileys Connection */}
+        <WhatsAppConnectionCard />
 
         {/* Notifications */}
         <div className="card p-6">

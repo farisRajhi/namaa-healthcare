@@ -568,7 +568,6 @@ export class FlowEngine {
           cancel_appointment: ['إلغاء', 'الغاء', 'cancel'],
           reschedule: ['تغيير', 'تعديل', 'إعادة جدولة', 'reschedule', 'change'],
           faq: ['سؤال', 'استفسار', 'question', 'ask', 'info'],
-          prescription: ['وصفة', 'دواء', 'علاج', 'prescription', 'refill', 'medication'],
           transfer: ['موظف', 'بشري', 'تحويل', 'human', 'agent', 'transfer'],
           greeting: ['مرحبا', 'السلام', 'أهلا', 'hello', 'hi', 'hey'],
           hours: ['ساعات', 'أوقات', 'دوام', 'hours', 'open', 'close'],
@@ -676,27 +675,6 @@ export class FlowEngine {
           message: 'Appointment booking initiated',
           messageAr: 'تم بدء حجز الموعد',
           data: resolvedParams,
-        }
-      }
-
-      case 'check_prescription': {
-        try {
-          const patientId = resolvedParams.patientId ?? variables.patientId
-          if (!patientId) return { success: false, error: 'Patient ID not provided' }
-          const prescriptions = await this.prisma.prescription.findMany({
-            where: { patientId, status: 'active' },
-            take: 5,
-          })
-          return {
-            success: true,
-            prescriptions: prescriptions.map(p => ({
-              name: p.medicationNameAr ?? p.medicationName,
-              dosage: p.dosage,
-              refillsRemaining: p.refillsRemaining,
-            })),
-          }
-        } catch {
-          return { success: false, error: 'Could not check prescriptions' }
         }
       }
 

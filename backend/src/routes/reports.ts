@@ -7,7 +7,7 @@ const dateRangeSchema = z.object({
 });
 
 const reportTypeSchema = z.object({
-  type: z.enum(['appointments', 'patients', 'calls', 'campaigns', 'prescriptions']),
+  type: z.enum(['appointments', 'patients', 'calls', 'campaigns']),
   from: z.string().optional(),
   to: z.string().optional(),
   format: z.enum(['json', 'csv']).default('csv'),
@@ -53,7 +53,6 @@ export default async function reportsRoutes(app: FastifyInstance) {
       cancelledAppointments,
       noShowAppointments,
       totalCalls,
-      totalPrescriptions,
       activeCampaigns,
     ] = await Promise.all([
       app.prisma.patient.count({ where: { orgId } }),
@@ -63,7 +62,6 @@ export default async function reportsRoutes(app: FastifyInstance) {
       app.prisma.appointment.count({ where: { orgId, status: 'cancelled', createdAt: { gte: from, lte: to } } }),
       app.prisma.appointment.count({ where: { orgId, status: 'no_show', createdAt: { gte: from, lte: to } } }),
       app.prisma.voiceCall.count({ where: { orgId, createdAt: { gte: from, lte: to } } }),
-      app.prisma.prescription.count({ where: { orgId, createdAt: { gte: from, lte: to } } }),
       app.prisma.campaign.count({ where: { orgId, status: 'active' } }),
     ]);
 
@@ -83,7 +81,6 @@ export default async function reportsRoutes(app: FastifyInstance) {
           noShowRate,
         },
         calls: { total: totalCalls },
-        prescriptions: { total: totalPrescriptions },
         campaigns: { active: activeCampaigns },
       },
     };
@@ -195,30 +192,6 @@ export default async function reportsRoutes(app: FastifyInstance) {
           createdAt: c.createdAt.toISOString(),
         }));
         filename = `campaigns_${from.toISOString().slice(0, 10)}_${to.toISOString().slice(0, 10)}`;
-        break;
-      }
-      case 'prescriptions': {
-        const prescriptions = await app.prisma.prescription.findMany({
-          where: { orgId, createdAt: { gte: from, lte: to } },
-          orderBy: { createdAt: 'desc' },
-          take: 5000,
-        });
-        data = prescriptions.map((p) => ({
-          prescriptionId: p.prescriptionId,
-          patientId: p.patientId,
-          providerId: p.providerId,
-          medicationName: p.medicationName,
-          dosage: p.dosage,
-          frequency: p.frequency,
-          status: p.status,
-          refillsRemaining: p.refillsRemaining,
-          refillsTotal: p.refillsTotal,
-          startDate: p.startDate.toISOString().slice(0, 10),
-          endDate: p.endDate ? p.endDate.toISOString().slice(0, 10) : '',
-          pharmacyName: p.pharmacyName || '',
-          createdAt: p.createdAt.toISOString(),
-        }));
-        filename = `prescriptions_${from.toISOString().slice(0, 10)}_${to.toISOString().slice(0, 10)}`;
         break;
       }
     }

@@ -1,4 +1,4 @@
-# 📁 Namaa Project Structure
+# 📁 Tawafud Project Structure
 
 Complete file structure after CI/CD and deployment setup.
 

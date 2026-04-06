@@ -1,6 +1,6 @@
-# Namaa Backend Test Suite
+# Tawafud Backend Test Suite
 
-Comprehensive test suite for the Namaa AI Medical Receptionist backend using Vitest.
+Comprehensive test suite for the Tawafud AI Medical Receptionist backend using Vitest.
 
 ## 📁 Test Structure
 
@@ -215,7 +215,7 @@ Tests run against:
 
 Create `.env.test` file:
 ```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5434/namaa_test
+DATABASE_URL=postgresql://postgres:postgres@localhost:5434/tawafud_test
 JWT_SECRET=test-secret-key
 NODE_ENV=test
 ```

@@ -14,13 +14,13 @@ const DEFAULT_WIDGET_CONFIGS: Record<string, {
   services: string[];
 }> = {
   test: {
-    orgName: 'عيادة نماء التجريبية',
+    orgName: 'عيادة توافد التجريبية',
     theme: 'teal',
     greeting: 'مرحباً! كيف أقدر أساعدك اليوم؟',
     services: ['حجز موعد', 'استفسار عام', 'إعادة صرف وصفة'],
   },
   default: {
-    orgName: 'نماء',
+    orgName: 'توافد',
     theme: 'teal',
     greeting: 'مرحباً! كيف أقدر أساعدك؟',
     services: ['حجز موعد', 'استفسار عام', 'إعادة صرف وصفة'],
@@ -75,6 +75,6 @@ export default async function widgetRoutes(app: FastifyInstance) {
     return reply
       .status(404)
       .header('Content-Type', 'application/javascript')
-      .send('// Namaa Widget not built yet. Run: cd frontend && npm run build:widget');
+      .send('// Tawafud Widget not built yet. Run: cd frontend && npm run build:widget');
   });
 }

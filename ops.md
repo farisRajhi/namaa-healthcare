@@ -1,4 +1,4 @@
-# Namaa — Ops & Security Status
+# Tawafud — Ops & Security Status
 
 > Last updated: 2026-02-23 | QA Re-test after critical-fixes patch
 

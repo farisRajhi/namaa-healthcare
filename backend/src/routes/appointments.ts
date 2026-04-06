@@ -1,6 +1,5 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
-import { getWaitlistAutoFill } from '../services/pipelines/waitlistAutoFill.js';
 import { getAppointmentReminderService } from '../services/reminders/appointmentReminder.js';
 import { validateTwilioSignature } from '../lib/twilioVerify.js';
 
@@ -24,8 +23,8 @@ const updateStatusSchema = z.object({
 });
 
 const querySchema = z.object({
-  page: z.coerce.number().default(1),
-  limit: z.coerce.number().default(20),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
   providerId: z.string().uuid().optional(),
   patientId: z.string().uuid().optional(),
   status: z.string().optional(),
@@ -37,45 +36,50 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
 
   // List appointments
-  app.get('/', async (request: FastifyRequest) => {
-    const { orgId } = request.user;
-    const query = querySchema.parse(request.query);
-    const skip = (query.page - 1) * query.limit;
+  app.get('/', async (request: FastifyRequest, reply) => {
+    try {
+      const { orgId } = request.user;
+      const query = querySchema.parse(request.query);
+      const skip = (query.page - 1) * query.limit;
 
-    const where = {
-      orgId,
-      ...(query.providerId && { providerId: query.providerId }),
-      ...(query.patientId && { patientId: query.patientId }),
-      ...(query.status && { status: query.status as any }),
-      ...(query.from && { startTs: { gte: new Date(query.from) } }),
-      ...(query.to && { startTs: { lte: new Date(query.to) } }),
-    };
+      const where = {
+        orgId,
+        ...(query.providerId && { providerId: query.providerId }),
+        ...(query.patientId && { patientId: query.patientId }),
+        ...(query.status && { status: query.status as any }),
+        ...(query.from && { startTs: { gte: new Date(query.from) } }),
+        ...(query.to && { startTs: { lte: new Date(query.to) } }),
+      };
 
-    const [appointments, total] = await Promise.all([
-      app.prisma.appointment.findMany({
-        where,
-        skip,
-        take: query.limit,
-        include: {
-          provider: true,
-          patient: true,
-          service: true,
-          facility: true,
+      const [appointments, total] = await Promise.all([
+        app.prisma.appointment.findMany({
+          where,
+          skip,
+          take: query.limit,
+          include: {
+            provider: true,
+            patient: true,
+            service: true,
+            facility: true,
+          },
+          orderBy: { startTs: 'asc' },
+        }),
+        app.prisma.appointment.count({ where }),
+      ]);
+
+      return {
+        data: appointments,
+        pagination: {
+          page: query.page,
+          limit: query.limit,
+          total,
+          totalPages: Math.ceil(total / query.limit),
         },
-        orderBy: { startTs: 'asc' },
-      }),
-      app.prisma.appointment.count({ where }),
-    ]);
-
-    return {
-      data: appointments,
-      pagination: {
-        page: query.page,
-        limit: query.limit,
-        total,
-        totalPages: Math.ceil(total / query.limit),
-      },
-    };
+      };
+    } catch (err) {
+      request.log.error(err, 'Failed to list appointments');
+      return reply.code(500).send({ error: 'Failed to fetch appointments', message: err instanceof Error ? err.message : 'Unknown error' });
+    }
   });
 
   // Get single appointment
@@ -146,37 +150,89 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
       }
     }
 
+    // Phase 0.4: Validate provider offers this service
+    const providerService = await app.prisma.providerService.findUnique({
+      where: { providerId_serviceId: { providerId: body.providerId, serviceId: body.serviceId } },
+    });
+    if (!providerService) {
+      return reply.code(400).send({ error: 'Provider does not offer this service' });
+    }
+
     const startTs = new Date(body.startTs);
     const endTs = new Date(startTs.getTime() + service.durationMin * 60000);
 
-    const appointment = await app.prisma.appointment.create({
-      data: {
-        orgId,
+    // Phase 0.3: Check provider time-off
+    const timeOff = await app.prisma.providerTimeOff.findFirst({
+      where: {
         providerId: body.providerId,
-        patientId: body.patientId,
-        serviceId: body.serviceId,
-        facilityId: body.facilityId,
-        departmentId: body.departmentId,
-        startTs,
-        endTs,
-        status: 'booked',
-        reason: body.reason,
-        notes: body.notes,
-        statusHistory: {
-          create: {
-            newStatus: 'booked',
-            changedBy: userId,
-          },
-        },
-      },
-      include: {
-        provider: true,
-        patient: true,
-        service: true,
+        startTs: { lte: endTs },
+        endTs: { gte: startTs },
       },
     });
+    if (timeOff) {
+      return reply.code(409).send({ error: 'Provider is on leave during this time' });
+    }
 
-    return appointment;
+    // Phase 0.1: Atomic conflict check + create to prevent double-booking
+    try {
+      const appointment = await app.prisma.$transaction(async (tx) => {
+        // Phase 0.2: Expand conflict window by buffer times
+        const bufferBefore = (service.bufferBeforeMin ?? 0) * 60000;
+        const bufferAfter = (service.bufferAfterMin ?? 0) * 60000;
+        const conflictStart = new Date(startTs.getTime() - bufferBefore);
+        const conflictEnd = new Date(endTs.getTime() + bufferAfter);
+
+        const conflict = await tx.appointment.findFirst({
+          where: {
+            providerId: body.providerId,
+            status: { in: ['held', 'booked', 'confirmed'] },
+            OR: [
+              { startTs: { gte: conflictStart, lt: conflictEnd } },
+              { endTs: { gt: conflictStart, lte: conflictEnd } },
+              { AND: [{ startTs: { lte: conflictStart } }, { endTs: { gte: conflictEnd } }] },
+            ],
+          },
+        });
+
+        if (conflict) {
+          throw new Error('SLOT_CONFLICT');
+        }
+
+        return tx.appointment.create({
+          data: {
+            orgId,
+            providerId: body.providerId,
+            patientId: body.patientId,
+            serviceId: body.serviceId,
+            facilityId: body.facilityId,
+            departmentId: body.departmentId,
+            startTs,
+            endTs,
+            status: 'booked',
+            reason: body.reason,
+            notes: body.notes,
+            statusHistory: {
+              create: {
+                newStatus: 'booked',
+                changedBy: userId,
+              },
+            },
+          },
+          include: {
+            provider: true,
+            patient: true,
+            service: true,
+          },
+        });
+      }, { isolationLevel: 'Serializable' });
+
+      return appointment;
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message === 'SLOT_CONFLICT') {
+        return reply.code(409).send({ error: 'Time slot is already booked' });
+      }
+      throw err;
+    }
   });
 
   // Update appointment status
@@ -213,20 +269,71 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
       },
     });
 
-    // Trigger waitlist auto-fill when appointment is cancelled
-    if (body.status === 'cancelled') {
-      try {
-        const waitlistAutoFill = getWaitlistAutoFill(app.prisma, app.twilio ?? null);
-        // Fire-and-forget — don't block the response
-        waitlistAutoFill.onAppointmentCancelled(id).catch((err) => {
-          app.log.error(`Waitlist auto-fill error for appointment ${id}: ${err?.message}`);
-        });
-      } catch (err: any) {
-        app.log.error(`Failed to trigger waitlist auto-fill: ${err?.message}`);
-      }
+    return appointment;
+  });
+
+  // Phase 3: Reschedule appointment
+  app.patch<{ Params: { id: string } }>('/:id/reschedule', async (request, reply) => {
+    const { orgId, userId } = request.user;
+    const { id } = request.params;
+    const body = z.object({
+      newStartTs: z.string(),
+    }).parse(request.body);
+
+    const existing = await app.prisma.appointment.findFirst({
+      where: { appointmentId: id, orgId, status: { in: ['booked', 'confirmed'] } },
+      include: { service: true },
+    });
+
+    if (!existing) {
+      return reply.code(404).send({ error: 'Appointment not found or cannot be rescheduled' });
     }
 
-    return appointment;
+    const newStartTs = new Date(body.newStartTs);
+    const newEndTs = new Date(newStartTs.getTime() + existing.service.durationMin * 60000);
+
+    try {
+      const appointment = await app.prisma.$transaction(async (tx) => {
+        // Check new slot for conflicts (exclude current appointment)
+        const conflict = await tx.appointment.findFirst({
+          where: {
+            providerId: existing.providerId,
+            appointmentId: { not: id },
+            status: { in: ['held', 'booked', 'confirmed'] },
+            OR: [
+              { startTs: { gte: newStartTs, lt: newEndTs } },
+              { endTs: { gt: newStartTs, lte: newEndTs } },
+              { AND: [{ startTs: { lte: newStartTs } }, { endTs: { gte: newEndTs } }] },
+            ],
+          },
+        });
+        if (conflict) throw new Error('SLOT_CONFLICT');
+
+        return tx.appointment.update({
+          where: { appointmentId: id },
+          data: {
+            startTs: newStartTs,
+            endTs: newEndTs,
+            statusHistory: {
+              create: {
+                oldStatus: existing.status,
+                newStatus: existing.status,
+                changedBy: userId,
+                reason: `Rescheduled from ${existing.startTs.toISOString()} to ${newStartTs.toISOString()}`,
+              },
+            },
+          },
+          include: { provider: true, patient: true, service: true },
+        });
+      }, { isolationLevel: 'Serializable' });
+
+      return appointment;
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message === 'SLOT_CONFLICT') {
+        return reply.code(409).send({ error: 'New time slot is already booked' });
+      }
+      throw err;
+    }
   });
 
   // Check availability for a provider
@@ -249,6 +356,23 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
     const date = new Date(query.date);
     const dayOfWeek = date.getDay();
 
+    const startOfDay = new Date(date);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(date);
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // Phase 0.3: Check if provider is on time-off for this date
+    const timeOff = await app.prisma.providerTimeOff.findFirst({
+      where: {
+        providerId,
+        startTs: { lte: endOfDay },
+        endTs: { gte: startOfDay },
+      },
+    });
+    if (timeOff) {
+      return { slots: [], message: 'Provider is on leave during this date' };
+    }
+
     // Get provider's availability rules for this day
     const rules = await app.prisma.providerAvailabilityRule.findMany({
       where: {
@@ -263,11 +387,6 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
     });
 
     // Get existing appointments for this day
-    const startOfDay = new Date(date);
-    startOfDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
-
     const existingAppointments = await app.prisma.appointment.findMany({
       where: {
         providerId,
@@ -276,7 +395,7 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
       },
     });
 
-    // Get service duration
+    // Get service duration + buffers
     const service = await app.prisma.service.findUnique({
       where: { serviceId: query.serviceId },
     });
@@ -285,12 +404,13 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
       return reply.code(404).send({ error: 'Service not found' });
     }
 
+    // Phase 0.2: Use service buffer times in slot calculation
+    const effectiveSlotMin = service.durationMin + (service.bufferBeforeMin ?? 0) + (service.bufferAfterMin ?? 0);
+
     // Calculate available slots
     const slots: { start: string; end: string }[] = [];
 
     for (const rule of rules) {
-      // Generate slots based on rule
-      // This is a simplified version - you'd want more complex logic here
       const ruleStart = new Date(date);
       const [startHour, startMin] = rule.startLocal.toISOString().slice(11, 16).split(':').map(Number);
       ruleStart.setHours(startHour, startMin, 0, 0);
@@ -303,9 +423,13 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
       while (slotStart.getTime() + service.durationMin * 60000 <= ruleEnd.getTime()) {
         const slotEnd = new Date(slotStart.getTime() + service.durationMin * 60000);
 
-        // Check if slot conflicts with existing appointments
+        // Phase 0.2: Expand conflict window by buffer times for proper gap enforcement
+        const conflictStart = new Date(slotStart.getTime() - (service.bufferBeforeMin ?? 0) * 60000);
+        const conflictEnd = new Date(slotEnd.getTime() + (service.bufferAfterMin ?? 0) * 60000);
+
+        // Check if slot conflicts with existing appointments (using full range overlap)
         const hasConflict = existingAppointments.some(apt =>
-          slotStart < apt.endTs && slotEnd > apt.startTs
+          conflictStart < apt.endTs && conflictEnd > apt.startTs
         );
 
         if (!hasConflict) {
@@ -315,7 +439,7 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
           });
         }
 
-        slotStart = new Date(slotStart.getTime() + rule.slotIntervalMin * 60000);
+        slotStart = new Date(slotStart.getTime() + effectiveSlotMin * 60000);
       }
     }
 
@@ -423,12 +547,6 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
       where: { appointmentId: appointment.appointmentId, status: 'pending' },
       data: { status: 'cancelled', response: 'appointment_cancelled_by_patient_sms' },
     });
-
-    // Trigger waitlist auto-fill
-    try {
-      const waitlistAutoFill = getWaitlistAutoFill(app.prisma, app.twilio ?? null);
-      waitlistAutoFill.onAppointmentCancelled(appointment.appointmentId).catch(() => {});
-    } catch {}
 
     // Send confirmation SMS
     const dateStr = appointment.startTs.toLocaleDateString('ar-SA', {

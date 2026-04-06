@@ -15,7 +15,7 @@ export default defineConfig({
   build: {
     lib: {
       entry: path.resolve(__dirname, 'src/widget/index.tsx'),
-      name: 'NamaaWidget',
+      name: 'TawafudWidget',
       fileName: () => 'widget.js',
       formats: ['iife'],
     },

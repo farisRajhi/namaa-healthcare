@@ -10,9 +10,9 @@ function moyasarAuth(): string {
 }
 
 const PLAN_CONFIG: Record<string, { amount: number; label: string }> = {
-  starter: { amount: 29900, label: 'Namaa Starter Plan' },
-  professional: { amount: 49900, label: 'Namaa Professional Plan' },
-  enterprise: { amount: 79900, label: 'Namaa Enterprise Plan' },
+  starter: { amount: 29900, label: 'Tawafud Starter Plan' },
+  professional: { amount: 49900, label: 'Tawafud Professional Plan' },
+  enterprise: { amount: 79900, label: 'Tawafud Enterprise Plan' },
 };
 
 const createPaymentSchema = z.object({
@@ -36,7 +36,7 @@ export default async function paymentsRoutes(app: FastifyInstance) {
       const planConfig = body.plan ? PLAN_CONFIG[body.plan] : null;
       const amount = planConfig?.amount ?? body.amount;
       const description =
-        body.description || planConfig?.label || 'Namaa Platform Subscription';
+        body.description || planConfig?.label || 'Tawafud Platform Subscription';
 
       if (!amount || amount <= 0) {
         return reply.code(400).send({ error: 'Invalid amount' });
@@ -79,7 +79,7 @@ export default async function paymentsRoutes(app: FastifyInstance) {
         }
 
         // Store in DB
-        const payment = await app.prisma.namaaPayment.create({
+        const payment = await app.prisma.tawafudPayment.create({
           data: {
             orgId: user.orgId,
             amount,
@@ -127,12 +127,12 @@ export default async function paymentsRoutes(app: FastifyInstance) {
         const moyasarPayment = await moyasarResponse.json();
 
         // Update local DB
-        const localPayment = await app.prisma.namaaPayment.findFirst({
+        const localPayment = await app.prisma.tawafudPayment.findFirst({
           where: { moyasarId: id },
         });
 
         if (localPayment) {
-          await app.prisma.namaaPayment.update({
+          await app.prisma.tawafudPayment.update({
             where: { id: localPayment.id },
             data: {
               status: moyasarPayment.status,
@@ -150,7 +150,7 @@ export default async function paymentsRoutes(app: FastifyInstance) {
             const endDate = new Date(now);
             endDate.setMonth(endDate.getMonth() + 1);
 
-            await app.prisma.namaaSubscription.upsert({
+            await app.prisma.tawafudSubscription.upsert({
               where: { id: localPayment.orgId } as any,
               create: {
                 orgId: localPayment.orgId,
@@ -223,12 +223,12 @@ export default async function paymentsRoutes(app: FastifyInstance) {
       try {
         switch (type) {
           case 'payment_paid': {
-            await app.prisma.namaaPayment.updateMany({
+            await app.prisma.tawafudPayment.updateMany({
               where: { moyasarId: data.id },
               data: { status: 'paid', updatedAt: new Date() },
             });
 
-            const localPayment = await app.prisma.namaaPayment.findFirst({
+            const localPayment = await app.prisma.tawafudPayment.findFirst({
               where: { moyasarId: data.id },
             });
 
@@ -237,7 +237,7 @@ export default async function paymentsRoutes(app: FastifyInstance) {
               const endDate = new Date(now);
               endDate.setMonth(endDate.getMonth() + 1);
 
-              await app.prisma.namaaSubscription.upsert({
+              await app.prisma.tawafudSubscription.upsert({
                 where: { id: localPayment.orgId } as any,
                 create: {
                   orgId: localPayment.orgId,
@@ -260,7 +260,7 @@ export default async function paymentsRoutes(app: FastifyInstance) {
             break;
           }
           case 'payment_failed': {
-            await app.prisma.namaaPayment.updateMany({
+            await app.prisma.tawafudPayment.updateMany({
               where: { moyasarId: data.id },
               data: {
                 status: 'failed',
@@ -271,7 +271,7 @@ export default async function paymentsRoutes(app: FastifyInstance) {
             break;
           }
           case 'payment_refunded': {
-            await app.prisma.namaaPayment.updateMany({
+            await app.prisma.tawafudPayment.updateMany({
               where: { moyasarId: data.id },
               data: { status: 'refunded', updatedAt: new Date() },
             });
@@ -295,7 +295,7 @@ export default async function paymentsRoutes(app: FastifyInstance) {
     { preHandler: [app.authenticate] },
     async (request: FastifyRequest, reply: FastifyReply) => {
       const user = request.user;
-      const payments = await app.prisma.namaaPayment.findMany({
+      const payments = await app.prisma.tawafudPayment.findMany({
         where: { orgId: user.orgId },
         orderBy: { createdAt: 'desc' },
         take: 50,

@@ -3,8 +3,18 @@ import { WebSocket } from 'ws';
 import { getLLMService, ChatMessage } from '../services/llm.js';
 import { buildSystemPrompt } from '../services/systemPrompt.js';
 import { GuardrailsService, ValidationContext } from '../services/ai/guardrails.js';
+import { ToolRegistry } from '../services/ai/toolRegistry.js';
+import { ConversationFlowManager, FlowContext } from '../services/ai/conversationFlow.js';
+import { SessionCompactor } from '../services/ai/sessionCompactor.js';
 import { redactPII } from '../services/security/piiRedactor.js';
 import { getContextBuilder } from '../services/patient/contextBuilder.js';
+import { checkAndIncrement, AI_LIMIT_ERROR } from '../services/usage/aiUsageLimiter.js';
+
+// ─────────────────────────────────────────────────────────
+// Chat WebSocket with Typed Stream Events
+// Inspired by claw-code's structured streaming events:
+// tool_invoked, tool_result, state_change, budget_warning
+// ─────────────────────────────────────────────────────────
 
 // ── Connection tracking: conversationId → Set<WebSocket> ──
 const connectionsByConversation = new Map<string, Set<WebSocket>>();
@@ -44,6 +54,41 @@ function safeSend(ws: WebSocket, data: unknown) {
   }
 }
 
+/** Broadcast a typed event to the WebSocket and all connected clients */
+function emitEvent(ws: WebSocket, conversationId: string, event: Record<string, unknown>) {
+  const payload = JSON.stringify(event);
+  safeSend(ws, event);
+  broadcastToConversation(conversationId, payload, ws);
+}
+
+// ── Typed Stream Event definitions ──
+// These events let the frontend show what the AI is doing
+// in real-time: "Checking availability...", "Booking appointment...", etc.
+
+type StreamEventType =
+  | 'history'
+  | 'message'
+  | 'typing'
+  | 'error'
+  | 'tool_invoked'    // AI is calling a tool
+  | 'tool_result'     // Tool execution completed
+  | 'state_change'    // Conversation state transition
+  | 'budget_warning'  // Approaching turn budget limit
+  | 'compaction'      // Session was compacted
+  | 'conversation_info'; // Conversation metadata on connect
+
+// Human-readable tool descriptions for the frontend
+const TOOL_DESCRIPTIONS: Record<string, { ar: string; en: string }> = {
+  check_availability: { ar: 'جاري البحث عن المواعيد المتاحة...', en: 'Checking available slots...' },
+  book_appointment: { ar: 'جاري حجز الموعد...', en: 'Booking appointment...' },
+  list_patient_appointments: { ar: 'جاري استعراض المواعيد...', en: 'Loading appointments...' },
+  cancel_appointment: { ar: 'جاري إلغاء الموعد...', en: 'Cancelling appointment...' },
+  search_providers: { ar: 'جاري البحث عن الأطباء...', en: 'Searching providers...' },
+  list_services: { ar: 'جاري عرض الخدمات...', en: 'Loading services...' },
+  get_facility_info: { ar: 'جاري تحميل معلومات المنشأة...', en: 'Loading facility info...' },
+  transfer_to_human: { ar: 'جاري التحويل لموظف...', en: 'Transferring to agent...' },
+};
+
 // ── Incoming client message shape ──
 interface ClientMessage {
   type: 'message';
@@ -51,6 +96,8 @@ interface ClientMessage {
 }
 
 export default async function chatWebSocketRoutes(app: FastifyInstance) {
+  const flowManager = new ConversationFlowManager(app.prisma);
+  const compactor = new SessionCompactor();
 
   app.get('/ws', { websocket: true }, async (connection, request: FastifyRequest) => {
     const ws = connection.socket as WebSocket;
@@ -111,8 +158,18 @@ export default async function chatWebSocketRoutes(app: FastifyInstance) {
           channel: 'web',
           externalThreadId: `ws-${Date.now()}-${Math.random().toString(36).slice(2)}`,
           status: 'active',
-          currentStep: 'test_chat',
-          context: { type: 'test_chat', userId },
+          currentStep: 'start',
+          context: {
+            type: 'test_chat',
+            userId,
+            flow: {
+              state: 'start',
+              turnCount: 0,
+              maxTurns: 50,
+              lastToolCalls: [],
+              patientIdentified: false,
+            },
+          },
         },
       });
       conversationId = conv.conversationId;
@@ -121,10 +178,24 @@ export default async function chatWebSocketRoutes(app: FastifyInstance) {
     // Track connection
     addConnection(conversationId, ws);
 
-    // ── 4. Send conversation history on connect ──
+    // ── 4. Send conversation history + info on connect ──
     const historyRows = await app.prisma.conversationMessage.findMany({
       where: { conversationId },
       orderBy: { createdAt: 'asc' },
+    });
+
+    // Load flow context
+    let flowCtx = await flowManager.loadContext(conversationId);
+    if (!flowCtx) flowCtx = flowManager.initContext();
+
+    // Send conversation info (state, turn count, etc.)
+    safeSend(ws, {
+      type: 'conversation_info',
+      conversationId,
+      state: flowCtx.state,
+      turnCount: flowCtx.turnCount,
+      maxTurns: flowCtx.maxTurns,
+      patientIdentified: flowCtx.patientIdentified,
     });
 
     safeSend(ws, {
@@ -135,6 +206,7 @@ export default async function chatWebSocketRoutes(app: FastifyInstance) {
         content: m.bodyText || '',
         sender: m.direction === 'in' ? 'user' : 'ai',
         timestamp: m.createdAt.toISOString(),
+        metadata: m.payload as Record<string, unknown> | null,
       })),
     });
 
@@ -169,7 +241,7 @@ export default async function chatWebSocketRoutes(app: FastifyInstance) {
           },
         });
 
-        // Echo user message back (with id) & broadcast
+        // Echo user message & broadcast
         const userPayload = JSON.stringify({
           type: 'message',
           id: userMsg.messageId,
@@ -179,12 +251,32 @@ export default async function chatWebSocketRoutes(app: FastifyInstance) {
         });
         broadcastToConversation(conversationId, userPayload, ws);
 
-        // ── 5b. Typing indicator ──
-        const typingOn = JSON.stringify({ type: 'typing', isTyping: true });
-        safeSend(ws, typingOn);
-        broadcastToConversation(conversationId, typingOn, ws);
+        // ── 5b. Load and check flow context ──
+        flowCtx = await flowManager.loadContext(conversationId) ?? flowManager.initContext();
 
-        // ── 5c. Build system prompt + patient context ──
+        // Budget check
+        if (flowManager.isBudgetExceeded(flowCtx)) {
+          emitEvent(ws, conversationId, {
+            type: 'budget_warning',
+            message: 'Turn budget exceeded',
+            turnCount: flowCtx.turnCount,
+            maxTurns: flowCtx.maxTurns,
+          });
+        }
+
+        if (flowManager.shouldWarnBudget(flowCtx)) {
+          emitEvent(ws, conversationId, {
+            type: 'budget_warning',
+            message: 'Approaching turn limit',
+            turnCount: flowCtx.turnCount,
+            maxTurns: flowCtx.maxTurns,
+          });
+        }
+
+        // ── 5c. Typing indicator ──
+        emitEvent(ws, conversationId, { type: 'typing', isTyping: true });
+
+        // ── 5d. Build system prompt + patient context + flow state ──
         let systemPrompt = await buildSystemPrompt(app.prisma, orgId);
 
         const conversation = await app.prisma.conversation.findUnique({
@@ -206,6 +298,8 @@ export default async function chatWebSocketRoutes(app: FastifyInstance) {
           }
         }
 
+        flowCtx.patientIdentified = !!resolvedPatientId;
+
         if (resolvedPatientId) {
           try {
             const contextBuilder = getContextBuilder(app.prisma);
@@ -218,23 +312,118 @@ export default async function chatWebSocketRoutes(app: FastifyInstance) {
           }
         }
 
-        // ── 5d. Fetch conversation history for LLM ──
-        const recentMessages = await app.prisma.conversationMessage.findMany({
+        // Add conversation flow state instructions
+        systemPrompt += flowManager.getStatePrompt(flowCtx);
+
+        // ── 5e. Fetch conversation history + compaction ──
+        const allMessages = await app.prisma.conversationMessage.findMany({
           where: { conversationId },
           orderBy: { createdAt: 'asc' },
-          take: 20,
         });
 
-        const chatMessages: ChatMessage[] = recentMessages.map((m) => ({
+        let chatMessages: ChatMessage[] = allMessages.map((m) => ({
           role: m.direction === 'in' ? 'user' as const : 'assistant' as const,
           content: m.bodyText || '',
         }));
 
-        // ── 5e. Call LLM ──
-        const llmService = getLLMService();
-        let response = await llmService.chat(chatMessages, systemPrompt);
+        // Session compaction
+        const existingSummary = await app.prisma.conversationSummary.findFirst({
+          where: { conversationId },
+          orderBy: { createdAt: 'desc' },
+          select: { summary: true },
+        });
 
-        // ── 5f. Guardrails ──
+        const compactionResult = await compactor.compact(chatMessages, existingSummary?.summary);
+        if (compactionResult.compacted) {
+          chatMessages = compactionResult.messages;
+
+          emitEvent(ws, conversationId, {
+            type: 'compaction',
+            originalCount: compactionResult.originalCount,
+            compactedCount: compactionResult.compactedCount,
+          });
+
+          if (compactionResult.summary) {
+            compactor.saveSummary(
+              app.prisma, conversationId, compactionResult.summary, compactionResult.originalCount,
+            ).catch(err => app.log.error({ err }, 'Failed to save compaction summary'));
+          }
+        }
+
+        // ── 5f. Initialize tool registry ──
+        const permissionLevel = resolvedPatientId ? 'identified' : 'anonymous';
+        const toolRegistry = new ToolRegistry(
+          app.prisma, orgId, resolvedPatientId, conversationId,
+        );
+        toolRegistry.setPermissionLevel(permissionLevel);
+        toolRegistry.setChannel('web');
+        const tools = toolRegistry.getToolDefinitions(permissionLevel);
+
+        // ── AI usage limit check ──
+        const usageCheck = await checkAndIncrement(app.prisma, orgId);
+        if (!usageCheck.allowed) {
+          ws.send(JSON.stringify({
+            type: 'error',
+            code: 'AI_LIMIT_EXCEEDED',
+            message: AI_LIMIT_ERROR,
+            usage: { current: usageCheck.current, limit: usageCheck.limit, remaining: 0 },
+          }));
+          return;
+        }
+
+        // ── 5g. Call LLM with tools ──
+        const llmService = getLLMService();
+        const llmResult = await llmService.chatWithTools(
+          chatMessages,
+          systemPrompt,
+          tools,
+          (name, args) => toolRegistry.executeTool(name, args),
+          {
+            maxIterations: 6,
+            onToolCall: (toolName, args) => {
+              const desc = TOOL_DESCRIPTIONS[toolName];
+              emitEvent(ws, conversationId, {
+                type: 'tool_invoked',
+                tool: toolName,
+                description: desc ?? { ar: toolName, en: toolName },
+                args,
+              });
+            },
+            onToolResult: (toolName, result) => {
+              emitEvent(ws, conversationId, {
+                type: 'tool_result',
+                tool: toolName,
+                success: !result.startsWith('Error'),
+                preview: result.slice(0, 200),
+              });
+            },
+          },
+        );
+
+        let response = llmResult.response;
+
+        // ── 5h. Update conversation flow ──
+        const toolCallNames = llmResult.toolCalls.map(tc => tc.toolName);
+        const prevState = flowCtx.state;
+
+        flowCtx = flowManager.detectIntentAndTransition(
+          flowCtx.state, userText, toolCallNames, flowCtx,
+        );
+        flowCtx = flowManager.updateBookingProgress(
+          flowCtx, toolCallNames, llmResult.toolCalls.map(tc => tc.result),
+          llmResult.toolCalls.map(tc => ({ [tc.toolName]: tc.args })),
+        );
+
+        if (prevState !== flowCtx.state) {
+          emitEvent(ws, conversationId, {
+            type: 'state_change',
+            from: prevState,
+            to: flowCtx.state,
+            booking: flowCtx.booking ?? null,
+          });
+        }
+
+        // ── 5i. Guardrails ──
         let guardrailResult = null;
         try {
           const guardrails = new GuardrailsService(app.prisma);
@@ -253,11 +442,11 @@ export default async function chatWebSocketRoutes(app: FastifyInstance) {
           app.log.error({ err }, 'WS guardrails validation failed');
         }
 
-        // ── 5g. PII-redact AI response for DB ──
+        // ── 5j. PII-redact AI response for DB ──
         let redactedResponse = response;
         try { redactedResponse = redactPII(response).redactedText; } catch { /* keep original */ }
 
-        // ── 5h. Save AI response ──
+        // ── 5k. Save AI response ──
         const aiMsg = await app.prisma.conversationMessage.create({
           data: {
             conversationId,
@@ -267,32 +456,42 @@ export default async function chatWebSocketRoutes(app: FastifyInstance) {
               model: process.env.LLM_MODEL || 'gpt-4-turbo-preview',
               confidence: guardrailResult?.confidence ?? null,
               guardrailFlags: guardrailResult?.flags?.map((f) => f.type) ?? [],
+              toolCalls: llmResult.toolCalls.map(tc => ({
+                tool: tc.toolName,
+                durationMs: tc.durationMs,
+              })),
+              iterations: llmResult.totalIterations,
+              conversationState: flowCtx.state,
             },
           },
         });
 
-        // Update last activity
+        // Update last activity & save flow context
         await app.prisma.conversation.update({
           where: { conversationId },
           data: { lastActivityAt: new Date() },
         });
+        await flowManager.saveContext(conversationId, flowCtx);
 
-        // ── 5i. Typing off + send AI response ──
-        const typingOff = JSON.stringify({ type: 'typing', isTyping: false });
-        safeSend(ws, typingOff);
-        broadcastToConversation(conversationId, typingOff, ws);
+        // ── 5l. Typing off + send AI response ──
+        emitEvent(ws, conversationId, { type: 'typing', isTyping: false });
 
-        const aiPayload = JSON.stringify({
+        const aiPayload = {
           type: 'message',
           id: aiMsg.messageId,
           content: response,
           sender: 'ai',
           timestamp: aiMsg.createdAt.toISOString(),
-        });
+          metadata: {
+            confidence: guardrailResult?.confidence ?? null,
+            toolsUsed: llmResult.toolCalls.map(tc => tc.toolName),
+            state: flowCtx.state,
+          },
+        };
         safeSend(ws, aiPayload);
-        broadcastToConversation(conversationId, aiPayload, ws);
+        broadcastToConversation(conversationId, JSON.stringify(aiPayload), ws);
 
-        // ── 5j. Memory extraction (async, non-blocking) ──
+        // ── 5m. Memory extraction (async, non-blocking) ──
         if (resolvedPatientId) {
           const contextBuilder = getContextBuilder(app.prisma);
           contextBuilder
@@ -308,8 +507,7 @@ export default async function chatWebSocketRoutes(app: FastifyInstance) {
       } catch (err) {
         app.log.error({ err }, 'WS: Error processing chat message');
 
-        const typingOff = JSON.stringify({ type: 'typing', isTyping: false });
-        safeSend(ws, typingOff);
+        emitEvent(ws, conversationId, { type: 'typing', isTyping: false });
         safeSend(ws, { type: 'error', message: 'حدث خطأ في معالجة رسالتك. يرجى المحاولة مرة أخرى.' });
       }
     });

@@ -299,21 +299,6 @@ export class CallDriverAnalyzerService {
       });
     }
 
-    // Rule 4: General — if prescription refill is high → suggest automated refill
-    const rxDriver = drivers.find((d) => d.driver === 'prescription_refill');
-    if (rxDriver && rxDriver.pct > 15) {
-      recommendations.push({
-        id: `rec-${idCounter++}`,
-        priority: 'medium',
-        category: 'automation',
-        titleEn: 'Automate Prescription Refill Workflow',
-        titleAr: 'أتمتة سير عمل إعادة تعبئة الوصفات',
-        descriptionEn: `${rxDriver.pct}% of interactions involve prescription refills. Enabling automated refill via SMS/WhatsApp could save significant call time.`,
-        descriptionAr: `${rxDriver.pct}% من التفاعلات تتضمن إعادة تعبئة الوصفات. تفعيل إعادة التعبئة التلقائية عبر الرسائل القصيرة/واتساب يمكن أن يوفر وقت مكالمات كبير.`,
-        dataSupport: { rxPct: rxDriver.pct, rxCount: rxDriver.count },
-      });
-    }
-
     return recommendations.sort((a, b) => {
       const prio = { high: 0, medium: 1, low: 2 };
       return prio[a.priority] - prio[b.priority];

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { usePatientAuth, patientApi } from '../../context/PatientAuthContext'
-import { Calendar, Pill, Plus, Clock, User, Phone } from 'lucide-react'
+import { Calendar, Plus, Clock, User, Phone } from 'lucide-react'
 import { formatTime, formatDateLocale, formatHijriDate } from '../../lib/utils'
 
 interface AppointmentItem {
@@ -69,15 +69,6 @@ export default function PatientDashboard() {
             <Plus className="w-5 h-5 text-teal-600" />
           </div>
           <span className="text-xs font-medium text-slate-700 text-center">{t('portal.dashboard.bookAppointment')}</span>
-        </Link>
-        <Link
-          to="/patient/dashboard/prescriptions"
-          className="bg-white rounded-xl p-3 flex flex-col items-center gap-2 border border-slate-100 shadow-sm hover:border-teal-200 hover:shadow-md transition-all"
-        >
-          <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center">
-            <Pill className="w-5 h-5 text-purple-600" />
-          </div>
-          <span className="text-xs font-medium text-slate-700 text-center">{t('portal.dashboard.myPrescriptions')}</span>
         </Link>
         <Link
           to="/patient/dashboard/profile"

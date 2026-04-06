@@ -11,6 +11,7 @@ import { buildVoiceSystemPrompt } from '../services/voicePrompt.js';
 import { TwilioMediaMessage, TwilioMediaResponse, ArabicDialect } from '../types/voice.js';
 import { GuardrailsService, ValidationContext } from '../services/ai/guardrails.js';
 import { redactPII } from '../services/security/piiRedactor.js';
+import { checkAndIncrement, AI_LIMIT_ERROR } from '../services/usage/aiUsageLimiter.js';
 
 /**
  * Voice streaming routes using Gemini Multimodal Live API
@@ -169,6 +170,13 @@ ${basePrompt}`;
           },
         ],
       }];
+
+      // ── AI usage limit check ──
+      const usageCheck = await checkAndIncrement(app.prisma, session.orgId);
+      if (!usageCheck.allowed) {
+        app.log.warn({ orgId: session.orgId, usage: usageCheck.current }, 'AI usage limit exceeded for Gemini voice call');
+        return null;
+      }
 
       // Create Gemini Live session
       const gemini = geminiLiveSessionManager.createSession(twilioCallSid, {

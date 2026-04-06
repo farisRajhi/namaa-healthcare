@@ -457,7 +457,7 @@ export default function PublicBooking() {
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-6 pb-8">
-          مدعوم بـ نماء للرعاية الصحية
+          مدعوم بـ توافد للرعاية الصحية
         </p>
       </div>
     </div>

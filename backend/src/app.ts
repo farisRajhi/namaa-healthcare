@@ -50,12 +50,19 @@ export async function buildApp() {
   );
 
   // ── Security Headers (helmet) ──────────────────────────
-  // Must be registered before routes so headers apply to all responses.
-  // CSP is disabled here to avoid breaking the Swagger UI / widget embeds;
-  // enable and tighten in production via CORS_ORIGIN + a dedicated CSP header.
   await app.register(helmet, {
-    contentSecurityPolicy: false,
-    crossOriginEmbedderPolicy: false, // required for Swagger UI iframes
+    contentSecurityPolicy: isProduction ? {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:'],
+        connectSrc: ["'self'"],
+        frameAncestors: ["'none'"],
+        formAction: ["'self'"],
+      },
+    } : false,
+    crossOriginEmbedderPolicy: false,
   });
 
   // ── Global Rate Limiting ───────────────────────────────
@@ -65,8 +72,7 @@ export async function buildApp() {
     global: true,
     max: 100,
     timeWindow: '1 minute',
-    // Skip Twilio webhook IPs from rate-limiting (they POST frequently)
-    skipOnError: true,
+    skipOnError: false,
     keyGenerator: (request) => {
       // Use X-Forwarded-For if behind a proxy/load-balancer
       const forwarded = request.headers['x-forwarded-for'];
@@ -80,9 +86,16 @@ export async function buildApp() {
     }),
   });
 
-  // CORS
+  // CORS — require explicit CORS_ORIGIN in production
+  if (isProduction && !process.env.CORS_ORIGIN) {
+    console.error(
+      '❌  FATAL: CORS_ORIGIN must be set in production.\n' +
+      '    Set it to your frontend domain(s), comma-separated.',
+    );
+    process.exit(1);
+  }
   await app.register(cors, {
-    origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:5173'],
+    origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:5173', 'http://localhost:5174'],
     credentials: true,
   });
 
@@ -97,6 +110,19 @@ export async function buildApp() {
     'changeme',
     '',
   ]);
+  // ── Production startup guards ────────────────────────
+  if (isProduction) {
+    const webhookKey = process.env.WEBHOOK_API_KEY;
+    if (!webhookKey || webhookKey === 'your-webhook-api-key-here') {
+      console.error('❌  FATAL: WEBHOOK_API_KEY is missing or uses the placeholder value.');
+      process.exit(1);
+    }
+    if (process.env.SKIP_TWILIO_VERIFY === 'true') {
+      console.error('❌  FATAL: SKIP_TWILIO_VERIFY=true is not allowed in production.');
+      process.exit(1);
+    }
+  }
+
   if (!jwtSecret || INSECURE_DEFAULTS.has(jwtSecret)) {
     // Use console.error so the message is visible even before the logger is ready
     console.error(
@@ -109,7 +135,7 @@ export async function buildApp() {
   }
   await app.register(jwt, {
     secret: jwtSecret,
-    sign: { expiresIn: '24h' },
+    sign: { expiresIn: '2h' },
   });
 
   // Form body parser (required for Twilio webhooks)
@@ -125,8 +151,8 @@ export async function buildApp() {
   await app.register(swagger, {
     openapi: {
       info: {
-        title: 'Namaa API',
-        description: 'Backend API for Namaa',
+        title: 'Tawafud API',
+        description: 'Backend API for Tawafud',
         version: '1.0.0',
       },
       servers: [
@@ -147,9 +173,12 @@ export async function buildApp() {
     },
   });
 
-  await app.register(swaggerUi, {
-    routePrefix: '/docs',
-  });
+  // Swagger UI only available in non-production environments
+  if (!isProduction) {
+    await app.register(swaggerUi, {
+      routePrefix: '/docs',
+    });
+  }
 
   // Prisma Database Plugin
   await app.register(prismaPlugin);
@@ -186,8 +215,13 @@ export async function buildApp() {
   await registerRoutes(app);
 
   // Health check
-  app.get('/health', async () => {
-    return { status: 'ok', timestamp: new Date().toISOString(), version: '1.1.0' };
+  app.get('/health', async (_request, reply) => {
+    try {
+      await app.prisma.$queryRawUnsafe('SELECT 1');
+      return { status: 'ok', timestamp: new Date().toISOString(), version: '1.1.0' };
+    } catch {
+      return reply.code(503).send({ status: 'unhealthy', error: 'Database unavailable' });
+    }
   });
 
   return app;

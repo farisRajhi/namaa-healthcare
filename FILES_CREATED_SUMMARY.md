@@ -92,7 +92,7 @@ CI_CD_SETUP_COMPLETE.md  ✅ (9.1 KB) - This summary document
 
 ```bash
 # First-time deployment
-cd /opt/namaa
+cd /opt/tawafud
 cp .env.example .env
 nano .env  # Configure your environment
 chmod +x deploy.sh
@@ -130,7 +130,7 @@ Add these secrets to your GitHub repository:
 - `VPS_HOST` - Your server IP
 - `VPS_USERNAME` - SSH username
 - `VPS_SSH_KEY` - Private SSH key
-- `VPS_PROJECT_PATH` - `/opt/namaa`
+- `VPS_PROJECT_PATH` - `/opt/tawafud`
 - `VPS_URL` - `https://your-domain.com`
 
 ### 4. Deploy to Production
@@ -140,7 +140,7 @@ Follow the **DEPLOYMENT.md** guide for step-by-step instructions.
 
 ## 🎉 Result
 
-**Namaa AI Medical Receptionist** is now:
+**Tawafud AI Medical Receptionist** is now:
 
 ✅ Ready for CI/CD with GitHub Actions  
 ✅ Ready for production deployment with Docker  

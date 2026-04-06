@@ -1,6 +1,6 @@
-# 🚀 Namaa (نماء) AI Medical Receptionist - Production Deployment Guide
+# 🚀 Tawafud (توافد) AI Medical Receptionist - Production Deployment Guide
 
-Complete guide for deploying Namaa to any VPS with Docker.
+Complete guide for deploying Tawafud to any VPS with Docker.
 
 ---
 
@@ -84,9 +84,9 @@ docker compose version
 
 ```bash
 # Create deployment directory
-sudo mkdir -p /opt/namaa
-sudo chown $USER:$USER /opt/namaa
-cd /opt/namaa
+sudo mkdir -p /opt/tawafud
+sudo chown $USER:$USER /opt/tawafud
+cd /opt/tawafud
 
 # Clone repository
 git clone https://github.com/farisRajhi/ai-agent.git .
@@ -102,7 +102,7 @@ git clone https://github.com/farisRajhi/ai-agent.git .
 ### 1. Create Production Environment File
 
 ```bash
-cd /opt/namaa
+cd /opt/tawafud
 cp .env.example .env
 nano .env  # or use vim, vi, etc.
 ```
@@ -180,7 +180,7 @@ git status  # .env should not appear
 ### 1. Start PostgreSQL
 
 ```bash
-cd /opt/namaa
+cd /opt/tawafud
 docker compose -f docker-compose.prod.yml up -d postgres
 ```
 
@@ -250,7 +250,7 @@ sudo certbot certonly --standalone -d your-domain.com -d www.your-domain.com
 #### Copy Certificates to Project
 
 ```bash
-cd /opt/namaa
+cd /opt/tawafud
 mkdir -p ssl
 
 # Create symlinks (auto-renew friendly)
@@ -263,7 +263,7 @@ sudo chown -R $USER:$USER ssl/
 
 #### Update nginx.conf
 
-Edit `/opt/namaa/nginx.conf` and uncomment the HTTPS section:
+Edit `/opt/tawafud/nginx.conf` and uncomment the HTTPS section:
 
 ```nginx
 server {
@@ -303,7 +303,7 @@ sudo systemctl status certbot.timer
 If you have your own certificates:
 
 ```bash
-cd /opt/namaa
+cd /opt/tawafud
 mkdir -p ssl
 cp /path/to/your/fullchain.pem ssl/
 cp /path/to/your/privkey.pem ssl/
@@ -317,7 +317,7 @@ chmod 600 ssl/*.pem
 ### 1. Build Docker Images
 
 ```bash
-cd /opt/namaa
+cd /opt/tawafud
 
 # Build all services
 docker compose -f docker-compose.prod.yml build
@@ -382,7 +382,7 @@ Add the following secrets:
 | `VPS_USERNAME` | SSH username | `ubuntu` |
 | `VPS_SSH_KEY` | Private SSH key | `-----BEGIN OPENSSH PRIVATE KEY-----...` |
 | `VPS_PORT` | SSH port (optional) | `22` |
-| `VPS_PROJECT_PATH` | Deployment path | `/opt/namaa` |
+| `VPS_PROJECT_PATH` | Deployment path | `/opt/tawafud` |
 | `VPS_URL` | Production URL | `https://your-domain.com` |
 | `DOCKER_USERNAME` | Docker Hub username (optional) | - |
 | `DOCKER_PASSWORD` | Docker Hub password (optional) | - |
@@ -467,13 +467,13 @@ docker system prune -a --volumes
 
 ```bash
 # Create backup directory
-mkdir -p /opt/namaa/backups
+mkdir -p /opt/tawafud/backups
 
 # Backup database
-docker compose -f docker-compose.prod.yml exec postgres pg_dump -U app hospital_booking | gzip > /opt/namaa/backups/backup-$(date +%Y%m%d-%H%M%S).sql.gz
+docker compose -f docker-compose.prod.yml exec postgres pg_dump -U app hospital_booking | gzip > /opt/tawafud/backups/backup-$(date +%Y%m%d-%H%M%S).sql.gz
 
 # Restore from backup
-gunzip < /opt/namaa/backups/backup-YYYYMMDD-HHMMSS.sql.gz | \
+gunzip < /opt/tawafud/backups/backup-YYYYMMDD-HHMMSS.sql.gz | \
   docker compose -f docker-compose.prod.yml exec -T postgres psql -U app hospital_booking
 ```
 
@@ -481,28 +481,28 @@ gunzip < /opt/namaa/backups/backup-YYYYMMDD-HHMMSS.sql.gz | \
 
 ```bash
 # Create backup script
-cat > /opt/namaa/backup.sh << 'EOF'
+cat > /opt/tawafud/backup.sh << 'EOF'
 #!/bin/bash
-cd /opt/namaa
+cd /opt/tawafud
 docker compose -f docker-compose.prod.yml exec postgres pg_dump -U app hospital_booking | \
-  gzip > /opt/namaa/backups/backup-$(date +%Y%m%d-%H%M%S).sql.gz
+  gzip > /opt/tawafud/backups/backup-$(date +%Y%m%d-%H%M%S).sql.gz
 
 # Keep only last 7 days
-find /opt/namaa/backups -name "backup-*.sql.gz" -mtime +7 -delete
+find /opt/tawafud/backups -name "backup-*.sql.gz" -mtime +7 -delete
 EOF
 
-chmod +x /opt/namaa/backup.sh
+chmod +x /opt/tawafud/backup.sh
 
 # Add to crontab (daily at 2 AM)
 crontab -e
 # Add this line:
-# 0 2 * * * /opt/namaa/backup.sh >> /opt/namaa/backups/backup.log 2>&1
+# 0 2 * * * /opt/tawafud/backup.sh >> /opt/tawafud/backups/backup.log 2>&1
 ```
 
 ### Update Deployment
 
 ```bash
-cd /opt/namaa
+cd /opt/tawafud
 
 # Pull latest code
 git pull origin main
@@ -531,11 +531,11 @@ docker compose -f docker-compose.prod.yml up -d --no-deps --build frontend
 Create a monitoring script:
 
 ```bash
-cat > /opt/namaa/healthcheck.sh << 'EOF'
+cat > /opt/tawafud/healthcheck.sh << 'EOF'
 #!/bin/bash
 set -e
 
-echo "Checking Namaa services..."
+echo "Checking Tawafud services..."
 
 # Backend health
 if curl -f http://localhost/api/health > /dev/null 2>&1; then
@@ -554,7 +554,7 @@ else
 fi
 
 # Database health
-if docker compose -f /opt/namaa/docker-compose.prod.yml exec postgres pg_isready -U app > /dev/null 2>&1; then
+if docker compose -f /opt/tawafud/docker-compose.prod.yml exec postgres pg_isready -U app > /dev/null 2>&1; then
   echo "✅ Database: OK"
 else
   echo "❌ Database: FAILED"
@@ -564,7 +564,7 @@ fi
 echo "✅ All services healthy!"
 EOF
 
-chmod +x /opt/namaa/healthcheck.sh
+chmod +x /opt/tawafud/healthcheck.sh
 ```
 
 ---
@@ -609,10 +609,10 @@ docker compose -f docker-compose.prod.yml run --rm backend npm run db:generate
 
 ```bash
 # Verify certificates exist
-ls -la /opt/namaa/ssl/
+ls -la /opt/tawafud/ssl/
 
 # Test certificate validity
-openssl x509 -in /opt/namaa/ssl/fullchain.pem -text -noout
+openssl x509 -in /opt/tawafud/ssl/fullchain.pem -text -noout
 
 # Renew Let's Encrypt
 sudo certbot renew --force-renewal
@@ -692,7 +692,7 @@ docker system prune -a --volumes
 sudo journalctl --vacuum-time=3d
 
 # Remove old backups
-find /opt/namaa/backups -name "*.sql.gz" -mtime +7 -delete
+find /opt/tawafud/backups -name "*.sql.gz" -mtime +7 -delete
 ```
 
 ### Container Keeps Restarting
@@ -705,7 +705,7 @@ docker compose -f docker-compose.prod.yml ps
 docker compose -f docker-compose.prod.yml logs --tail=50 backend
 
 # Check if health check is failing
-docker inspect namaa-backend | grep -A 10 Health
+docker inspect tawafud-backend | grep -A 10 Health
 
 # Disable health check temporarily
 # Edit docker-compose.prod.yml and comment out healthcheck section
@@ -776,4 +776,4 @@ For issues or questions:
 
 ---
 
-**🎉 Deployment Complete! Your Namaa AI Medical Receptionist is now live!**
+**🎉 Deployment Complete! Your Tawafud AI Medical Receptionist is now live!**

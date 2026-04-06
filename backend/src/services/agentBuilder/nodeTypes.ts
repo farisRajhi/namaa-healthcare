@@ -14,7 +14,18 @@ export enum NodeType {
   TRANSFER = 'transfer',        // Transfer to human agent or department
   WAIT = 'wait',                // Wait for external event (callback, timer)
   END = 'end',                  // End the conversation
+  INSTRUCTION = 'instruction',  // LLM instruction node — customizes AI behavior (not a flow step)
 }
+
+/** Categories for INSTRUCTION nodes */
+export type InstructionCategory =
+  | 'greeting'          // How to greet patients
+  | 'tone'              // Tone and style of responses
+  | 'business_rule'     // Business-specific rules the AI must follow
+  | 'escalation'        // When to escalate/transfer to human
+  | 'booking_flow'      // How the booking process should work
+  | 'faq_override'      // Custom FAQ answers
+  | 'custom'            // Free-form custom instruction
 
 export type ConditionType = 'intent' | 'keyword' | 'variable' | 'contains'
 export type ConditionOperator = 'equals' | 'contains' | 'greater' | 'less' | 'exists'
@@ -79,6 +90,12 @@ export interface FlowNodeData {
   // END node
   endMessage?: string
   endMessageAr?: string
+
+  // INSTRUCTION node — LLM behavior customization
+  instructionCategory?: InstructionCategory
+  instructionText?: string       // Instruction in English
+  instructionTextAr?: string     // Instruction in Arabic
+  instructionPriority?: number   // Higher = more important (1-10, default 5)
 }
 
 /** A node in the visual flow */

@@ -1,4 +1,4 @@
-# 🚀 Namaa (نماء) — Production Deployment Plan
+# 🚀 Tawafud (توافد) — Production Deployment Plan
 
 **Generated:** 2026-02-18  
 **Target:** Ubuntu 22.04 LTS VPS  
@@ -81,9 +81,9 @@ docker compose version    # Docker Compose 2.x+
 ### 2.3 Clone Repository
 
 ```bash
-sudo mkdir -p /opt/namaa
-sudo chown $USER:$USER /opt/namaa
-cd /opt/namaa
+sudo mkdir -p /opt/tawafud
+sudo chown $USER:$USER /opt/tawafud
+cd /opt/tawafud
 git clone https://github.com/farisRajhi/ai-agent.git .
 ```
 
@@ -94,7 +94,7 @@ git clone https://github.com/farisRajhi/ai-agent.git .
 Copy `.env.example` to `.env` and fill in all values:
 
 ```bash
-cd /opt/namaa
+cd /opt/tawafud
 cp .env.example .env
 nano .env
 chmod 600 .env   # Restrict permissions!
@@ -144,7 +144,7 @@ chmod 600 .env   # Restrict permissions!
 | **Frontend** | | | |
 | `VITE_API_URL` | ✅ | API URL for frontend build | `https://your-domain.com/api` |
 | `VITE_WS_URL` | ✅ | WebSocket URL for frontend | `wss://your-domain.com/api/voice/stream` |
-| `VITE_APP_NAME` | ✅ | App name | `Namaa` |
+| `VITE_APP_NAME` | ✅ | App name | `Tawafud` |
 | **Nginx** | | | |
 | `NGINX_HTTP_PORT` | ✅ | HTTP port | `80` |
 | `NGINX_HTTPS_PORT` | ✅ | HTTPS port | `443` |
@@ -263,10 +263,10 @@ server {
 
 Then copy certs to `ssl/` directory:
 ```bash
-mkdir -p /opt/namaa/ssl
+mkdir -p /opt/tawafud/ssl
 # Symlink or copy Let's Encrypt certs:
-sudo ln -sf /etc/letsencrypt/live/your-domain.com/fullchain.pem /opt/namaa/ssl/fullchain.pem
-sudo ln -sf /etc/letsencrypt/live/your-domain.com/privkey.pem /opt/namaa/ssl/privkey.pem
+sudo ln -sf /etc/letsencrypt/live/your-domain.com/fullchain.pem /opt/tawafud/ssl/fullchain.pem
+sudo ln -sf /etc/letsencrypt/live/your-domain.com/privkey.pem /opt/tawafud/ssl/privkey.pem
 ```
 
 ---
@@ -341,14 +341,14 @@ sudo certbot certonly --standalone \
   --agree-tos --non-interactive
 
 # Set up symlinks
-mkdir -p /opt/namaa/ssl
-sudo ln -sf /etc/letsencrypt/live/your-domain.com/fullchain.pem /opt/namaa/ssl/fullchain.pem
-sudo ln -sf /etc/letsencrypt/live/your-domain.com/privkey.pem /opt/namaa/ssl/privkey.pem
+mkdir -p /opt/tawafud/ssl
+sudo ln -sf /etc/letsencrypt/live/your-domain.com/fullchain.pem /opt/tawafud/ssl/fullchain.pem
+sudo ln -sf /etc/letsencrypt/live/your-domain.com/privkey.pem /opt/tawafud/ssl/privkey.pem
 sudo chmod -R 755 /etc/letsencrypt/live/
 sudo chmod -R 755 /etc/letsencrypt/archive/
 
 # Auto-renewal cron
-echo "0 3 * * * certbot renew --quiet && docker compose -f /opt/namaa/docker-compose.prod.yml exec nginx nginx -s reload" | sudo crontab -
+echo "0 3 * * * certbot renew --quiet && docker compose -f /opt/tawafud/docker-compose.prod.yml exec nginx nginx -s reload" | sudo crontab -
 ```
 
 ### Option B: Cloudflare Proxy (Simplest)
@@ -367,7 +367,7 @@ If using Cloudflare:
 ### Step 1: Configure Environment (5 min)
 
 ```bash
-cd /opt/namaa
+cd /opt/tawafud
 cp .env.example .env
 nano .env  # Fill in ALL values
 chmod 600 .env
@@ -493,10 +493,10 @@ curl -X POST https://your-domain.com/api/auth/login \
 
 ```bash
 # Create backup script
-cat > /opt/namaa/backup.sh << 'EOF'
+cat > /opt/tawafud/backup.sh << 'EOF'
 #!/bin/bash
 set -e
-cd /opt/namaa
+cd /opt/tawafud
 mkdir -p backups
 BACKUP_FILE="backups/backup-$(date +%Y%m%d-%H%M%S).sql.gz"
 docker compose -f docker-compose.prod.yml exec -T postgres \
@@ -505,10 +505,10 @@ docker compose -f docker-compose.prod.yml exec -T postgres \
 find backups/ -name "backup-*.sql.gz" -mtime +14 -delete
 echo "Backup created: $BACKUP_FILE"
 EOF
-chmod +x /opt/namaa/backup.sh
+chmod +x /opt/tawafud/backup.sh
 
 # Add to cron: daily at 2 AM
-(crontab -l 2>/dev/null; echo "0 2 * * * /opt/namaa/backup.sh >> /opt/namaa/backups/backup.log 2>&1") | crontab -
+(crontab -l 2>/dev/null; echo "0 2 * * * /opt/tawafud/backup.sh >> /opt/tawafud/backups/backup.log 2>&1") | crontab -
 ```
 
 ### Manual Backup / Restore
@@ -526,7 +526,7 @@ gunzip < backups/backup-YYYYMMDD-HHMMSS.sql.gz | \
 ### Update Deployment
 
 ```bash
-cd /opt/namaa
+cd /opt/tawafud
 ./deploy.sh update
 ```
 

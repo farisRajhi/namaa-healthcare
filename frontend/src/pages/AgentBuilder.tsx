@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ReactFlow,
   Background,
@@ -30,6 +30,9 @@ import {
   Trash2,
   CheckCircle2,
   AlertCircle,
+  Brain,
+  Workflow,
+  BarChart3,
 } from 'lucide-react'
 
 import {
@@ -47,7 +50,8 @@ import {
 import PropertiesPanel from '../components/agentBuilder/PropertiesPanel'
 import NodePalette from '../components/agentBuilder/NodePalette'
 import SimulatorPanel from '../components/agentBuilder/SimulatorPanel'
-import { getDefaultNodeData, type FlowNodeData, type FlowNodeType } from '../components/agentBuilder/types'
+import AiPersonalityTab from '../components/agentBuilder/AiPersonalityTab'
+import { getDefaultNodeData, type FlowNodeData, type FlowNodeType, type LLMInstructionsSettings } from '../components/agentBuilder/types'
 import { api } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 
@@ -80,18 +84,37 @@ const defaultEdges: Edge[] = []
 // Validation: which types can have outputs
 const terminalTypes = new Set(['end', 'transfer'])
 
+type TabType = 'personality' | 'flow' | 'analytics'
+
+const TABS: { key: TabType; label: string; icon: typeof Brain }[] = [
+  { key: 'personality', label: 'شخصية الذكاء الاصطناعي', icon: Brain },
+  { key: 'flow', label: 'تدفق المحادثة', icon: Workflow },
+  { key: 'analytics', label: 'الإحصائيات', icon: BarChart3 },
+]
+
 export default function AgentBuilder() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { user } = useAuth()
   const orgId = user?.org?.id
   const reactFlowWrapper = useRef<HTMLDivElement>(null)
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null)
 
+  // Tab state
+  const initialTab = (searchParams.get('tab') as TabType) || 'personality'
+  const [activeTab, setActiveTab] = useState<TabType>(initialTab)
+
   // Flow state
   const [nodes, setNodes, onNodesChange] = useNodesState(defaultNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(defaultEdges)
   const [selectedNode, setSelectedNode] = useState<Node<FlowNodeData> | null>(null)
+
+  // AI Personality settings state
+  const [llmInstructions, setLlmInstructions] = useState<LLMInstructionsSettings>({})
+
+  // Analytics state
+  const [analytics, setAnalytics] = useState<any>(null)
 
   // UI state
   const [flowName, setFlowName] = useState('تدفق جديد')
@@ -103,7 +126,7 @@ export default function AgentBuilder() {
   const [showSimulator, setShowSimulator] = useState(false)
   const [flowId, setFlowId] = useState<string | null>(id && id !== 'new' ? id : null)
 
-  // History for undo/redo
+  // History for undo/redo (flow editor only)
   const [history, setHistory] = useState<{ nodes: Node[]; edges: Edge[] }[]>([
     { nodes: defaultNodes, edges: defaultEdges },
   ])
@@ -131,6 +154,10 @@ export default function AgentBuilder() {
             setEdges(flow.edges?.length ? flow.edges : defaultEdges)
             setFlowName(flow.nameAr || flow.name || 'تدفق جديد')
             setFlowId(flow.id)
+            // Load LLM instructions from settings
+            if (flow.settings?.llmInstructions) {
+              setLlmInstructions(flow.settings.llmInstructions)
+            }
           }
         })
         .catch(() => {
@@ -139,30 +166,34 @@ export default function AgentBuilder() {
     }
   }, [id, setNodes, setEdges])
 
+  // Load analytics when tab is active
+  useEffect(() => {
+    if (activeTab === 'analytics' && flowId && !analytics) {
+      api.get(`/api/agent-builder/flows/${flowId}/analytics`)
+        .then((res) => setAnalytics(res.data?.data))
+        .catch(() => {})
+    }
+  }, [activeTab, flowId, analytics])
+
   // Save helper — uses backend API
   const doSave = useCallback(
     async (auto: boolean) => {
       if (!orgId) return
       setIsSaving(true)
       try {
+        const payload = {
+          name: flowName,
+          nameAr: flowName,
+          description: flowDescription,
+          nodes,
+          edges,
+          settings: { llmInstructions },
+        }
+
         if (flowId) {
-          // Update existing flow
-          await api.put(`/api/agent-builder/flows/${flowId}`, {
-            name: flowName,
-            nameAr: flowName,
-            description: flowDescription,
-            nodes,
-            edges,
-          })
+          await api.put(`/api/agent-builder/flows/${flowId}`, payload)
         } else {
-          // Create new flow
-          const res = await api.post('/api/agent-builder/flows', {
-            name: flowName,
-            nameAr: flowName,
-            description: flowDescription,
-            nodes,
-            edges,
-          })
+          const res = await api.post('/api/agent-builder/flows', payload)
           const newId = res.data?.data?.id
           if (newId) {
             setFlowId(newId)
@@ -179,7 +210,7 @@ export default function AgentBuilder() {
       }
       setIsSaving(false)
     },
-    [flowId, orgId, flowName, flowDescription, nodes, edges, navigate]
+    [flowId, orgId, flowName, flowDescription, nodes, edges, llmInstructions, navigate]
   )
 
   // Auto-save every 30 seconds
@@ -274,21 +305,32 @@ export default function AgentBuilder() {
     const hasStart = nodes.some((n) => n.type === 'start')
     const hasEnd = nodes.some((n) => n.type === 'end' || n.type === 'transfer')
 
-    if (!hasStart) errors.push('يجب أن يحتوي التدفق على عنصر بداية')
-    if (!hasEnd) errors.push('يجب أن يحتوي التدفق على عنصر نهاية أو تحويل')
+    // If only a single start node exists and AI personality is configured, skip flow validation
+    const hasPersonalityConfig = llmInstructions.greeting || llmInstructions.tone ||
+      (llmInstructions.businessRules && llmInstructions.businessRules.length > 0) ||
+      (llmInstructions.customInstructions && llmInstructions.customInstructions.length > 0)
+    const onlyStartNode = nodes.length === 1 && hasStart
 
-    const connectedNodeIds = new Set<string>()
-    edges.forEach((e) => {
-      connectedNodeIds.add(e.source)
-      connectedNodeIds.add(e.target)
-    })
-    const disconnected = nodes.filter((n) => !connectedNodeIds.has(n.id) && nodes.length > 1)
-    if (disconnected.length > 0) {
-      errors.push(`هناك ${disconnected.length} عنصر(عناصر) غير متصلة`)
+    if (!hasStart) errors.push('يجب أن يحتوي التدفق على عنصر بداية')
+    if (!hasEnd && !onlyStartNode) errors.push('يجب أن يحتوي التدفق على عنصر نهاية أو تحويل')
+    if (!hasEnd && onlyStartNode && !hasPersonalityConfig) {
+      errors.push('يجب إضافة تخصيصات للذكاء الاصطناعي أو عناصر للتدفق')
+    }
+
+    if (!onlyStartNode) {
+      const connectedNodeIds = new Set<string>()
+      edges.forEach((e) => {
+        connectedNodeIds.add(e.source)
+        connectedNodeIds.add(e.target)
+      })
+      const disconnected = nodes.filter((n) => !connectedNodeIds.has(n.id) && nodes.length > 1)
+      if (disconnected.length > 0) {
+        errors.push(`هناك ${disconnected.length} عنصر(عناصر) غير متصلة`)
+      }
     }
 
     return errors
-  }, [nodes, edges])
+  }, [nodes, edges, llmInstructions])
 
   // Publish — calls backend /publish endpoint
   const handlePublish = useCallback(async () => {
@@ -346,6 +388,7 @@ export default function AgentBuilder() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        if (activeTab !== 'flow') return
         e.preventDefault()
         if (e.shiftKey) redo()
         else undo()
@@ -355,6 +398,7 @@ export default function AgentBuilder() {
         doSave(false)
       }
       if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (activeTab !== 'flow') return
         const target = e.target as HTMLElement
         if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT') return
         deleteSelected()
@@ -362,7 +406,7 @@ export default function AgentBuilder() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [undo, redo, doSave, deleteSelected])
+  }, [undo, redo, doSave, deleteSelected, activeTab])
 
   // Mini-map node color
   const miniMapNodeColor = useMemo(
@@ -432,26 +476,29 @@ export default function AgentBuilder() {
           </div>
         )}
 
-        <div className="flex items-center gap-1 border-e border-gray-200 pe-3 me-1">
-          <button onClick={undo} disabled={historyIndex <= 0} className="toolbar-btn" title="تراجع">
-            <Undo2 className="w-4 h-4" />
-          </button>
-          <button onClick={redo} disabled={historyIndex >= history.length - 1} className="toolbar-btn" title="إعادة">
-            <Redo2 className="w-4 h-4" />
-          </button>
-          <button onClick={() => rfInstance?.zoomIn()} className="toolbar-btn" title="تكبير">
-            <ZoomIn className="w-4 h-4" />
-          </button>
-          <button onClick={() => rfInstance?.zoomOut()} className="toolbar-btn" title="تصغير">
-            <ZoomOut className="w-4 h-4" />
-          </button>
-          <button onClick={() => rfInstance?.fitView()} className="toolbar-btn" title="ملائمة">
-            <Maximize2 className="w-4 h-4" />
-          </button>
-          <button onClick={deleteSelected} className="toolbar-btn text-red-500 hover:text-red-600 hover:bg-red-50" title="حذف">
-            <Trash2 className="w-4 h-4" />
-          </button>
-        </div>
+        {/* Flow editor toolbar - only visible on flow tab */}
+        {activeTab === 'flow' && (
+          <div className="flex items-center gap-1 border-e border-gray-200 pe-3 me-1">
+            <button onClick={undo} disabled={historyIndex <= 0} className="toolbar-btn" title="تراجع">
+              <Undo2 className="w-4 h-4" />
+            </button>
+            <button onClick={redo} disabled={historyIndex >= history.length - 1} className="toolbar-btn" title="إعادة">
+              <Redo2 className="w-4 h-4" />
+            </button>
+            <button onClick={() => rfInstance?.zoomIn()} className="toolbar-btn" title="تكبير">
+              <ZoomIn className="w-4 h-4" />
+            </button>
+            <button onClick={() => rfInstance?.zoomOut()} className="toolbar-btn" title="تصغير">
+              <ZoomOut className="w-4 h-4" />
+            </button>
+            <button onClick={() => rfInstance?.fitView()} className="toolbar-btn" title="ملائمة">
+              <Maximize2 className="w-4 h-4" />
+            </button>
+            <button onClick={deleteSelected} className="toolbar-btn text-red-500 hover:text-red-600 hover:bg-red-50" title="حذف">
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        )}
 
         <button
           onClick={() => doSave(false)}
@@ -482,57 +529,140 @@ export default function AgentBuilder() {
         </button>
       </div>
 
-      {/* Main area */}
+      {/* Tab Bar */}
+      <div className="h-11 bg-white border-b border-gray-200 flex items-center px-4 gap-1 flex-shrink-0" dir="rtl">
+        {TABS.map((tab) => {
+          const Icon = tab.icon
+          const isActive = activeTab === tab.key
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg transition-all ${
+                isActive
+                  ? 'bg-teal-50 text-teal-700 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <Icon className="w-4 h-4" />
+              {tab.label}
+            </button>
+          )
+        })}
+      </div>
+
+      {/* Tab Content */}
       <div className="flex-1 flex overflow-hidden">
-        <NodePalette />
-
-        <div className="flex-1" ref={reactFlowWrapper}>
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onInit={setRfInstance}
-            onDrop={onDrop}
-            onDragOver={onDragOver}
-            onNodeClick={onNodeClick}
-            onPaneClick={onPaneClick}
-            nodeTypes={nodeTypes}
-            snapToGrid
-            snapGrid={[20, 20]}
-            fitView
-            deleteKeyCode={null}
-            className="bg-gray-50"
-            defaultEdgeOptions={{
-              animated: true,
-              style: { stroke: '#0891b2', strokeWidth: 2 },
-              markerEnd: { type: MarkerType.ArrowClosed, color: '#0891b2' },
-            }}
-          >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#d1d5db" />
-            <Controls
-              showInteractive={false}
-              className="!bg-white !border !border-gray-200 !rounded-xl !shadow-lg"
+        {/* ═══ AI Personality Tab ═══ */}
+        {activeTab === 'personality' && (
+          <>
+            <AiPersonalityTab
+              settings={llmInstructions}
+              onChange={setLlmInstructions}
             />
-            <MiniMap
-              nodeColor={miniMapNodeColor}
-              className="!bg-white !border !border-gray-200 !rounded-xl !shadow-lg"
-              maskColor="rgba(0,0,0,0.08)"
-              pannable
-              zoomable
-            />
-          </ReactFlow>
-        </div>
+            {showSimulator && flowId && (
+              <SimulatorPanel flowId={flowId} onClose={() => setShowSimulator(false)} />
+            )}
+          </>
+        )}
 
-        {showSimulator && flowId ? (
-          <SimulatorPanel flowId={flowId} onClose={() => setShowSimulator(false)} />
-        ) : (
-          <PropertiesPanel
-            selectedNode={selectedNode}
-            onUpdateNode={onUpdateNode}
-            onClose={() => setSelectedNode(null)}
-          />
+        {/* ═══ Flow Editor Tab ═══ */}
+        {activeTab === 'flow' && (
+          <>
+            <NodePalette />
+
+            <div className="flex-1" ref={reactFlowWrapper}>
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                onNodesChange={onNodesChange}
+                onEdgesChange={onEdgesChange}
+                onConnect={onConnect}
+                onInit={setRfInstance}
+                onDrop={onDrop}
+                onDragOver={onDragOver}
+                onNodeClick={onNodeClick}
+                onPaneClick={onPaneClick}
+                nodeTypes={nodeTypes}
+                snapToGrid
+                snapGrid={[20, 20]}
+                fitView
+                deleteKeyCode={null}
+                className="bg-gray-50"
+                defaultEdgeOptions={{
+                  animated: true,
+                  style: { stroke: '#0891b2', strokeWidth: 2 },
+                  markerEnd: { type: MarkerType.ArrowClosed, color: '#0891b2' },
+                }}
+              >
+                <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#d1d5db" />
+                <Controls
+                  showInteractive={false}
+                  className="!bg-white !border !border-gray-200 !rounded-xl !shadow-lg"
+                />
+                <MiniMap
+                  nodeColor={miniMapNodeColor}
+                  className="!bg-white !border !border-gray-200 !rounded-xl !shadow-lg"
+                  maskColor="rgba(0,0,0,0.08)"
+                  pannable
+                  zoomable
+                />
+              </ReactFlow>
+            </div>
+
+            {showSimulator && flowId ? (
+              <SimulatorPanel flowId={flowId} onClose={() => setShowSimulator(false)} />
+            ) : (
+              <PropertiesPanel
+                selectedNode={selectedNode}
+                onUpdateNode={onUpdateNode}
+                onClose={() => setSelectedNode(null)}
+              />
+            )}
+          </>
+        )}
+
+        {/* ═══ Analytics Tab ═══ */}
+        {activeTab === 'analytics' && (
+          <div className="flex-1 overflow-y-auto" dir="rtl">
+            <div className="max-w-4xl mx-auto px-6 py-6">
+              <h2 className="text-base font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <BarChart3 className="w-5 h-5 text-teal-600" />
+                إحصائيات التدفق
+              </h2>
+
+              {!flowId ? (
+                <div className="text-center py-16 text-gray-400">
+                  <BarChart3 className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                  <p className="text-sm">احفظ التدفق أولاً لعرض الإحصائيات</p>
+                </div>
+              ) : !analytics ? (
+                <div className="text-center py-16 text-gray-400">
+                  <div className="w-8 h-8 border-2 border-teal-300 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+                  <p className="text-sm">جاري تحميل الإحصائيات...</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-white rounded-xl border border-gray-200 p-4 text-center">
+                    <div className="text-2xl font-bold text-gray-800">{analytics.totalSessions || 0}</div>
+                    <div className="text-xs text-gray-500 mt-1">إجمالي الجلسات</div>
+                  </div>
+                  <div className="bg-white rounded-xl border border-gray-200 p-4 text-center">
+                    <div className="text-2xl font-bold text-green-600">{analytics.completionRate || 0}%</div>
+                    <div className="text-xs text-gray-500 mt-1">معدل الإكمال</div>
+                  </div>
+                  <div className="bg-white rounded-xl border border-gray-200 p-4 text-center">
+                    <div className="text-2xl font-bold text-blue-600">{analytics.activeSessions || 0}</div>
+                    <div className="text-xs text-gray-500 mt-1">جلسات نشطة</div>
+                  </div>
+                  <div className="bg-white rounded-xl border border-gray-200 p-4 text-center">
+                    <div className="text-2xl font-bold text-amber-600">{analytics.transferredSessions || 0}</div>
+                    <div className="text-xs text-gray-500 mt-1">تم تحويلها</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </div>
 

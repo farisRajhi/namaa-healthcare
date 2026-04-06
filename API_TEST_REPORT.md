@@ -1,4 +1,4 @@
-# Namaa API Test Report
+# Tawafud API Test Report
 
 > **Date:** 2026-02-09  
 > **Tester:** Automated API test suite  

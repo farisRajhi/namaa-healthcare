@@ -13,6 +13,7 @@ import {
   Clock,
   GitBranch,
   Loader2,
+  Brain,
 } from 'lucide-react'
 import { api } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
@@ -29,6 +30,7 @@ interface FlowListItem {
   version: number
   publishedAt: string | null
   sessionsCount: number
+  settings?: { llmInstructions?: Record<string, unknown> }
   createdAt: string
   updatedAt: string
 }
@@ -107,11 +109,11 @@ export default function AgentBuilderList() {
       })
       const newId = res.data?.data?.id
       if (newId) {
-        navigate(`/dashboard/agent-builder/${newId}`)
+        navigate(`/dashboard/agent-builder/${newId}?tab=personality`)
       }
     } catch {
       // fallback: navigate to new builder with no ID
-      navigate('/dashboard/agent-builder/new')
+      navigate('/dashboard/agent-builder/new?tab=personality')
     }
   }
 
@@ -370,6 +372,12 @@ export default function AgentBuilderList() {
                   `}>
                     {flow.isActive ? 'منشور' : 'مسودة'}
                   </span>
+                  {flow.settings?.llmInstructions && Object.keys(flow.settings.llmInstructions).length > 0 && (
+                    <span className="flex items-center gap-0.5 text-[10px] text-violet-500" title="تخصيصات الذكاء الاصطناعي">
+                      <Brain className="w-3 h-3" />
+                      AI
+                    </span>
+                  )}
                   <span className="flex items-center gap-1 text-[10px] text-gray-400">
                     <GitBranch className="w-3 h-3" />
                     v{flow.version}

@@ -29,8 +29,8 @@ const configureSchema = z.object({
 });
 
 const listQuerySchema = z.object({
-  page: z.coerce.number().default(1),
-  limit: z.coerce.number().default(50),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
   status: z.string().optional(),
 });
 
@@ -304,8 +304,16 @@ export default async function remindersRoutes(app: FastifyInstance) {
     {
       preHandler: [app.authenticate],
     },
-    async (request) => {
+    async (request, reply) => {
       const { apptId } = request.params;
+
+      // Verify appointment belongs to user's org
+      const appointment = await app.prisma.appointment.findFirst({
+        where: { appointmentId: apptId, orgId: request.user.orgId },
+      });
+      if (!appointment) {
+        return reply.code(404).send({ error: 'Appointment not found' });
+      }
 
       const service = getService();
       const count = await service.createRemindersForAppointment(apptId);

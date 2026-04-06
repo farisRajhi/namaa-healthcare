@@ -54,8 +54,8 @@ const createTriageRuleSchema = z.object({
 
 const faqQuerySchema = z.object({
   category: z.enum(CATEGORIES).optional(),
-  page: z.coerce.number().default(1),
-  limit: z.coerce.number().default(50),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(50),
 });
 
 export default async function faqRoutes(app: FastifyInstance) {
@@ -64,8 +64,11 @@ export default async function faqRoutes(app: FastifyInstance) {
   const engine = new FaqEngine(app.prisma);
 
   // ──── GET /api/faq/:orgId — List FAQs (with category filter) ────
-  app.get<{ Params: { orgId: string } }>('/:orgId', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/:orgId', async (request, reply) => {
     const { orgId } = request.params;
+    if (request.user.orgId !== orgId) {
+      return reply.code(403).send({ error: 'Forbidden' });
+    }
     const query = faqQuerySchema.parse(request.query);
 
     return engine.listByOrg(orgId, {
@@ -94,9 +97,15 @@ export default async function faqRoutes(app: FastifyInstance) {
   });
 
   // ──── PATCH /api/faq/:id — Update FAQ ────
-  app.patch<{ Params: { id: string } }>('/:id', async (request) => {
+  app.patch<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const { id } = request.params;
     const body = updateFaqSchema.parse(request.body);
+
+    // Verify FAQ belongs to user's org
+    const existing = await app.prisma.faqEntry.findUnique({ where: { faqId: id } });
+    if (!existing || existing.orgId !== request.user.orgId) {
+      return reply.code(404).send({ error: 'FAQ entry not found' });
+    }
 
     try {
       const updated = await engine.update(id, body as any);
@@ -107,8 +116,14 @@ export default async function faqRoutes(app: FastifyInstance) {
   });
 
   // ──── DELETE /api/faq/:id — Delete FAQ ────
-  app.delete<{ Params: { id: string } }>('/:id', async (request) => {
+  app.delete<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const { id } = request.params;
+
+    // Verify FAQ belongs to user's org
+    const existing = await app.prisma.faqEntry.findUnique({ where: { faqId: id } });
+    if (!existing || existing.orgId !== request.user.orgId) {
+      return reply.code(404).send({ error: 'FAQ entry not found' });
+    }
 
     try {
       await engine.delete(id);
@@ -162,8 +177,11 @@ export async function triageRulesRoutes(app: FastifyInstance) {
   const engine = new FaqEngine(app.prisma);
 
   // ──── GET /api/triage-rules/:orgId — List triage rules ────
-  app.get<{ Params: { orgId: string } }>('/:orgId', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/:orgId', async (request, reply) => {
     const { orgId } = request.params;
+    if (request.user.orgId !== orgId) {
+      return reply.code(403).send({ error: 'Forbidden' });
+    }
     const rules = await engine.listTriageRules(orgId);
     return { data: rules };
   });
@@ -186,7 +204,7 @@ export async function triageRulesRoutes(app: FastifyInstance) {
   });
 
   // ──── PATCH /api/triage-rules/:id — Update triage rule ────
-  app.patch<{ Params: { id: string } }>('/:id', async (request) => {
+  app.patch<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const { id } = request.params;
     const body = z.object({
       keywords: z.array(z.string()).optional(),
@@ -196,6 +214,12 @@ export async function triageRulesRoutes(app: FastifyInstance) {
       action: z.enum(ACTIONS).optional(),
       isActive: z.boolean().optional(),
     }).parse(request.body);
+
+    // Verify rule belongs to user's org
+    const existing = await app.prisma.triageRule.findUnique({ where: { ruleId: id } });
+    if (!existing || existing.orgId !== request.user.orgId) {
+      return reply.code(404).send({ error: 'Triage rule not found' });
+    }
 
     try {
       const updated = await engine.updateTriageRule(id, body as any);

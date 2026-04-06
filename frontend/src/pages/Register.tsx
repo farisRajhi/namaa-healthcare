@@ -26,8 +26,8 @@ export default function Register() {
       setError(t('auth.orgRequired') || 'اسم المنشأة مطلوب / Organization name is required')
       return
     }
-    if (password.length < 6) {
-      setError(t('auth.passwordTooShort') || 'كلمة المرور يجب أن تكون 6 أحرف على الأقل / Password must be at least 6 characters')
+    if (password.length < 8) {
+      setError(t('auth.passwordTooShort') || 'كلمة المرور يجب أن تكون 8 أحرف على الأقل / Password must be at least 8 characters')
       return
     }
 
@@ -38,7 +38,7 @@ export default function Register() {
       addToast({ type: 'success', title: 'تم إنشاء الحساب بنجاح! / Account created!' })
       navigate('/dashboard')
     } catch (err: any) {
-      const msg = err.response?.data?.message || t('auth.registrationFailed')
+      const msg = err.response?.data?.message || err.response?.data?.error || t('auth.registrationFailed')
       setError(msg)
       addToast({ type: 'error', title: msg })
     } finally {
@@ -58,7 +58,7 @@ export default function Register() {
           <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-8">
             <span className="text-white font-bold text-3xl">✚</span>
           </div>
-          <h1 className="text-4xl font-heading font-bold text-white mb-4">ابدأ رحلتك مع نماء</h1>
+          <h1 className="text-4xl font-heading font-bold text-white mb-4">ابدأ رحلتك مع توافد</h1>
           <p className="text-xl text-white/80 mb-2">انضم إلى مئات المنشآت الصحية</p>
           <p className="text-white/60 leading-relaxed">
             أنشئ حسابك الآن واستفد من مساعد الذكاء الاصطناعي الذي يتحدث العربية بطلاقة
@@ -87,8 +87,8 @@ export default function Register() {
               <span className="text-white font-bold text-xl">✚</span>
             </div>
             <div>
-              <h1 className="font-heading font-bold text-xl text-healthcare-text">نماء</h1>
-              <p className="text-xs text-healthcare-muted">NAMAA HEALTH AI</p>
+              <h1 className="font-heading font-bold text-xl text-healthcare-text">توافد</h1>
+              <p className="text-xs text-healthcare-muted">TAWAFUD HEALTH AI</p>
             </div>
           </div>
 
@@ -155,7 +155,7 @@ export default function Register() {
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="new-password"
                   required
-                  minLength={6}
+                  minLength={8}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="input pe-12"

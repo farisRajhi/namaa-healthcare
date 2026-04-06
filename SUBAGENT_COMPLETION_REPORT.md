@@ -1,8 +1,8 @@
-# 🎉 Namaa CI/CD & Deployment Setup - Complete!
+# 🎉 Tawafud CI/CD & Deployment Setup - Complete!
 
 ## Mission Accomplished ✅
 
-Successfully set up complete CI/CD pipeline and production deployment infrastructure for **Namaa (نماء) AI Medical Receptionist**.
+Successfully set up complete CI/CD pipeline and production deployment infrastructure for **Tawafud (توافد) AI Medical Receptionist**.
 
 ---
 
@@ -136,8 +136,8 @@ Frontend (Vite + React)
 
 ```bash
 # Clone and setup
-git clone https://github.com/farisRajhi/ai-agent.git /opt/namaa
-cd /opt/namaa
+git clone https://github.com/farisRajhi/ai-agent.git /opt/tawafud
+cd /opt/tawafud
 cp .env.example .env
 nano .env
 
@@ -311,5 +311,5 @@ C:\Users\raskh\projects\ai-agent\
 
 **Task completed on**: 2026-02-17  
 **Repository**: https://github.com/farisRajhi/ai-agent  
-**Project**: Namaa (نماء) AI Medical Receptionist  
-**Subagent**: namaa-deploy
+**Project**: Tawafud (توافد) AI Medical Receptionist  
+**Subagent**: tawafud-deploy

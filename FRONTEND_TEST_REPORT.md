@@ -1,4 +1,4 @@
-# Frontend Test Report — Namaa (نماء)
+# Frontend Test Report — Tawafud (توافد)
 
 **Date:** 2026-02-09  
 **Status:** ✅ ALL CHECKS PASS

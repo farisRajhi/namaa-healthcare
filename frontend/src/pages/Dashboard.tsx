@@ -7,13 +7,14 @@ import {
   Calendar,
   Phone,
   TrendingUp,
-  MessageSquare,
   Activity,
   UserPlus,
   Bot,
   Clock,
   CalendarCheck,
   ArrowLeft,
+  Tag,
+  Gift,
 } from 'lucide-react'
 import {
   AreaChart,
@@ -29,6 +30,7 @@ import {
 } from 'recharts'
 import { formatHijriDate } from '../lib/utils'
 import StatCard from '../components/ui/StatCard'
+import ComingSoonOverlay from '../components/ui/ComingSoonOverlay'
 import Badge, { getStatusBadgeVariant } from '../components/ui/Badge'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import StatusDot from '../components/ui/StatusDot'
@@ -37,6 +39,7 @@ const CHART_COLORS = ['#0891B2', '#22D3EE', '#059669', '#F59E0B', '#8B5CF6']
 
 export default function Dashboard() {
   const { t, i18n } = useTranslation()
+  const isAr = i18n.language === 'ar'
   const navigate = useNavigate()
 
   const { data: overview, isLoading: overviewLoading } = useQuery({
@@ -99,7 +102,7 @@ export default function Dashboard() {
       icon: Clock,
       iconBg: 'bg-amber-50',
       iconColor: 'text-amber-600',
-      route: '/doctor-schedule',
+      route: '/management',
     },
     {
       title: t('dashboard.onboarding.testBooking'),
@@ -181,14 +184,16 @@ export default function Dashboard() {
           iconColor="text-success-600"
           live
         />
-        <StatCard
-          icon={Phone}
-          value={overview?.monthAppointments || 0}
-          label={t('dashboard.stats.aiCallsToday')}
-          trend={{ value: 23, isPositive: true }}
-          iconBg="bg-secondary-100"
-          iconColor="text-secondary-600"
-        />
+        <ComingSoonOverlay>
+          <StatCard
+            icon={Phone}
+            value={overview?.monthAppointments || 0}
+            label={t('dashboard.stats.aiCallsToday')}
+            trend={{ value: 23, isPositive: true }}
+            iconBg="bg-secondary-100"
+            iconColor="text-secondary-600"
+          />
+        </ComingSoonOverlay>
         <StatCard
           icon={TrendingUp}
           value={`${overview?.totalProviders || 0}`}
@@ -334,6 +339,34 @@ export default function Dashboard() {
 
       {/* Quick Actions + Status */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Offers Widget */}
+        <div className="card p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold font-heading text-healthcare-text flex items-center gap-2">
+              <Tag className="w-5 h-5 text-healthcare-primary" />
+              {isAr ? 'العروض الترويجية' : 'Marketing Offers'}
+            </h3>
+            <button
+              onClick={() => navigate('/dashboard/offers')}
+              className="text-sm text-healthcare-primary hover:underline"
+            >
+              {isAr ? 'عرض الكل' : 'View all'}
+            </button>
+          </div>
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => navigate('/dashboard/offers')}
+              className="flex-1 p-4 bg-gradient-to-br from-healthcare-primary/5 to-healthcare-primary/10 rounded-xl border border-healthcare-primary/20 hover:border-healthcare-primary/40 transition-colors text-start group"
+            >
+              <Gift className="w-8 h-8 text-healthcare-primary mb-2" />
+              <p className="font-semibold text-gray-900">{isAr ? 'إنشاء عرض جديد' : 'Create New Offer'}</p>
+              <p className="text-xs text-gray-500 mt-1">
+                {isAr ? 'استهدف المرضى بعروض واتساب مخصصة' : 'Target patients with personalized WhatsApp offers'}
+              </p>
+            </button>
+          </div>
+        </div>
+
         {/* Quick Actions */}
         <div className="card p-6">
           <h3 className="text-lg font-semibold font-heading text-healthcare-text mb-4">
@@ -361,14 +394,14 @@ export default function Dashboard() {
               <p className="text-xs text-healthcare-muted mt-0.5">{t('dashboard.quickActions.addPatientDesc')}</p>
             </button>
             <button
-              onClick={() => navigate('/dashboard/call-center')}
+              onClick={() => navigate('/dashboard/analytics')}
               className="card-interactive p-4 text-center group border-2 border-dashed border-healthcare-border/40 hover:border-secondary-300"
             >
               <div className="w-12 h-12 mx-auto rounded-xl bg-secondary-50 flex items-center justify-center mb-3 group-hover:bg-secondary-100 transition-colors">
-                <MessageSquare className="h-6 w-6 text-secondary-500" />
+                <Activity className="h-6 w-6 text-secondary-500" />
               </div>
-              <p className="text-sm font-semibold text-healthcare-text">{t('dashboard.quickActions.viewMessages')}</p>
-              <p className="text-xs text-healthcare-muted mt-0.5">{t('dashboard.quickActions.viewMessagesDesc')}</p>
+              <p className="text-sm font-semibold text-healthcare-text">{t('dashboard.quickActions.viewAnalytics')}</p>
+              <p className="text-xs text-healthcare-muted mt-0.5">{t('dashboard.quickActions.viewAnalyticsDesc')}</p>
             </button>
           </div>
         </div>

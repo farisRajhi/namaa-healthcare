@@ -204,6 +204,58 @@ export default function Reminders() {
         ))}
       </div>
 
+      {/* Reminder Timeline */}
+      <div className="card p-6">
+        <h2 className="text-sm font-semibold text-gray-700 mb-5">
+          {isAr ? 'تسلسل التذكيرات قبل الموعد' : 'Reminder Sequence Before Appointment'}
+        </h2>
+        <div className="relative flex items-center justify-between">
+          {/* Timeline line */}
+          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-0.5 bg-gray-200 mx-12" />
+          {/* Timeline points */}
+          {[...configs].reverse().map((config) => {
+            const activeChannels = (Object.keys(config.channels) as Array<keyof ReminderConfig['channels']>)
+              .filter((ch) => config.channels[ch])
+            return (
+              <div key={config.interval} className="relative z-10 flex flex-col items-center gap-2">
+                <div className="flex gap-1">
+                  {activeChannels.map((ch) => {
+                    const Icon = channelIcons[ch] || Bell
+                    return (
+                      <div key={ch} className="p-1 bg-primary-50 rounded-md" title={ch}>
+                        <Icon className="h-3.5 w-3.5 text-primary-600" />
+                      </div>
+                    )
+                  })}
+                  {activeChannels.length === 0 && (
+                    <div className="p-1 bg-gray-100 rounded-md">
+                      <MinusCircle className="h-3.5 w-3.5 text-gray-400" />
+                    </div>
+                  )}
+                </div>
+                <div className={cn(
+                  'w-4 h-4 rounded-full border-2',
+                  activeChannels.length > 0 ? 'bg-primary-500 border-primary-300' : 'bg-gray-300 border-gray-200'
+                )} />
+                <span className="text-xs font-medium text-gray-600 whitespace-nowrap">
+                  {isAr ? config.label.ar : config.label.en}
+                </span>
+              </div>
+            )
+          })}
+          {/* Appointment marker */}
+          <div className="relative z-10 flex flex-col items-center gap-2">
+            <div className="p-1 bg-green-50 rounded-md">
+              <Calendar className="h-3.5 w-3.5 text-green-600" />
+            </div>
+            <div className="w-4 h-4 rounded-full bg-green-500 border-2 border-green-300" />
+            <span className="text-xs font-semibold text-green-700 whitespace-nowrap">
+              {isAr ? 'الموعد' : 'Appointment'}
+            </span>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Configuration Panel */}
         <div className="table-container p-6">

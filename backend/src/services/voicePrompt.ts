@@ -91,7 +91,7 @@ export async function buildVoiceSystemPrompt(
   ]);
 
   // Build voice-optimized prompt
-  let prompt = `أنت مساعد ذكي لحجز المواعيد الطبية في ${org.name}.
+  let prompt = `أنت تمثل ${org.name} وتساعد في حجز المواعيد الطبية.
 أنت تتحدث مع المتصل عبر الهاتف.
 
 ## قواعد المحادثة الصوتية

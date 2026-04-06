@@ -21,8 +21,8 @@ const handoffCompleteSchema = z.object({
 });
 
 const querySchema = z.object({
-  page: z.coerce.number().default(1),
-  limit: z.coerce.number().default(20),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
   status: z.string().optional(),
 });
 
@@ -364,8 +364,24 @@ export default async function callCenterRoutes(app: FastifyInstance) {
    * POST /api/call-center/handoff/accept
    * Agent accepts a pending handoff
    */
-  app.post('/handoff/accept', async (request: FastifyRequest) => {
+  app.post('/handoff/accept', async (request: FastifyRequest, reply) => {
+    const { orgId } = request.user;
     const body = handoffAcceptSchema.parse(request.body);
+
+    // Verify handoff belongs to user's org via conversation lookup
+    const handoff = await app.prisma.handoff.findUnique({
+      where: { handoffId: body.handoffId },
+    });
+    if (!handoff) {
+      return reply.code(404).send({ error: 'Handoff not found' });
+    }
+    const conversation = await app.prisma.conversation.findFirst({
+      where: { conversationId: handoff.conversationId, orgId },
+    });
+    if (!conversation) {
+      return reply.code(404).send({ error: 'Handoff not found' });
+    }
+
     const smartRouter = getSmartRouter(app.prisma);
     await smartRouter.acceptHandoff(body.handoffId, body.agentId);
     return { success: true };
@@ -375,8 +391,24 @@ export default async function callCenterRoutes(app: FastifyInstance) {
    * POST /api/call-center/handoff/complete
    * Agent marks handoff as completed
    */
-  app.post('/handoff/complete', async (request: FastifyRequest) => {
+  app.post('/handoff/complete', async (request: FastifyRequest, reply) => {
+    const { orgId } = request.user;
     const body = handoffCompleteSchema.parse(request.body);
+
+    // Verify handoff belongs to user's org via conversation lookup
+    const handoff = await app.prisma.handoff.findUnique({
+      where: { handoffId: body.handoffId },
+    });
+    if (!handoff) {
+      return reply.code(404).send({ error: 'Handoff not found' });
+    }
+    const conversation = await app.prisma.conversation.findFirst({
+      where: { conversationId: handoff.conversationId, orgId },
+    });
+    if (!conversation) {
+      return reply.code(404).send({ error: 'Handoff not found' });
+    }
+
     const smartRouter = getSmartRouter(app.prisma);
     await smartRouter.completeHandoff(body.handoffId);
     return { success: true };
@@ -434,13 +466,22 @@ export default async function callCenterRoutes(app: FastifyInstance) {
    * POST /api/call-center/suggest
    * Get AI suggestions for an agent assisting a call
    */
-  app.post('/suggest', async (request: FastifyRequest) => {
+  app.post('/suggest', async (request: FastifyRequest, reply) => {
+    const { orgId } = request.user;
     const body = z
       .object({
         conversationId: z.string().uuid(),
         utterance: z.string().min(1),
       })
       .parse(request.body);
+
+    // Verify conversation belongs to user's org
+    const conversation = await app.prisma.conversation.findFirst({
+      where: { conversationId: body.conversationId, orgId },
+    });
+    if (!conversation) {
+      return reply.code(404).send({ error: 'Conversation not found' });
+    }
 
     const smartRouter = getSmartRouter(app.prisma);
     const suggestions = await smartRouter.getAgentSuggestions(

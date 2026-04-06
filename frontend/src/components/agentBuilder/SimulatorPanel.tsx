@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { X, Send, RotateCcw, Bot, User } from 'lucide-react'
+import { X, Send, RotateCcw, Bot, User, Hand, CalendarCheck, AlertTriangle } from 'lucide-react'
 import { api } from '../../lib/api'
 
 interface SimMessage {
@@ -215,6 +215,36 @@ export default function SimulatorPanel({ flowId, onClose }: SimulatorPanelProps)
 
         <div ref={messagesEndRef} />
       </div>
+
+      {/* Quick Test Buttons */}
+      {!isComplete && messages.length <= 1 && (
+        <div className="px-3 py-2 border-t border-gray-100 flex-shrink-0" dir="rtl">
+          <p className="text-[10px] text-gray-400 mb-1.5">اختبار سريع:</p>
+          <div className="flex flex-wrap gap-1.5">
+            <button
+              onClick={() => { setInput('مرحبا'); }}
+              className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-full border border-gray-200 text-gray-500 hover:border-green-200 hover:text-green-600 hover:bg-green-50 transition-colors"
+            >
+              <Hand className="w-2.5 h-2.5" />
+              اختبر الترحيب
+            </button>
+            <button
+              onClick={() => { setInput('أبي أحجز موعد'); }}
+              className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-full border border-gray-200 text-gray-500 hover:border-teal-200 hover:text-teal-600 hover:bg-teal-50 transition-colors"
+            >
+              <CalendarCheck className="w-2.5 h-2.5" />
+              اختبر الحجز
+            </button>
+            <button
+              onClick={() => { setInput('عندي ألم شديد في الصدر'); }}
+              className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-full border border-gray-200 text-gray-500 hover:border-red-200 hover:text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <AlertTriangle className="w-2.5 h-2.5" />
+              اختبر التصعيد
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Input */}
       <div className="px-3 py-2 border-t border-gray-100 flex-shrink-0">

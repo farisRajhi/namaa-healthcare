@@ -1,5 +1,5 @@
 # ============================================
-# Namaa Frontend Dockerfile
+# Tawafud Frontend Dockerfile
 # Multi-stage build for production deployment
 # ============================================
 
@@ -22,7 +22,7 @@ COPY . .
 # Build arguments for environment variables
 ARG VITE_API_URL
 ARG VITE_WS_URL
-ARG VITE_APP_NAME=Namaa
+ARG VITE_APP_NAME=Tawafud
 
 ENV VITE_API_URL=${VITE_API_URL}
 ENV VITE_WS_URL=${VITE_WS_URL}

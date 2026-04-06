@@ -20,7 +20,7 @@ export interface OutboundCallerConfig {
   smsFromNumber: string;
   /** WhatsApp sender (e.g. whatsapp:+14155238886) */
   whatsappFromNumber: string;
-  /** Base URL for TwiML webhooks (e.g. https://api.namaa.ai) */
+  /** Base URL for TwiML webhooks (e.g. https://api.tawafud.raskh.app) */
   baseUrl: string;
   /** Default calling window start (24h format, e.g. "09:00") */
   defaultCallWindowStart: string;
@@ -69,7 +69,7 @@ const DEFAULT_CONFIG: OutboundCallerConfig = {
   voiceFromNumber: process.env.TWILIO_PHONE_NUMBER || '',
   smsFromNumber: process.env.TWILIO_PHONE_NUMBER || '',
   whatsappFromNumber: process.env.TWILIO_WHATSAPP_NUMBER || 'whatsapp:+14155238886',
-  baseUrl: process.env.BASE_URL || 'https://api.namaa.ai',
+  baseUrl: process.env.BASE_URL || 'https://api.tawafud.raskh.app',
   defaultCallWindowStart: '09:00',
   defaultCallWindowEnd: '21:00',
   defaultMaxAttempts: 3,

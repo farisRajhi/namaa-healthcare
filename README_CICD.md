@@ -1,6 +1,6 @@
-# 🚀 Namaa CI/CD & Production Deployment
+# 🚀 Tawafud CI/CD & Production Deployment
 
-Complete CI/CD pipeline and production deployment infrastructure for **Namaa (نماء) AI Medical Receptionist**.
+Complete CI/CD pipeline and production deployment infrastructure for **Tawafud (توافد) AI Medical Receptionist**.
 
 ## 🎯 Quick Links
 
@@ -252,4 +252,4 @@ All files have been created and verified. The repository now has:
 **Last Updated**: 2026-02-17  
 **Version**: 1.0.0  
 **Repository**: https://github.com/farisRajhi/ai-agent  
-**Project**: Namaa (نماء) AI Medical Receptionist
+**Project**: Tawafud (توافد) AI Medical Receptionist

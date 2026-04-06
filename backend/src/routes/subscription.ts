@@ -8,12 +8,12 @@ export default async function subscriptionRoutes(app: FastifyInstance) {
     async (request: FastifyRequest, reply: FastifyReply) => {
       const user = request.user;
 
-      const subscription = await app.prisma.namaaSubscription.findFirst({
+      const subscription = await app.prisma.tawafudSubscription.findFirst({
         where: { orgId: user.orgId },
         orderBy: { createdAt: 'desc' },
       });
 
-      const payments = await app.prisma.namaaPayment.findMany({
+      const payments = await app.prisma.tawafudPayment.findMany({
         where: { orgId: user.orgId },
         orderBy: { createdAt: 'desc' },
         take: 20,
@@ -69,7 +69,7 @@ export default async function subscriptionRoutes(app: FastifyInstance) {
         body: JSON.stringify({
           amount: PLAN_PRICES[plan],
           currency: 'SAR',
-          description: `Namaa ${plan.charAt(0).toUpperCase() + plan.slice(1)} Plan`,
+          description: `Tawafud ${plan.charAt(0).toUpperCase() + plan.slice(1)} Plan`,
           source,
           callback_url:
             callbackUrl ||
@@ -87,7 +87,7 @@ export default async function subscriptionRoutes(app: FastifyInstance) {
         });
       }
 
-      const payment = await app.prisma.namaaPayment.create({
+      const payment = await app.prisma.tawafudPayment.create({
         data: {
           orgId: user.orgId,
           amount: PLAN_PRICES[plan],

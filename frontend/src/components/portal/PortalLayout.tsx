@@ -1,7 +1,7 @@
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { usePatientAuth } from '../../context/PatientAuthContext'
-import { Home, Calendar, Pill, User, LogOut } from 'lucide-react'
+import { Home, Calendar, User, LogOut } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import LoadingSpinner from '../ui/LoadingSpinner'
 
@@ -14,7 +14,6 @@ export default function PortalLayout() {
   const navItems = [
     { name: t('portal.nav.home'), href: '/patient/dashboard', icon: Home, end: true },
     { name: t('portal.nav.appointments'), href: '/patient/dashboard/appointments', icon: Calendar },
-    { name: t('portal.nav.prescriptions'), href: '/patient/dashboard/prescriptions', icon: Pill },
     { name: t('portal.nav.profile'), href: '/patient/dashboard/profile', icon: User },
   ]
 

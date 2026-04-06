@@ -11,10 +11,9 @@ import {
   DollarSign,
   Plus,
 } from 'lucide-react'
+import ComingSoonOverlay from '../components/ui/ComingSoonOverlay'
 import { cn } from '../lib/utils'
 import {
-  LineChart,
-  Line,
   AreaChart,
   Area,
   BarChart,
@@ -27,7 +26,6 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  Legend,
 } from 'recharts'
 
 const COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4']
@@ -131,20 +129,6 @@ export default function AnalyticsDashboard() {
     placeholderData: [],
   })
 
-  // Backend: GET /api/analytics-v2/quality/trend
-  const { data: qaScores } = useQuery({
-    queryKey: ['analytics-dashboard', 'qa-trend'],
-    queryFn: async () => {
-      try {
-        const res = await api.get('/api/analytics-v2/quality/trend')
-        return res.data?.data || res.data || []
-      } catch {
-        return []
-      }
-    },
-    placeholderData: [],
-  })
-
   // Backend: GET /api/analytics-v2/revenue-impact
   const { data: revenueImpact } = useQuery({
     queryKey: ['analytics-dashboard', 'revenue-impact'],
@@ -209,32 +193,46 @@ export default function AnalyticsDashboard() {
         </p>
       </div>
 
+      {/* Coming Soon Banner */}
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-3">
+        <Phone className="h-5 w-5 text-amber-600 flex-shrink-0" />
+        <p className="text-sm text-amber-800 font-medium">
+          {isAr ? 'تحليلات المكالمات قيد التطوير وستتوفر قريباً' : 'Call analytics are under development and coming soon'}
+        </p>
+        <span className="inline-flex items-center gap-1.5 bg-amber-100 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-full text-xs font-semibold ms-auto">
+          {isAr ? 'قريباً' : 'Coming Soon'}
+        </span>
+      </div>
+
       {/* Stat Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        {statCards.map((stat) => (
-          <div key={stat.label} className="card p-4">
-            <div className="flex items-center gap-3">
-              <div className={cn(stat.color, 'p-2 rounded-lg')}>
-                <stat.icon className="h-5 w-5 text-white" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs text-gray-500 truncate">{stat.label}</p>
-                <div className="flex items-center gap-1">
-                  <p className="text-xl font-bold text-healthcare-text">{stat.value}</p>
-                  <span className={cn(
-                    'text-xs font-medium',
-                    stat.change.startsWith('+') ? 'text-green-600' : 'text-red-600'
-                  )}>
-                    {stat.change}
-                  </span>
+      <ComingSoonOverlay>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          {statCards.map((stat) => (
+            <div key={stat.label} className="card p-4">
+              <div className="flex items-center gap-3">
+                <div className={cn(stat.color, 'p-2 rounded-lg')}>
+                  <stat.icon className="h-5 w-5 text-white" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs text-gray-500 truncate">{stat.label}</p>
+                  <div className="flex items-center gap-1">
+                    <p className="text-xl font-bold text-healthcare-text">{stat.value}</p>
+                    <span className={cn(
+                      'text-xs font-medium',
+                      stat.change.startsWith('+') ? 'text-green-600' : 'text-red-600'
+                    )}>
+                      {stat.change}
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      </ComingSoonOverlay>
 
       {/* Call Volume Chart */}
+      <ComingSoonOverlay>
       <div className="card p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-heading font-semibold text-healthcare-text">{isAr ? 'حجم المكالمات' : 'Call Volume'}</h3>
@@ -268,7 +266,9 @@ export default function AnalyticsDashboard() {
           </ResponsiveContainer>
         </div>
       </div>
+      </ComingSoonOverlay>
 
+      <ComingSoonOverlay>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Call Drivers Pie Chart */}
         <div className="card p-6">
@@ -328,6 +328,7 @@ export default function AnalyticsDashboard() {
           )}
         </div>
       </div>
+      </ComingSoonOverlay>
 
       {/* Knowledge Gaps */}
       <div className="table-container overflow-hidden">
@@ -415,25 +416,6 @@ export default function AnalyticsDashboard() {
         </div>
       </div>
 
-      {/* QA Scores Trend */}
-      <div className="card p-6">
-        <h3 className="text-lg font-semibold mb-4">{isAr ? 'اتجاه درجات الجودة' : 'QA Scores Trend'}</h3>
-        <div className="h-72">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={Array.isArray(qaScores) ? qaScores : []}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis domain={[0, 100]} />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="accuracy" stroke="#22c55e" name={isAr ? 'الدقة' : 'Accuracy'} strokeWidth={2} />
-              <Line type="monotone" dataKey="tone" stroke="#3b82f6" name={isAr ? 'النبرة' : 'Tone'} strokeWidth={2} />
-              <Line type="monotone" dataKey="resolution" stroke="#f59e0b" name={isAr ? 'الحل' : 'Resolution'} strokeWidth={2} />
-              <Line type="monotone" dataKey="compliance" stroke="#8b5cf6" name={isAr ? 'الامتثال' : 'Compliance'} strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
     </div>
   )
 }

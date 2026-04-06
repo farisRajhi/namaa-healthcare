@@ -1,4 +1,4 @@
-# Security Fixes — Namaa (نماء) AI Medical Receptionist
+# Security Fixes — Tawafud (توافد) AI Medical Receptionist
 
 **Date:** 2026-02-18  
 **Engineer:** Security subagent (automated)  

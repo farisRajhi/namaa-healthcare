@@ -46,7 +46,7 @@ export default function Login() {
           <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center mb-8">
             <span className="text-white font-bold text-3xl">✚</span>
           </div>
-          <h1 className="text-4xl font-heading font-bold text-white mb-4">نماء</h1>
+          <h1 className="text-4xl font-heading font-bold text-white mb-4">توافد</h1>
           <p className="text-xl text-white/80 mb-2">مساعد الذكاء الاصطناعي الطبي</p>
           <p className="text-white/60 leading-relaxed">
             منصة ذكية لإدارة المواعيد والتواصل مع المرضى بكفاءة عالية
@@ -73,8 +73,8 @@ export default function Login() {
               <span className="text-white font-bold text-xl">✚</span>
             </div>
             <div>
-              <h1 className="font-heading font-bold text-xl text-healthcare-text">نماء</h1>
-              <p className="text-xs text-healthcare-muted">NAMAA HEALTH AI</p>
+              <h1 className="font-heading font-bold text-xl text-healthcare-text">توافد</h1>
+              <p className="text-xs text-healthcare-muted">TAWAFUD HEALTH AI</p>
             </div>
           </div>
 

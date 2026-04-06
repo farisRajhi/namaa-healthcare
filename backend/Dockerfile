@@ -1,5 +1,5 @@
 # ============================================
-# Namaa Backend Dockerfile
+# Tawafud Backend Dockerfile
 # Multi-stage build for production deployment
 # ============================================
 

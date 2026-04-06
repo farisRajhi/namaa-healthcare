@@ -1,5 +1,6 @@
 import { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
+import { getInsightBuilder } from '../services/patient/insightBuilder.js';
 
 const createPatientSchema = z.object({
   firstName: z.string().min(1),
@@ -13,8 +14,8 @@ const createPatientSchema = z.object({
 });
 
 const querySchema = z.object({
-  page: z.coerce.number().default(1),
-  limit: z.coerce.number().default(20),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
   search: z.string().optional(),
 });
 
@@ -80,6 +81,8 @@ export default async function patientsRoutes(app: FastifyInstance) {
           orderBy: { startTs: 'desc' },
           take: 10,
         },
+        insight: true,
+        tags: true,
       },
     });
 
@@ -156,5 +159,167 @@ export default async function patientsRoutes(app: FastifyInstance) {
     }
 
     return { success: true };
+  });
+
+  // ─── Knowledge Base: Insights ─────────────────────────────────────────────
+
+  // Get patient insights
+  app.get<{ Params: { id: string } }>('/:id/insights', async (request, reply) => {
+    const { orgId } = request.user;
+    const { id } = request.params;
+
+    const patient = await app.prisma.patient.findFirst({
+      where: { patientId: id, orgId },
+      select: { patientId: true },
+    });
+    if (!patient) return reply.code(404).send({ error: 'Patient not found' });
+
+    const insight = await app.prisma.patientInsight.findUnique({
+      where: { patientId: id },
+    });
+
+    return insight || {
+      patientId: id,
+      totalAppointments: 0,
+      completedAppointments: 0,
+      noShowCount: 0,
+      cancelledCount: 0,
+      completionRate: 0,
+      preferredServiceIds: [],
+      preferredProviderIds: [],
+      preferredDayOfWeek: null,
+      preferredTimeSlot: null,
+      channelPreference: null,
+      engagementScore: 0,
+      lastInteractionAt: null,
+      totalConversations: 0,
+      lifetimeValue: 0,
+    };
+  });
+
+  // Rebuild patient insights
+  app.post<{ Params: { id: string } }>('/:id/insights/rebuild', async (request, reply) => {
+    const { orgId } = request.user;
+    const { id } = request.params;
+
+    const patient = await app.prisma.patient.findFirst({
+      where: { patientId: id, orgId },
+      select: { patientId: true },
+    });
+    if (!patient) return reply.code(404).send({ error: 'Patient not found' });
+
+    const builder = getInsightBuilder(app.prisma);
+    await builder.rebuildInsight(id, orgId);
+
+    const insight = await app.prisma.patientInsight.findUnique({
+      where: { patientId: id },
+    });
+
+    return insight;
+  });
+
+  // ─── Knowledge Base: Tags ─────────────────────────────────────────────────
+
+  // List tags for a patient
+  app.get<{ Params: { id: string } }>('/:id/tags', async (request, reply) => {
+    const { orgId } = request.user;
+    const { id } = request.params;
+
+    const patient = await app.prisma.patient.findFirst({
+      where: { patientId: id, orgId },
+      select: { patientId: true },
+    });
+    if (!patient) return reply.code(404).send({ error: 'Patient not found' });
+
+    const tags = await app.prisma.patientTag.findMany({
+      where: { patientId: id, orgId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return tags;
+  });
+
+  // Add tag to a patient
+  app.post<{ Params: { id: string } }>('/:id/tags', async (request, reply) => {
+    const { orgId } = request.user;
+    const { id } = request.params;
+    const body = z.object({
+      tag: z.string().min(1).max(100),
+      source: z.enum(['manual', 'auto', 'campaign']).default('manual'),
+    }).parse(request.body);
+
+    const patient = await app.prisma.patient.findFirst({
+      where: { patientId: id, orgId },
+      select: { patientId: true },
+    });
+    if (!patient) return reply.code(404).send({ error: 'Patient not found' });
+
+    const tag = await app.prisma.patientTag.upsert({
+      where: {
+        orgId_patientId_tag: { orgId, patientId: id, tag: body.tag },
+      },
+      update: {},
+      create: {
+        orgId,
+        patientId: id,
+        tag: body.tag,
+        source: body.source,
+      },
+    });
+
+    return tag;
+  });
+
+  // Remove tag from a patient
+  app.delete<{ Params: { id: string; tagId: string } }>('/:id/tags/:tagId', async (request, reply) => {
+    const { orgId } = request.user;
+    const { tagId } = request.params;
+
+    const result = await app.prisma.patientTag.deleteMany({
+      where: { tagId, orgId },
+    });
+
+    if (result.count === 0) {
+      return reply.code(404).send({ error: 'Tag not found' });
+    }
+
+    return { success: true };
+  });
+
+  // ─── Knowledge Base: Memories (all types) ─────────────────────────────────
+
+  // Get all memories for a patient (grouped)
+  app.get<{ Params: { id: string } }>('/:id/knowledge', async (request, reply) => {
+    const { orgId } = request.user;
+    const { id } = request.params;
+
+    const patient = await app.prisma.patient.findFirst({
+      where: { patientId: id, orgId },
+      select: { patientId: true },
+    });
+    if (!patient) return reply.code(404).send({ error: 'Patient not found' });
+
+    const [memories, insight, tags] = await Promise.all([
+      app.prisma.patientMemory.findMany({
+        where: { patientId: id, isActive: true },
+        orderBy: { updatedAt: 'desc' },
+      }),
+      app.prisma.patientInsight.findUnique({
+        where: { patientId: id },
+      }),
+      app.prisma.patientTag.findMany({
+        where: { patientId: id, orgId },
+        orderBy: { createdAt: 'desc' },
+      }),
+    ]);
+
+    // Group memories by type
+    const grouped: Record<string, typeof memories> = {};
+    for (const mem of memories) {
+      if (!grouped[mem.memoryType]) grouped[mem.memoryType] = [];
+      grouped[mem.memoryType].push(mem);
+    }
+
+    return { memories: grouped, insight, tags };
   });
 }

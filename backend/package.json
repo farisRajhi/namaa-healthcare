@@ -1,7 +1,7 @@
 {
-  "name": "namaa-backend",
+  "name": "tawafud-backend",
   "version": "1.0.0",
-  "description": "Backend API for Namaa",
+  "description": "Backend API for Tawafud",
   "main": "dist/server.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
@@ -46,6 +46,8 @@
     "@fastify/websocket": "^9.0.0",
     "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^5.22.0",
+    "@types/qrcode": "^1.5.6",
+    "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "bcryptjs": "^3.0.3",
     "elevenlabs": "^1.59.0",
     "fastify": "^4.28.1",
@@ -53,6 +55,7 @@
     "google-auth-library": "^10.5.0",
     "node-cron": "^4.2.1",
     "openai": "^6.15.0",
+    "qrcode": "^1.5.4",
     "twilio": "^5.11.1",
     "ws": "^8.18.3",
     "zod": "^3.23.8"

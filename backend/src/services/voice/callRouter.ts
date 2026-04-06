@@ -5,7 +5,6 @@ import { getLLMService, ChatMessage } from '../llm.js';
 
 export type CallerIntent =
   | 'scheduling'
-  | 'prescription'
   | 'physician_search'
   | 'faq'
   | 'billing'
@@ -51,10 +50,6 @@ const INTENT_KEYWORDS: Record<CallerIntent, string[]> = {
     'reschedule', 'cancel', 'حجز موعد', 'ابغى موعد', 'ابي موعد', 'عايز موعد',
     'بدي موعد', 'زيارة', 'visit', 'slot', 'available',
   ],
-  prescription: [
-    'دواء', 'وصفة', 'صيدلية', 'حبوب', 'refill', 'prescription', 'medication',
-    'pharmacy', 'medicine', 'تعبئة', 'علاج', 'drug', 'rx',
-  ],
   physician_search: [
     'دكتور', 'طبيب', 'طبيبة', 'doctor', 'physician', 'specialist', 'اخصائي',
     'جلدية', 'عظام', 'باطنية', 'dermatologist', 'orthopedic', 'find doctor',
@@ -85,7 +80,6 @@ const INTENT_KEYWORDS: Record<CallerIntent, string[]> = {
 const INTENT_PRIORITY: CallerIntent[] = [
   'urgent',
   'scheduling',
-  'prescription',
   'billing',
   'physician_search',
   'it_support',
@@ -254,7 +248,6 @@ export class CallRouter {
 
     const systemPrompt = `You are an intent classifier for a healthcare call center. Classify the caller's intent into exactly one of these categories:
 - scheduling: book, reschedule, or cancel appointments
-- prescription: medication refills, prescription status
 - physician_search: finding a doctor or specialist
 - faq: general questions, hours, directions, policies
 - billing: payment, insurance, cost inquiries
@@ -403,7 +396,6 @@ Only output the JSON object, nothing else.`;
 
     const byIntent: Record<CallerIntent | 'none', number> = {
       scheduling: 0,
-      prescription: 0,
       physician_search: 0,
       faq: 0,
       billing: 0,

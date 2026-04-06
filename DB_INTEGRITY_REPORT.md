@@ -1,4 +1,4 @@
-# Database Integrity Report — Namaa (AI Medical Receptionist)
+# Database Integrity Report — Tawafud (AI Medical Receptionist)
 
 **Date:** 2026-02-09 13:32 AST  
 **Database:** `postgresql://localhost:5434/hospital_booking`  
@@ -308,10 +308,10 @@ All returning 0 violations. ✅
 
 | Org ID | Name | Facilities | Providers | Patients |
 |--------|------|------------|-----------|----------|
-| `4bc8f5ca...` | مستشفى نماء التخصصي | 2 | 3 | 5 |
-| `2db80d1b...` | مستشفى نماء التخصصي | 2 | 3 | 5 |
-| `acdbd400...` | مستشفى نماء التخصصي | 2 | 3 | 5 |
-| `ad5cbb3f...` | مستشفى نماء | 0 | 0 | 0 |
+| `4bc8f5ca...` | مستشفى توافد التخصصي | 2 | 3 | 5 |
+| `2db80d1b...` | مستشفى توافد التخصصي | 2 | 3 | 5 |
+| `acdbd400...` | مستشفى توافد التخصصي | 2 | 3 | 5 |
+| `ad5cbb3f...` | مستشفى توافد | 0 | 0 | 0 |
 | `78794a42...` | عيادة الشفاء | 0 | 0 | 0 |
 | `3c9ce91f...` | عيادة الشفاء | 0 | 0 | 0 |
 | `d42dce17...` | عيادة الشفاء | 0 | 0 | 0 |
@@ -349,7 +349,7 @@ Introspected 47 models successfully. Only warnings were about `@map` field enric
 
 ## 11. Conclusion
 
-The Namaa database is in excellent shape:
+The Tawafud database is in excellent shape:
 
 - **Structure:** All 47 tables, 27 foreign keys, 90 indexes, 9 check constraints, and 1 GiST exclusion constraint are correctly defined and functioning.
 - **Data integrity:** Zero orphaned records, zero constraint violations, zero invalid enum values.

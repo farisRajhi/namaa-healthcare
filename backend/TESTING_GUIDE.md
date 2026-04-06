@@ -1,8 +1,8 @@
-# Namaa Backend - Testing Guide
+# Tawafud Backend - Testing Guide
 
 ## 🎯 Overview
 
-This document provides a complete guide to the test suite for Namaa (نماء) AI Medical Receptionist backend.
+This document provides a complete guide to the test suite for Tawafud (توافد) AI Medical Receptionist backend.
 
 ## 📦 What Was Installed
 
@@ -284,7 +284,7 @@ export default defineConfig({
 ### Environment Variables
 Create `.env.test`:
 ```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5434/namaa_test
+DATABASE_URL=postgresql://postgres:postgres@localhost:5434/tawafud_test
 JWT_SECRET=test-secret-key-for-testing-only
 NODE_ENV=test
 ```

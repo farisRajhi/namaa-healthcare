@@ -3,6 +3,7 @@ import rateLimit from '@fastify/rate-limit';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
 import { messages, getLang, msg } from '../lib/messages.js';
+import { aiCustomizationTemplate } from '../services/agentBuilder/templates.js';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -31,8 +32,13 @@ export default async function authRoutes(app: FastifyInstance) {
     }),
   });
 
-  // Register
+  // Register — gated by REGISTRATION_TOKEN in production
   app.post('/register', async (request: FastifyRequest, reply: FastifyReply) => {
+    const regToken = process.env.REGISTRATION_TOKEN;
+    if (regToken && request.headers['x-registration-token'] !== regToken) {
+      return reply.code(403).send({ error: 'Registration is by invitation only' });
+    }
+
     const body = registerSchema.parse(request.body);
 
     // Check if email already exists
@@ -55,6 +61,29 @@ export default async function authRoutes(app: FastifyInstance) {
         defaultTimezone: 'Asia/Riyadh',
       },
     });
+
+    // Auto-deploy default AI customization flow for the new org
+    try {
+      await app.prisma.agentFlow.create({
+        data: {
+          orgId: org.orgId,
+          name: aiCustomizationTemplate.name,
+          nameAr: aiCustomizationTemplate.nameAr,
+          description: aiCustomizationTemplate.description,
+          descriptionAr: aiCustomizationTemplate.descriptionAr,
+          nodes: aiCustomizationTemplate.nodes as any,
+          edges: aiCustomizationTemplate.edges as any,
+          variables: aiCustomizationTemplate.variables,
+          settings: aiCustomizationTemplate.settings,
+          isActive: true,
+          isTemplate: false,
+          templateCategory: aiCustomizationTemplate.templateCategory,
+          publishedAt: new Date(),
+        },
+      });
+    } catch (_) {
+      // Non-critical: if template deploy fails, org still works with default prompts
+    }
 
     // Create user
     const user = await app.prisma.user.create({
@@ -162,5 +191,18 @@ export default async function authRoutes(app: FastifyInstance) {
       nameAr: user.nameAr,
       org: org ? { id: org.orgId, name: org.name } : null,
     };
+  });
+
+  // Logout — client should clear token; server-side invalidation via lastLogin check
+  app.post('/logout', {
+    preHandler: [app.authenticate],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    // Update lastLogin to invalidate any tokens issued before this moment
+    // Client must clear its stored token
+    await app.prisma.user.update({
+      where: { userId: request.user.userId },
+      data: { lastLogin: new Date() },
+    });
+    return { success: true };
   });
 }

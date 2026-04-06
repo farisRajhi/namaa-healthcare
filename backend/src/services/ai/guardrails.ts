@@ -11,8 +11,6 @@ export const ALLOWED_ACTIONS = [
   'appointment_scheduling',
   'appointment_rescheduling',
   'appointment_cancellation',
-  'prescription_status_check',
-  'prescription_refill_request',
   'faq_answering',
   'physician_search',
   'facility_directions',
@@ -89,8 +87,28 @@ const MEDICAL_CLAIM_PATTERNS: { pattern: RegExp; description: string }[] = [
     description: 'Appears to make a prognosis',
   },
   {
-    pattern: /\b(?:أنت مصاب|عندك مرض|تحتاج دواء|خذ حبة|الجرعة المناسبة|نتائجك تدل على|التشخيص هو)\b/,
-    description: 'Arabic medical claim detected',
+    pattern: /(?:أنت مصاب|عندك مرض|تحتاج دواء|خذ حبة|الجرعة المناسبة|نتائجك تدل على|التشخيص هو)/,
+    description: 'Arabic medical claim detected (MSA)',
+  },
+  {
+    pattern: /(?:عندك|فيك)\s+(?:سكر|ضغط|كوليسترول|أنيميا|حساسية|التهاب|فايروس|ورم)/,
+    description: 'Arabic diagnosis pattern (Gulf dialect)',
+  },
+  {
+    pattern: /(?:خذ|اشرب|استخدم)\s+(?:حبة|حبتين|جرعة|ملعقة|إبرة)\s+(?:من|كل)/,
+    description: 'Arabic medication dosage advice (Gulf dialect)',
+  },
+  {
+    pattern: /(?:التحليل|الفحص|الأشعة)\s+(?:يبين|يدل|يوضح|يقول|طلع)/,
+    description: 'Arabic test result interpretation (Gulf dialect)',
+  },
+  {
+    pattern: /(?:لا تخاف|شي بسيط|ما فيها شي|ما عليك شي|شيء بسيط)/,
+    description: 'Arabic minimization of medical concern (Gulf dialect)',
+  },
+  {
+    pattern: /(?:أنصحك|انصحك|نصيحتي)\s+(?:تاخذ|تستخدم|تشرب|توقف|تترك)/,
+    description: 'Arabic treatment recommendation (Gulf dialect)',
   },
   {
     pattern: /\b(?:don't (?:worry|panic)|it's nothing serious|it's just|this is normal|this is not serious)\b/i,

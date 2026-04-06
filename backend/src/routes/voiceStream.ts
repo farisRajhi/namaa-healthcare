@@ -12,6 +12,7 @@ import { SmsDeflector } from '../services/messaging/smsDeflector.js';
 import { getCallRouter } from '../services/voice/callRouter.js';
 import { getSmartRouter } from '../services/routing/smartRouter.js';
 import { getContextBuilder } from '../services/patient/contextBuilder.js';
+import { checkAndIncrement, AI_LIMIT_ERROR } from '../services/usage/aiUsageLimiter.js';
 
 // Silence detection threshold (in bytes of audio that constitute "silence")
 const SILENCE_THRESHOLD_MS = 1500; // 1.5 seconds of silence triggers processing
@@ -171,7 +172,7 @@ export default async function voiceStreamRoutes(app: FastifyInstance) {
             // ── SMS Deflection: detect scheduling/directions intent ──
             try {
               if (intentResult.intent === 'scheduling') {
-                const baseUrl = process.env.BASE_URL || 'https://namaa.app';
+                const baseUrl = process.env.BASE_URL || 'https://tawafud.raskh.app';
                 await smsDeflector.triggerMidCallSms({
                   orgId: session.orgId,
                   intent: 'scheduling',
@@ -259,6 +260,22 @@ export default async function voiceStreamRoutes(app: FastifyInstance) {
           }
         } catch (ctxErr) {
           app.log.error({ err: ctxErr }, 'Failed to build voice patient context');
+        }
+
+        // ── AI usage limit check ──
+        const usageCheck = await checkAndIncrement(app.prisma, session.orgId);
+        if (!usageCheck.allowed) {
+          const limitMsg = AI_LIMIT_ERROR.ar;
+          app.log.warn({ orgId: session.orgId, usage: usageCheck.current }, 'AI usage limit exceeded for voice call');
+          // Convert limit message to TTS and send to caller
+          const ttsAudio = await ttsService.synthesize(limitMsg);
+          const mulawAudio = pcmToMulaw(ttsAudio);
+          ws.send(JSON.stringify({
+            event: 'media',
+            streamSid,
+            media: { payload: mulawAudio.toString('base64') },
+          } as TwilioMediaResponse));
+          return;
         }
 
         // Get LLM response
@@ -470,7 +487,7 @@ ${transcriptText}
 أجب بصيغة JSON فقط بدون أي نص إضافي:
 {
   "summary": "ملخص موجز للمحادثة بالعربية (2-3 جمل)",
-  "intent": "booking | inquiry | emergency | complaint | prescription | other",
+  "intent": "booking | inquiry | emergency | complaint | other",
   "keyTopics": ["موضوع 1", "موضوع 2"],
   "sentiment": "positive | neutral | negative",
   "actionItems": [

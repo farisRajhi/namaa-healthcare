@@ -11,40 +11,30 @@ import Dashboard from './pages/Dashboard'
 import Patients from './pages/Patients'
 import PatientDetail from './pages/PatientDetail'
 import Appointments from './pages/Appointments'
-import Providers from './pages/Providers'
-import Services from './pages/Services'
-import Departments from './pages/Departments'
-import Facilities from './pages/Facilities'
 import Management from './pages/Management'
 import Settings from './pages/Settings'
-import CallCenter from './pages/CallCenter'
-import Prescriptions from './pages/Prescriptions'
 import FAQ from './pages/FAQ'
 import Campaigns from './pages/Campaigns'
 import Reminders from './pages/Reminders'
 import AnalyticsDashboard from './pages/AnalyticsDashboard'
-import FleetDashboard from './pages/FleetDashboard'
-import QualityReview from './pages/QualityReview'
 import Integrations from './pages/Integrations'
-import AuditLog from './pages/AuditLog'
-import SmsTemplates from './pages/SmsTemplates'
-import Waitlist from './pages/Waitlist'
+// SmsTemplates page removed — redirects to PatientEngagement
 import AgentBuilderList from './pages/AgentBuilderList'
 import AgentBuilder from './pages/AgentBuilder'
 import Reports from './pages/Reports'
+import KnowledgeBase from './pages/KnowledgeBase'
+// Offers, PatientInsights, MarketingHub pages removed — redirects to PatientEngagement
+import PatientEngagement from './pages/PatientEngagement'
 import PatientLogin from './pages/portal/PatientLogin'
 import PatientDashboard from './pages/portal/PatientDashboard'
 import PatientAppointments from './pages/portal/PatientAppointments'
 import PatientBooking from './pages/portal/PatientBooking'
-import PatientPrescriptions from './pages/portal/PatientPrescriptions'
 import PatientProfile from './pages/portal/PatientProfile'
 import LoadingSpinner from './components/ui/LoadingSpinner'
 import PrivacyPolicy from './pages/Legal/PrivacyPolicy'
 import Terms from './pages/Legal/Terms'
-import DoctorSchedule from './pages/DoctorSchedule'
 import NotFound from './pages/NotFound'
 import PublicBooking from './pages/PublicBooking'
-import Branches from './pages/Branches'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth()
@@ -104,30 +94,24 @@ function App() {
         <Route path="patients" element={<Patients />} />
         <Route path="patients/:id" element={<PatientDetail />} />
         <Route path="appointments" element={<Appointments />} />
-        <Route path="providers" element={<Providers />} />
-        <Route path="services" element={<Services />} />
-        <Route path="departments" element={<Departments />} />
-        <Route path="facilities" element={<Facilities />} />
         <Route path="management" element={<Management />} />
         <Route path="settings" element={<Settings />} />
-        <Route path="call-center" element={<CallCenter />} />
-        <Route path="prescriptions" element={<Prescriptions />} />
         <Route path="faq" element={<FAQ />} />
+        <Route path="patient-engagement" element={<PatientEngagement />} />
         <Route path="campaigns" element={<Campaigns />} />
         <Route path="reminders" element={<Reminders />} />
         <Route path="analytics-dashboard" element={<AnalyticsDashboard />} />
         <Route path="analytics" element={<AnalyticsDashboard />} />
-        <Route path="fleet" element={<FleetDashboard />} />
-        <Route path="quality" element={<QualityReview />} />
         <Route path="integrations" element={<Integrations />} />
-        <Route path="audit" element={<AuditLog />} />
-        <Route path="sms-templates" element={<SmsTemplates />} />
-        <Route path="waitlist" element={<Waitlist />} />
         <Route path="agent-builder" element={<AgentBuilderList />} />
         <Route path="agent-builder/:id" element={<AgentBuilder />} />
         <Route path="reports" element={<Reports />} />
-        <Route path="branches" element={<Branches />} />
-        <Route path="doctor-schedule" element={<DoctorSchedule />} />
+        <Route path="knowledge-base" element={<KnowledgeBase />} />
+        {/* Redirects: old marketing pages → Patient Engagement */}
+        <Route path="marketing" element={<Navigate to="/dashboard/patient-engagement" replace />} />
+        <Route path="sms-templates" element={<Navigate to="/dashboard/patient-engagement" replace />} />
+        <Route path="offers" element={<Navigate to="/dashboard/patient-engagement" replace />} />
+        <Route path="patient-insights" element={<Navigate to="/dashboard/patient-engagement" replace />} />
       </Route>
 
       {/* Legal pages */}
@@ -158,7 +142,6 @@ function App() {
         <Route index element={<PatientDashboard />} />
         <Route path="appointments" element={<PatientAppointments />} />
         <Route path="book" element={<PatientBooking />} />
-        <Route path="prescriptions" element={<PatientPrescriptions />} />
         <Route path="profile" element={<PatientProfile />} />
       </Route>
 

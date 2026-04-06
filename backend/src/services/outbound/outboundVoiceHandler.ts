@@ -182,8 +182,8 @@ export class OutboundVoiceHandler {
     const instructions = CAMPAIGN_INSTRUCTIONS_AR[campaignType] || CAMPAIGN_INSTRUCTIONS_AR['announcement'];
 
     const patientGreeting = context.patientName
-      ? `مرحباً ${context.patientName}، معك نماء من ${orgName}.`
-      : `مرحباً، معك نماء من ${orgName}.`;
+      ? `مرحباً ${context.patientName}، معك توافد من ${orgName}.`
+      : `مرحباً، معك توافد من ${orgName}.`;
 
     const outboundPrompt = `
 ## نوع المكالمة: مكالمة صادرة
@@ -196,7 +196,7 @@ export class OutboundVoiceHandler {
 ${instructions}
 
 ## قواعد المكالمات الصادرة
-- قدم نفسك فوراً عند الرد (اسمك "نماء" والعيادة)
+- قدم نفسك فوراً عند الرد (اسمك "توافد" والعيادة)
 - كن مختصراً ومحترماً — المريض لم يطلب هذه المكالمة
 - إذا كان المريض مشغولاً، اعرض الاتصال في وقت آخر
 - لا تضغط على المريض — إذا رفض، اشكره واختم المكالمة
@@ -217,9 +217,9 @@ ${instructions}
     const intro = CAMPAIGN_INTRO_AR[campaignType] || CAMPAIGN_INTRO_AR['announcement'];
 
     if (context.patientName) {
-      return `مرحباً ${context.patientName}، معك نماء من ${orgName}. ${intro}`;
+      return `مرحباً ${context.patientName}، معك توافد من ${orgName}. ${intro}`;
     }
-    return `مرحباً، معك نماء من ${orgName}. ${intro}`;
+    return `مرحباً، معك توافد من ${orgName}. ${intro}`;
   }
 
   /**

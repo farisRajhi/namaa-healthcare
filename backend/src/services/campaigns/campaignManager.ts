@@ -8,6 +8,7 @@
  */
 import { PrismaClient, Prisma } from '@prisma/client';
 import { OutboundCaller, getOutboundCaller } from '../outbound/outboundCaller.js';
+import { MarketingConsentService } from '../compliance/marketingConsent.js';
 import type { Twilio } from 'twilio';
 
 // ---------------------------------------------------------------------------
@@ -18,7 +19,7 @@ export interface CampaignCreateInput {
   orgId: string;
   name: string;
   nameAr?: string;
-  type: 'recall' | 'preventive' | 'follow_up' | 'satisfaction' | 'announcement';
+  type: 'recall' | 'preventive' | 'follow_up' | 'satisfaction' | 'announcement' | 'promotional' | 'reminder';
   targetFilter: PatientFilter;
   channelSequence: string[];
   scriptEn?: string;
@@ -28,6 +29,8 @@ export interface CampaignCreateInput {
   maxCallsPerHour?: number;
   startDate?: Date;
   endDate?: Date;
+  /** Only execute this campaign on salary days (25th-27th of month) */
+  salaryDayOnly?: boolean;
 }
 
 export interface ScriptVariant {
@@ -55,6 +58,20 @@ export interface PatientFilter {
   excludeWithUpcoming?: boolean;
   /** Specific patient IDs (manual override) */
   patientIds?: string[];
+  /** Knowledge Base: patients with ANY of these tags */
+  tags?: string[];
+  /** Knowledge Base: patients with service_interest memory matching these keys */
+  serviceInterests?: string[];
+  /** Knowledge Base: minimum engagement score (0-100) */
+  minEngagementScore?: number;
+  /** Knowledge Base: maximum engagement score (0-100) */
+  maxEngagementScore?: number;
+  /** Return likelihood: minimum score (0-100) */
+  minReturnLikelihood?: number;
+  /** Return likelihood: maximum score (0-100) */
+  maxReturnLikelihood?: number;
+  /** Knowledge Base: preferred channel */
+  channelPreference?: string;
 }
 
 export interface CampaignResults {
@@ -113,6 +130,7 @@ export class CampaignManager {
         maxCallsPerHour: input.maxCallsPerHour ?? 50,
         startDate: input.startDate,
         endDate: input.endDate,
+        salaryDayOnly: input.salaryDayOnly ?? false,
       },
     });
 
@@ -336,6 +354,8 @@ export class CampaignManager {
 
   /**
    * Execute all active campaigns. Main cron entry point.
+   * Salary-day campaigns (salaryDayOnly=true) are skipped unless
+   * today is the 25th-27th of the month (Saudi salary days).
    */
   async executeAllActiveCampaigns(): Promise<
     Array<{ campaignId: string; enqueued: number; processed: number }>
@@ -344,8 +364,16 @@ export class CampaignManager {
       where: { status: 'active' },
     });
 
+    // Check if today is a salary day (25th-27th) in Riyadh timezone
+    const riyadhNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Riyadh' }));
+    const dayOfMonth = riyadhNow.getDate();
+    const isSalaryDay = dayOfMonth >= 25 && dayOfMonth <= 27;
+
     const results = [];
     for (const campaign of activeCampaigns) {
+      // Skip salary-day-only campaigns outside the 25th-27th window
+      if (campaign.salaryDayOnly && !isSalaryDay) continue;
+
       const result = await this.executeCampaign(campaign.campaignId);
       results.push({ campaignId: campaign.campaignId, ...result });
     }
@@ -509,7 +537,13 @@ export class CampaignManager {
     filter: PatientFilter,
   ): Promise<number> {
     // Build the patient query
-    const patients = await this.queryPatientsByFilter(orgId, filter);
+    let patients = await this.queryPatientsByFilter(orgId, filter);
+
+    // For promotional campaigns, enforce marketing consent
+    const campaign = await this.prisma.campaign.findUnique({ where: { campaignId } });
+    if (campaign && campaign.type === 'promotional') {
+      patients = await this.filterByMarketingConsent(patients, orgId, 'whatsapp');
+    }
 
     // Batch create targets
     let created = 0;
@@ -668,7 +702,108 @@ export class CampaignManager {
       patients = patients.filter((p) => servicePatientIds.has(p.patientId));
     }
 
+    // Filter by tags (Knowledge Base)
+    if (filter.tags && filter.tags.length > 0) {
+      const patientsWithTags = await this.prisma.patientTag.findMany({
+        where: {
+          patientId: { in: patients.map((p) => p.patientId) },
+          tag: { in: filter.tags },
+        },
+        select: { patientId: true },
+        distinct: ['patientId'],
+      });
+      const tagPatientIds = new Set(patientsWithTags.map((p) => p.patientId));
+      patients = patients.filter((p) => tagPatientIds.has(p.patientId));
+    }
+
+    // Filter by service interests (Knowledge Base)
+    if (filter.serviceInterests && filter.serviceInterests.length > 0) {
+      const patientsWithInterests = await this.prisma.patientMemory.findMany({
+        where: {
+          patientId: { in: patients.map((p) => p.patientId) },
+          memoryType: 'service_interest',
+          memoryKey: { in: filter.serviceInterests },
+          isActive: true,
+        },
+        select: { patientId: true },
+        distinct: ['patientId'],
+      });
+      const interestPatientIds = new Set(patientsWithInterests.map((p) => p.patientId));
+      patients = patients.filter((p) => interestPatientIds.has(p.patientId));
+    }
+
+    // Filter by engagement score (Knowledge Base)
+    if (filter.minEngagementScore !== undefined || filter.maxEngagementScore !== undefined) {
+      const scoreWhere: any = {
+        patientId: { in: patients.map((p) => p.patientId) },
+      };
+      if (filter.minEngagementScore !== undefined) {
+        scoreWhere.engagementScore = { ...scoreWhere.engagementScore, gte: filter.minEngagementScore };
+      }
+      if (filter.maxEngagementScore !== undefined) {
+        scoreWhere.engagementScore = { ...scoreWhere.engagementScore, lte: filter.maxEngagementScore };
+      }
+      const patientsWithScore = await this.prisma.patientInsight.findMany({
+        where: scoreWhere,
+        select: { patientId: true },
+      });
+      const scorePatientIds = new Set(patientsWithScore.map((p) => p.patientId));
+      patients = patients.filter((p) => scorePatientIds.has(p.patientId));
+    }
+
+    // Filter by return likelihood score
+    if (filter.minReturnLikelihood !== undefined || filter.maxReturnLikelihood !== undefined) {
+      const rlWhere: any = {
+        patientId: { in: patients.map((p) => p.patientId) },
+      };
+      if (filter.minReturnLikelihood !== undefined) {
+        rlWhere.returnLikelihood = { ...rlWhere.returnLikelihood, gte: filter.minReturnLikelihood };
+      }
+      if (filter.maxReturnLikelihood !== undefined) {
+        rlWhere.returnLikelihood = { ...rlWhere.returnLikelihood, lte: filter.maxReturnLikelihood };
+      }
+      const patientsWithRL = await this.prisma.patientInsight.findMany({
+        where: rlWhere,
+        select: { patientId: true },
+      });
+      const rlPatientIds = new Set(patientsWithRL.map((p) => p.patientId));
+      patients = patients.filter((p) => rlPatientIds.has(p.patientId));
+    }
+
+    // Filter by channel preference (Knowledge Base)
+    if (filter.channelPreference) {
+      const patientsWithChannel = await this.prisma.patientInsight.findMany({
+        where: {
+          patientId: { in: patients.map((p) => p.patientId) },
+          channelPreference: filter.channelPreference,
+        },
+        select: { patientId: true },
+      });
+      const channelPatientIds = new Set(patientsWithChannel.map((p) => p.patientId));
+      patients = patients.filter((p) => channelPatientIds.has(p.patientId));
+    }
+
     return patients;
+  }
+
+  /**
+   * Filter patients by marketing consent (for promotional campaigns).
+   * Returns only patients who have opted in for the specified channel.
+   */
+  async filterByMarketingConsent(
+    patients: Array<{ patientId: string }>,
+    orgId: string,
+    channel: 'sms' | 'whatsapp' | 'voice' | 'email' = 'whatsapp',
+  ): Promise<Array<{ patientId: string }>> {
+    if (patients.length === 0) return [];
+
+    const consentService = new MarketingConsentService(this.prisma);
+    const consented = await consentService.bulkCheckConsent(
+      patients.map((p) => p.patientId),
+      orgId,
+      channel,
+    );
+    return patients.filter((p) => consented.has(p.patientId));
   }
 }
 

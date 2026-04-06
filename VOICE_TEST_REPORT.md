@@ -1,8 +1,8 @@
-# Namaa Voice & Twilio Integration Test Report
+# Tawafud Voice & Twilio Integration Test Report
 
 **Date:** 2026-02-09 13:34 (Asia/Riyadh)  
 **Backend:** localhost:3000  
-**Tester:** Automated subagent (namaa-voice-test)
+**Tester:** Automated subagent (tawafud-voice-test)
 
 ---
 

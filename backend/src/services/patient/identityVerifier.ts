@@ -488,16 +488,11 @@ export class IdentityVerifier {
       return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
     }
 
-    // Try DD/MM/YYYY or DD-MM-YYYY
+    // Saudi standard: DD/MM/YYYY or DD-MM-YYYY (day first)
+    // This is the canonical format — we do NOT attempt MM/DD/YYYY to avoid ambiguity
     const dmyMatch = cleaned.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
     if (dmyMatch) {
       return `${dmyMatch[3]}-${dmyMatch[2].padStart(2, '0')}-${dmyMatch[1].padStart(2, '0')}`;
-    }
-
-    // Try MM/DD/YYYY
-    const mdyMatch = cleaned.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
-    if (mdyMatch) {
-      return `${mdyMatch[3]}-${mdyMatch[1].padStart(2, '0')}-${mdyMatch[2].padStart(2, '0')}`;
     }
 
     // Try parsing with Date constructor as last resort

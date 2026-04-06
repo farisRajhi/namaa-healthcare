@@ -44,8 +44,8 @@ export default async function patientPortalRoutes(app: FastifyInstance) {
     const { patientId, orgId } = getPatientAuth(request);
     const query = z.object({
       type: z.enum(['upcoming', 'past', 'all']).default('all'),
-      page: z.coerce.number().default(1),
-      limit: z.coerce.number().default(20),
+      page: z.coerce.number().int().min(1).default(1),
+      limit: z.coerce.number().int().min(1).max(100).default(20),
     }).parse(request.query);
 
     const now = new Date();
@@ -228,101 +228,6 @@ export default async function patientPortalRoutes(app: FastifyInstance) {
     });
 
     return { appointmentId: updated.appointmentId, status: updated.status };
-  });
-
-  // ─── Prescriptions ─────────────────────────────────────────
-
-  // GET /prescriptions — List patient's prescriptions
-  app.get('/prescriptions', async (request: FastifyRequest) => {
-    const { patientId, orgId } = getPatientAuth(request);
-
-    const prescriptions = await app.prisma.prescription.findMany({
-      where: { patientId, orgId },
-      include: {
-        refills: {
-          orderBy: { requestedAt: 'desc' },
-          take: 3,
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    return {
-      data: prescriptions.map((p) => ({
-        prescriptionId: p.prescriptionId,
-        medicationName: p.medicationName,
-        medicationNameAr: p.medicationNameAr,
-        dosage: p.dosage,
-        frequency: p.frequency,
-        refillsRemaining: p.refillsRemaining,
-        refillsTotal: p.refillsTotal,
-        status: p.status,
-        startDate: p.startDate,
-        endDate: p.endDate,
-        pharmacyName: p.pharmacyName,
-        notes: p.notes,
-        recentRefills: p.refills.map((r) => ({
-          refillId: r.refillId,
-          status: r.status,
-          requestedAt: r.requestedAt,
-          processedAt: r.processedAt,
-        })),
-      })),
-    };
-  });
-
-  // POST /prescriptions/:id/refill — Request refill
-  app.post<{ Params: { id: string } }>('/prescriptions/:id/refill', async (request, reply) => {
-    const { patientId, orgId } = getPatientAuth(request);
-    const { id } = request.params;
-
-    const prescription = await app.prisma.prescription.findFirst({
-      where: { prescriptionId: id, patientId, orgId },
-    });
-
-    if (!prescription) {
-      return reply.code(404).send({ error: 'الوصفة غير موجودة', errorEn: 'Prescription not found' });
-    }
-
-    if (prescription.status !== 'active') {
-      return reply.code(400).send({
-        error: 'الوصفة غير فعالة',
-        errorEn: 'Prescription is not active',
-      });
-    }
-
-    if (prescription.refillsRemaining <= 0) {
-      return reply.code(400).send({
-        error: 'لا يوجد إعادة تعبئة متبقية',
-        errorEn: 'No refills remaining',
-      });
-    }
-
-    // Check for pending refill
-    const pendingRefill = await app.prisma.prescriptionRefill.findFirst({
-      where: { prescriptionId: id, status: 'pending' },
-    });
-
-    if (pendingRefill) {
-      return reply.code(409).send({
-        error: 'يوجد طلب إعادة تعبئة معلق',
-        errorEn: 'A refill request is already pending',
-      });
-    }
-
-    const refill = await app.prisma.prescriptionRefill.create({
-      data: {
-        prescriptionId: id,
-        requestedVia: 'web',
-        status: 'pending',
-      },
-    });
-
-    return reply.code(201).send({
-      refillId: refill.refillId,
-      status: refill.status,
-      requestedAt: refill.requestedAt,
-    });
   });
 
   // ─── Profile ────────────────────────────────────────────────

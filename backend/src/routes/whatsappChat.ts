@@ -1,7 +1,9 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import rateLimit from '@fastify/rate-limit';
 import twilio from 'twilio';
 import { WhatsAppHandler } from '../services/messaging/whatsappHandler.js';
 import { redactPII } from '../services/security/piiRedactor.js';
+import { classifyError, formatErrorMessage } from '../services/ai/errorClassifier.js';
 
 // ─────────────────────────────────────────────────────────
 // WhatsApp Conversational AI Routes
@@ -74,6 +76,19 @@ async function resolveOrgId(app: FastifyInstance, toNumber: string): Promise<str
 }
 
 export default async function whatsappChatRoutes(app: FastifyInstance) {
+  // Phase 4.1: Rate limiting — 20 messages per phone number per 5 minutes
+  await app.register(rateLimit, {
+    max: 20,
+    timeWindow: '5 minutes',
+    keyGenerator: (request: FastifyRequest) => {
+      const body = request.body as TwilioWhatsAppBody | undefined;
+      return body?.From ?? request.ip;
+    },
+    errorResponseBuilder: () => ({
+      error: 'Rate limit exceeded',
+    }),
+  });
+
   // Build the handler
   const handler = new WhatsAppHandler(
     app.prisma,
@@ -116,15 +131,16 @@ export default async function whatsappChatRoutes(app: FastifyInstance) {
       reply.header('Content-Type', 'text/xml');
       return reply.send('<Response></Response>');
     } catch (err: any) {
-      request.log.error({ err, messageSid: MessageSid }, 'WhatsApp webhook processing failed');
+      const classified = classifyError(err);
+      request.log.error(
+        { err, messageSid: MessageSid, errorCategory: classified.category },
+        'WhatsApp webhook processing failed',
+      );
 
-      // Try to send an error message back to the user
+      // Send context-aware error message back to the user
       try {
         const phone = From.replace(/^whatsapp:/, '');
-        await handler.sendMessage(
-          phone,
-          'عذراً، حدث خطأ في معالجة رسالتك. يرجى المحاولة مرة أخرى أو الاتصال بالعيادة مباشرة. 🏥',
-        );
+        await handler.sendMessage(phone, formatErrorMessage(classified));
       } catch (sendErr) {
         request.log.error({ sendErr }, 'Failed to send WhatsApp error message');
       }

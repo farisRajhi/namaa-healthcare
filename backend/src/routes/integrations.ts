@@ -192,13 +192,29 @@ export async function webhookSubscriptionsRoutes(app: FastifyInstance) {
     });
     if (!webhook) return reply.code(404).send({ error: 'Webhook not found' });
 
+    // SSRF protection: block private/internal URLs
+    try {
+      const parsedUrl = new URL(webhook.url);
+      const blockedHosts = ['localhost', '127.0.0.1', '0.0.0.0', '[::1]'];
+      const blockedPatterns = [/^10\./, /^172\.(1[6-9]|2\d|3[01])\./, /^192\.168\./, /^169\.254\./];
+      if (
+        blockedHosts.includes(parsedUrl.hostname) ||
+        blockedPatterns.some(p => p.test(parsedUrl.hostname)) ||
+        parsedUrl.protocol !== 'https:'
+      ) {
+        return reply.code(400).send({ error: 'Webhook URL must be a public HTTPS endpoint' });
+      }
+    } catch {
+      return reply.code(400).send({ error: 'Invalid webhook URL' });
+    }
+
     // Send test payload
     try {
       const testPayload = {
         event: webhook.event,
         test: true,
         timestamp: new Date().toISOString(),
-        data: { message: 'Test webhook from Namaa' },
+        data: { message: 'Test webhook from Tawafud' },
       };
 
       const response = await fetch(webhook.url, {
