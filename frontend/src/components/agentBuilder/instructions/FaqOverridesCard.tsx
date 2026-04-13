@@ -74,7 +74,7 @@ export default function FaqOverridesCard({ overrides, onChange }: FaqOverridesCa
 
         <button
           onClick={addPair}
-          className="flex items-center gap-1.5 text-xs font-semibold text-teal-600 hover:text-teal-700 transition-colors px-1"
+          className="flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700 transition-colors px-1"
         >
           <Plus className="w-3.5 h-3.5" />
           إضافة سؤال وجواب

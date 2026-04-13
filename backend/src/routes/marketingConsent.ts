@@ -32,20 +32,20 @@ export default async function marketingConsentRoutes(app: FastifyInstance) {
   const getService = () => new MarketingConsentService(app.prisma);
 
   // GET /api/consent/:orgId/stats — Org consent statistics
-  app.get<{ Params: { orgId: string } }>('/:orgId/stats', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/:orgId/stats', async (request, reply) => {
     const { orgId: userOrgId } = request.user;
     const { orgId } = request.params;
-    if (userOrgId !== orgId) return { error: 'Forbidden' };
+    if (userOrgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
     const service = getService();
     return service.getOrgStats(orgId);
   });
 
   // GET /api/consent/:orgId/:patientId — Get consent status
-  app.get<{ Params: { orgId: string; patientId: string } }>('/:orgId/:patientId', async (request) => {
+  app.get<{ Params: { orgId: string; patientId: string } }>('/:orgId/:patientId', async (request, reply) => {
     const { orgId: userOrgId } = request.user;
     const { orgId, patientId } = request.params;
-    if (userOrgId !== orgId) return { error: 'Forbidden' };
+    if (userOrgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
     const service = getService();
     const consent = await service.getConsentStatus(patientId, orgId);
@@ -53,10 +53,10 @@ export default async function marketingConsentRoutes(app: FastifyInstance) {
   });
 
   // POST /api/consent/:orgId/:patientId/grant — Grant consent
-  app.post<{ Params: { orgId: string; patientId: string } }>('/:orgId/:patientId/grant', async (request) => {
+  app.post<{ Params: { orgId: string; patientId: string } }>('/:orgId/:patientId/grant', async (request, reply) => {
     const { orgId: userOrgId } = request.user;
     const { orgId, patientId } = request.params;
-    if (userOrgId !== orgId) return { error: 'Forbidden' };
+    if (userOrgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
     const body = grantConsentSchema.parse(request.body);
     const service = getService();
@@ -76,10 +76,10 @@ export default async function marketingConsentRoutes(app: FastifyInstance) {
   });
 
   // POST /api/consent/:orgId/:patientId/revoke — Revoke consent
-  app.post<{ Params: { orgId: string; patientId: string } }>('/:orgId/:patientId/revoke', async (request) => {
+  app.post<{ Params: { orgId: string; patientId: string } }>('/:orgId/:patientId/revoke', async (request, reply) => {
     const { orgId: userOrgId } = request.user;
     const { orgId, patientId } = request.params;
-    if (userOrgId !== orgId) return { error: 'Forbidden' };
+    if (userOrgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
     const body = revokeConsentSchema.parse(request.body);
     const service = getService();

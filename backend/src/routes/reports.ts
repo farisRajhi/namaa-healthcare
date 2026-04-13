@@ -2,14 +2,14 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 
 const dateRangeSchema = z.object({
-  from: z.string().optional(),
-  to: z.string().optional(),
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}(T.*)?$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}(T.*)?$/).optional(),
 });
 
 const reportTypeSchema = z.object({
   type: z.enum(['appointments', 'patients', 'calls', 'campaigns']),
-  from: z.string().optional(),
-  to: z.string().optional(),
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}(T.*)?$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}(T.*)?$/).optional(),
   format: z.enum(['json', 'csv']).default('csv'),
 });
 

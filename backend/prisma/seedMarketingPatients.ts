@@ -9,12 +9,12 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Adding marketing test patients...\n');
 
-  // Get existing org
-  const org = await prisma.org.findFirst({
-    where: { name: 'مستشفى توافد التخصصي' },
+  // Get existing org — using the "ايار السابع" org with 6 providers
+  const org = await prisma.org.findUnique({
+    where: { orgId: 'c71faf9b-cc46-48c3-8c87-7a98e5426694' },
   });
   if (!org) {
-    console.error('❌ Org not found. Run the main seed first: npx prisma db seed');
+    console.error('❌ Org not found.');
     process.exit(1);
   }
 
@@ -88,12 +88,9 @@ async function main() {
       },
     });
 
-    // Phone + WhatsApp contacts
-    await prisma.patientContact.createMany({
-      data: [
-        { patientId: patient.patientId, contactType: 'phone', contactValue: p.phone, isPrimary: true },
-        { patientId: patient.patientId, contactType: 'whatsapp', contactValue: p.phone, isPrimary: false },
-      ],
+    // Phone contact (DB constraint allows only 'phone' and 'email')
+    await prisma.patientContact.create({
+      data: { patientId: patient.patientId, contactType: 'phone', contactValue: p.phone, isPrimary: true },
     });
 
     // Condition memories

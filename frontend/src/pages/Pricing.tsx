@@ -130,7 +130,16 @@ export default function Pricing({ lang = 'en' }: PricingProps) {
       }
 
       if (data.transactionUrl) {
-        window.location.href = data.transactionUrl;
+        try {
+          const url = new URL(data.transactionUrl);
+          if (url.protocol === 'https:' && url.hostname.endsWith('.moyasar.com')) {
+            window.location.href = data.transactionUrl;
+          } else {
+            setError('Invalid payment redirect URL');
+          }
+        } catch {
+          setError('Invalid payment redirect URL');
+        }
       } else {
         navigate(`/billing?paymentId=${data.moyasarPayment?.id}`);
       }

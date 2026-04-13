@@ -29,7 +29,7 @@ const colorMap: Record<string, { bg: string; border: string; text: string }> = {
   red:    { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-600' },
   blue:   { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-600' },
   green:  { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-600' },
-  cyan:   { bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-600' },
+  cyan:   { bg: 'bg-primary-50', border: 'border-primary-200', text: 'text-primary-600' },
   rose:   { bg: 'bg-rose-50', border: 'border-rose-200', text: 'text-rose-600' },
 }
 

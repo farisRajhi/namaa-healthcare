@@ -195,7 +195,7 @@ export async function webhookSubscriptionsRoutes(app: FastifyInstance) {
     // SSRF protection: block private/internal URLs
     try {
       const parsedUrl = new URL(webhook.url);
-      const blockedHosts = ['localhost', '127.0.0.1', '0.0.0.0', '[::1]'];
+      const blockedHosts = ['localhost', '127.0.0.1', '0.0.0.0', '::1', '::ffff:127.0.0.1'];
       const blockedPatterns = [/^10\./, /^172\.(1[6-9]|2\d|3[01])\./, /^192\.168\./, /^169\.254\./];
       if (
         blockedHosts.includes(parsedUrl.hostname) ||

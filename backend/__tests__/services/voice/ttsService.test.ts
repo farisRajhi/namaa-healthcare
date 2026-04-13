@@ -115,7 +115,6 @@ describe('TTS Service', () => {
     it('should handle medical terminology correctly', () => {
       const medicalTerms = [
         'appointment',
-        'prescription',
         'cardiology',
         'dermatology',
         'orthopedics',
@@ -130,7 +129,6 @@ describe('TTS Service', () => {
     it('should handle Arabic medical terms', () => {
       const arabicTerms = [
         'موعد',
-        'وصفة طبية',
         'طبيب',
         'مستشفى',
       ];

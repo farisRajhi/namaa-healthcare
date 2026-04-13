@@ -11,6 +11,7 @@
  */
 
 import { FastifyInstance, FastifyRequest } from 'fastify';
+import rateLimit from '@fastify/rate-limit';
 import { z } from 'zod';
 
 const slotsQuerySchema = z.object({
@@ -22,7 +23,7 @@ const slotsQuerySchema = z.object({
 const guestBookingSchema = z.object({
   providerId: z.string().uuid(),
   serviceId: z.string().uuid(),
-  startTs: z.string(),
+  startTs: z.string().datetime(),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
   phone: z.string().min(9),
@@ -31,6 +32,18 @@ const guestBookingSchema = z.object({
 });
 
 export default async function publicBookingRoutes(app: FastifyInstance) {
+  // Rate-limit public booking: max 5 bookings per 15 minutes per IP
+  // Prevents appointment-stuffing attacks that could fill a provider's schedule
+  await app.register(rateLimit, {
+    max: 5,
+    timeWindow: '15 minutes',
+    keyGenerator: (request: FastifyRequest) => request.ip,
+    errorResponseBuilder: (_request: FastifyRequest, context: { after: string }) => ({
+      statusCode: 429,
+      error: 'Too Many Requests',
+      message: `محاولات كثيرة جداً. حاول مرة أخرى بعد ${context.after}`,
+    }),
+  });
   // ─────────────────────────────────────────────────────────────────────────
   // GET /:slug – Clinic info
   // ─────────────────────────────────────────────────────────────────────────
@@ -237,11 +250,33 @@ export default async function publicBookingRoutes(app: FastifyInstance) {
       });
     }
 
-    const service = await app.prisma.service.findUnique({ where: { serviceId: body.serviceId } });
-    if (!service) return reply.code(404).send({ error: 'Service not found' });
+    // Validate provider belongs to this facility's org
+    const provider = await app.prisma.provider.findFirst({
+      where: { providerId: body.providerId, orgId: facility.orgId, active: true },
+    });
+    if (!provider) return reply.code(400).send({ error: 'Provider not available' });
+
+    // Validate service belongs to this facility's org
+    const service = await app.prisma.service.findFirst({
+      where: { serviceId: body.serviceId, orgId: facility.orgId, active: true },
+    });
+    if (!service) return reply.code(400).send({ error: 'Service not available' });
 
     const startTs = new Date(body.startTs);
     const endTs = new Date(startTs.getTime() + service.durationMin * 60000);
+
+    // Prevent double-booking: check if the slot is still available
+    const conflict = await app.prisma.appointment.findFirst({
+      where: {
+        providerId: body.providerId,
+        status: { in: ['held', 'booked', 'confirmed', 'checked_in', 'in_progress'] },
+        startTs: { lt: endTs },
+        endTs: { gt: startTs },
+      },
+    });
+    if (conflict) {
+      return reply.code(409).send({ error: 'هذا الموعد لم يعد متاحاً', errorEn: 'This time slot is no longer available' });
+    }
 
     const appointment = await app.prisma.appointment.create({
       data: {

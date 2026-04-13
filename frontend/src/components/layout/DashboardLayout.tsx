@@ -22,6 +22,7 @@ import {
   Workflow,
   Brain,
   HeartPulse,
+  Sparkles,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
@@ -64,6 +65,7 @@ const getNavigation = (t: (key: string) => string): NavGroup[] => [
   {
     group: t('nav.groups.marketing'),
     items: [
+      { name: t('nav.patientIntelligence'), href: '/dashboard/patient-intelligence', icon: Sparkles },
       { name: t('nav.patientEngagement'), href: '/dashboard/patient-engagement', icon: HeartPulse },
       { name: t('nav.campaigns'), href: '/dashboard/campaigns', icon: Megaphone },
     ],

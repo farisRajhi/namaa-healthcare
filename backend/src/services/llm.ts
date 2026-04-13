@@ -284,27 +284,45 @@ export class LLMService {
           temperature: parseFloat(process.env.LLM_TEMPERATURE || '0.7'),
         },
       };
-      if (geminiTools) body.tools = geminiTools;
+      if (geminiTools) {
+        body.tools = geminiTools;
+        body.tool_config = { function_calling_config: { mode: 'AUTO' } };
+      }
 
       const data = await this.geminiRest(body);
       const candidate = data?.candidates?.[0];
       if (!candidate) break;
 
       const parts = candidate?.content?.parts || [];
-      const functionCalls = parts.filter((p: any) => p.functionCall);
+      let functionCalls = parts.filter((p: any) => p.functionCall);
 
+      // Gemini sometimes outputs Python code like print(default_api.func(...)) instead
+      // of proper function calls. Detect this and convert to real function calls.
       if (functionCalls.length === 0) {
         const text = parts.map((p: any) => p.text || '').join('');
-        return {
-          response: text,
-          toolCalls: allToolCalls,
-          totalIterations: iteration,
-          finishReason: candidate.finishReason || 'stop',
-        };
+        const parsed = this.parseGeminiCodeAsFunctionCalls(text);
+        if (parsed.length > 0) {
+          // Convert parsed code calls to proper function call parts
+          const syntheticParts: any[] = [];
+          for (const call of parsed) {
+            const fcPart = { functionCall: { name: call.name, args: call.args } };
+            functionCalls.push(fcPart);
+            syntheticParts.push(fcPart);
+          }
+          // Add synthesized function call parts as model response (not the raw text)
+          contents.push({ role: 'model', parts: syntheticParts });
+        } else {
+          return {
+            response: text,
+            toolCalls: allToolCalls,
+            totalIterations: iteration,
+            finishReason: candidate.finishReason || 'stop',
+          };
+        }
+      } else {
+        // Add model response to conversation
+        contents.push({ role: 'model', parts });
       }
-
-      // Add model response to conversation
-      contents.push({ role: 'model', parts });
 
       // Execute each function call
       const functionResponses: any[] = [];
@@ -377,6 +395,43 @@ export class LLMService {
     }
 
     return { result, durationMs: Date.now() - startTime };
+  }
+
+  /**
+   * Parse Gemini text that contains Python-style function calls like:
+   *   print(default_api.check_availability(date='2026-04-12', providerId='abc'))
+   * Returns parsed function calls or empty array if no match.
+   */
+  private parseGeminiCodeAsFunctionCalls(text: string): { name: string; args: Record<string, unknown> }[] {
+    const results: { name: string; args: Record<string, unknown> }[] = [];
+
+    // Match patterns like: default_api.function_name(arg1='val1', arg2='val2')
+    // or: print(default_api.function_name(arg1='val1'))
+    const regex = /(?:default_api|api)\.(\w+)\(([^)]*)\)/g;
+    let match;
+
+    while ((match = regex.exec(text)) !== null) {
+      const name = match[1];
+      const argsStr = match[2];
+      const args: Record<string, unknown> = {};
+
+      // Parse keyword arguments: key='value' or key="value" or key=value
+      const argRegex = /(\w+)\s*=\s*(?:'([^']*)'|"([^"]*)"|(\S+))/g;
+      let argMatch;
+      while ((argMatch = argRegex.exec(argsStr)) !== null) {
+        const key = argMatch[1];
+        const val = argMatch[2] ?? argMatch[3] ?? argMatch[4];
+        // Try to parse as number/boolean
+        if (val === 'true') args[key] = true;
+        else if (val === 'false') args[key] = false;
+        else if (/^\d+$/.test(val)) args[key] = parseInt(val, 10);
+        else args[key] = val;
+      }
+
+      results.push({ name, args });
+    }
+
+    return results;
   }
 
   /** Convert ChatMessage[] to Gemini contents with strict alternating roles */

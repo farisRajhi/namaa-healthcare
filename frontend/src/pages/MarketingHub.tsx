@@ -31,7 +31,7 @@ import {
   CartesianGrid,
 } from 'recharts'
 
-const CHART_COLORS = ['#22c55e', '#3b82f6', '#ef4444', '#9ca3af']
+const CHART_COLORS = ['#4A7C6F', '#C4956A', '#D97706', '#8B7E74']
 
 interface CampaignSummary {
   campaignId: string
@@ -130,7 +130,7 @@ export default function MarketingHub() {
     { label: isAr ? 'العروض' : 'Offers', labelSub: isAr ? 'عروض ترويجية وأكواد خصم' : 'Promos & discount codes', icon: Tag, href: '/dashboard/offers', color: 'bg-purple-100 text-purple-600' },
     { label: isAr ? 'تحليلات المرضى' : 'Patient Insights', labelSub: isAr ? 'شرائح وسلوك المرضى' : 'Segments & behavior', icon: Users, href: '/dashboard/patient-insights', color: 'bg-blue-100 text-blue-600' },
     { label: isAr ? 'التذكيرات' : 'Reminders', labelSub: isAr ? 'تذكيرات المواعيد التلقائية' : 'Auto appointment reminders', icon: Bell, href: '/dashboard/reminders', color: 'bg-amber-100 text-amber-600' },
-    { label: isAr ? 'قوالب الرسائل' : 'SMS Templates', labelSub: isAr ? 'قوالب الرسائل النصية' : 'Message templates', icon: MessageSquare, href: '/dashboard/sms-templates', color: 'bg-teal-100 text-teal-600' },
+    { label: isAr ? 'قوالب الرسائل' : 'SMS Templates', labelSub: isAr ? 'قوالب الرسائل النصية' : 'Message templates', icon: MessageSquare, href: '/dashboard/sms-templates', color: 'bg-primary-100 text-primary-600' },
     { label: isAr ? 'قاعدة المعرفة' : 'Knowledge Base', labelSub: isAr ? 'إدارة الأسئلة الشائعة' : 'FAQ management', icon: Brain, href: '/dashboard/knowledge-base', color: 'bg-green-100 text-green-600' },
   ]
 
@@ -197,15 +197,15 @@ export default function MarketingHub() {
                 <AreaChart data={recentCampaigns}>
                   <defs>
                     <linearGradient id="sentGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#0891B2" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#0891B2" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#4A7C6F" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#4A7C6F" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
                   <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip />
-                  <Area type="monotone" dataKey="sent" stroke="#0891B2" fill="url(#sentGradient)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="sent" stroke="#4A7C6F" fill="url(#sentGradient)" strokeWidth={2} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>

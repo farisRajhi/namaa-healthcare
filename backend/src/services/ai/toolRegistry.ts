@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import type { ChatCompletionTool } from 'openai/resources/chat/completions.js';
 import { ToolHookRunner, READ_ONLY_TOOLS } from './toolHooks.js';
 import type { HookContext } from './toolHooks.js';
+import { riyadhNow, riyadhToUtc, riyadhMidnight, riyadhDateWithTime, riyadhDayOfWeek, utcToRiyadhDateStr, RIYADH_TZ } from '../../utils/riyadhTime.js';
 
 // ─────────────────────────────────────────────────────────
 // AI Tool Registry — Declarative Actions Catalog
@@ -265,16 +266,25 @@ const DAYS_AR: Record<number, string> = {
 };
 
 function formatTimeSlot(date: Date): string {
-  const h = date.getHours();
-  const m = String(date.getMinutes()).padStart(2, '0');
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: RIYADH_TZ, hour: 'numeric', minute: '2-digit', hour12: false,
+  }).formatToParts(date);
+  let h = parseInt(parts.find(p => p.type === 'hour')?.value ?? '0', 10);
+  if (h === 24) h = 0;
+  const m = parts.find(p => p.type === 'minute')?.value ?? '00';
   const period = h >= 12 ? 'مساءً' : 'صباحاً';
   const h12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
   return `${h12}:${m} ${period}`;
 }
 
 function formatDateAr(date: Date): string {
-  const day = DAYS_AR[date.getDay()] ?? '';
-  return `${day} ${date.getDate()}/${date.getMonth() + 1}/${date.getFullYear()}`;
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: RIYADH_TZ, weekday: 'short', year: 'numeric', month: 'numeric', day: 'numeric',
+  }).formatToParts(date);
+  const get = (t: string) => parts.find(p => p.type === t)?.value ?? '';
+  const dayOfWeek = ({ Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 } as Record<string, number>)[get('weekday')] ?? 0;
+  const day = DAYS_AR[dayOfWeek] ?? '';
+  return `${day} ${get('day')}/${get('month')}/${get('year')}`;
 }
 
 // ── Tool Registry Class ──────────────────────────────────
@@ -455,6 +465,20 @@ export class ToolRegistry {
     }
     const effectiveArgs = preResult.modifiedArgs ?? args;
 
+    // Resolve reference numbers → UUIDs (WhatsApp hides UUIDs, LLM only sees [طبيب 1])
+    if (typeof effectiveArgs.providerId === 'string') {
+      effectiveArgs.providerId = this.resolveRef('provider', effectiveArgs.providerId);
+    }
+    if (typeof effectiveArgs.serviceId === 'string') {
+      effectiveArgs.serviceId = this.resolveRef('service', effectiveArgs.serviceId);
+    }
+    if (typeof effectiveArgs.appointmentId === 'string') {
+      effectiveArgs.appointmentId = this.resolveRef('appointment', effectiveArgs.appointmentId);
+    }
+    if (typeof effectiveArgs.holdAppointmentId === 'string') {
+      effectiveArgs.holdAppointmentId = this.resolveRef('appointment', effectiveArgs.holdAppointmentId);
+    }
+
     // Check cache for read-only tools
     if (READ_ONLY_TOOLS.has(name)) {
       const cacheKey = `${name}:${JSON.stringify(effectiveArgs)}`;
@@ -547,11 +571,11 @@ export class ToolRegistry {
     const dateStr = args.date as string;
     if (!dateStr) return 'Error: date is required (YYYY-MM-DD)';
 
-    const targetDate = new Date(dateStr + 'T00:00:00');
+    const targetDate = riyadhMidnight(dateStr);
     if (isNaN(targetDate.getTime())) return 'Error: invalid date format';
 
-    const dayOfWeek = targetDate.getDay();
-    const endOfDay = new Date(dateStr + 'T23:59:59');
+    const dayOfWeek = riyadhDayOfWeek(dateStr);
+    const endOfDay = riyadhDateWithTime(dateStr, 23, 59);
 
     // Fetch requested service to use its duration + buffer times for slot sizing
     let requestedService: { durationMin: number; bufferBeforeMin: number; bufferAfterMin: number } | null = null;
@@ -649,13 +673,11 @@ export class ToolRegistry {
         const slots: string[] = [];
         let h = startH, m = startM;
         while (h < endH || (h === endH && m < endM)) {
-          const slotStart = new Date(targetDate);
-          slotStart.setHours(h, m, 0, 0);
+          const slotStart = riyadhDateWithTime(dateStr, h, m);
           const slotEnd = new Date(slotStart.getTime() + slotDurationMin * 60 * 1000);
 
           // Check slot doesn't exceed provider's availability window
-          const windowEnd = new Date(targetDate);
-          windowEnd.setHours(endH, endM, 0, 0);
+          const windowEnd = riyadhDateWithTime(dateStr, endH, endM);
           if (slotEnd > windowEnd) break;
 
           // Check for overlap using full buffered window (clinical time + buffers)
@@ -678,8 +700,11 @@ export class ToolRegistry {
           const serviceNames = provider.services.map(s => s.service.name).join('، ');
           const ref = this.providerRef(provider.providerId);
           lines.push(`\n🩺 [${this.label('طبيب', 'Dr.')} ${ref}] ${provider.displayName} ${dept ? `(${dept})` : ''}`);
-          if (!this.isWhatsApp) lines.push(`   ref: ${ref} (providerId: ${provider.providerId})`);
-          if (serviceNames) lines.push(`   ${this.label('الخدمات', 'Services')}: ${serviceNames}`);
+          lines.push(`   ref: ${ref} (providerId: ${provider.providerId})`);
+          if (serviceNames) {
+            lines.push(`   ${this.label('الخدمات', 'Services')}: ${serviceNames}`);
+            lines.push(`   serviceIds: ${provider.services.map(s => `${s.service.name}=${s.serviceId}`).join(', ')}`);
+          }
           lines.push(`   ${this.label('المواعيد المتاحة', 'Available slots')}: ${slots.join(' | ')}`);
         }
       }
@@ -774,8 +799,8 @@ export class ToolRegistry {
       return this.formatError(`الطبيب ${provider.displayName} لا يقدم هذه الخدمة.`, 'Provider does not offer this service.');
     }
 
-    // Parse date/time
-    const startTs = new Date(`${date}T${time}:00`);
+    // Parse date/time (Riyadh local → UTC)
+    const startTs = riyadhToUtc(date, time);
     if (isNaN(startTs.getTime())) return this.formatError('تاريخ أو وقت غير صحيح.', 'Invalid date/time.');
 
     if (startTs < new Date()) return this.formatError('لا يمكن الحجز في الماضي.', 'Cannot book in the past.');
@@ -897,8 +922,7 @@ export class ToolRegistry {
     }
 
     // Rate limit: max 2 guest bookings per phone per day
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const todayStart = riyadhMidnight(riyadhNow().dateStr);
     const guestBookingsToday = await this.prisma.appointment.count({
       where: {
         orgId: this.orgId,
@@ -927,8 +951,8 @@ export class ToolRegistry {
     });
     if (!service) return this.formatError('الخدمة غير موجودة.', 'Service not found.');
 
-    // Parse date/time
-    const startTs = new Date(`${date}T${time}:00`);
+    // Parse date/time (Riyadh local → UTC)
+    const startTs = riyadhToUtc(date, time);
     if (isNaN(startTs.getTime())) return this.formatError('تاريخ أو وقت غير صحيح.', 'Invalid date/time.');
     if (startTs < new Date()) return this.formatError('لا يمكن الحجز في الماضي.', 'Cannot book in the past.');
 
@@ -1194,7 +1218,7 @@ export class ToolRegistry {
       const ref = this.providerRef(p.providerId);
       return (
         `🩺 [طبيب ${ref}] ${p.displayName} ${p.credentials ?? ''}\n` +
-        (this.isWhatsApp ? '' : `   ref: ${ref} (providerId: ${p.providerId})\n`) +
+        `   ref: ${ref} (providerId: ${p.providerId})\n` +
         (p.department ? `   القسم: ${p.department.name}\n` : '') +
         (services ? `   الخدمات: ${services}\n` : '') +
         (days ? `   أيام العمل: ${days}` : '')
@@ -1232,8 +1256,8 @@ export class ToolRegistry {
     const lines = services.map(s => {
       const ref = this.serviceRef(s.serviceId);
       return (
-        `• [خدمة ${ref}] ${s.name} (${s.durationMin} دقيقة)` +
-        (this.isWhatsApp ? '' : `\n  ref: ${ref} (serviceId: ${s.serviceId})`)
+        `• [خدمة ${ref}] ${s.name} (${s.durationMin} دقيقة)\n` +
+        `  ref: ${ref} (serviceId: ${s.serviceId})`
       );
     });
 
@@ -1325,8 +1349,8 @@ export class ToolRegistry {
 
   private async execBrowseAvailableDates(args: Record<string, unknown>): Promise<string> {
     const daysAhead = Math.min(Math.max((args.daysAhead as number) || 7, 1), 14);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const rNow = riyadhNow();
+    const today = riyadhMidnight(rNow.dateStr);
 
     const providerWhere: Record<string, unknown> = { orgId: this.orgId, active: true };
     if (args.providerId) providerWhere.providerId = args.providerId;
@@ -1380,10 +1404,10 @@ export class ToolRegistry {
       select: { providerId: true, startTs: true, endTs: true },
     });
 
-    // Build booked ranges map
+    // Build booked ranges map (key by Riyadh date, not UTC date)
     const bookedByDateProvider = new Map<string, { start: number; end: number }[]>();
     for (const apt of existingAppointments) {
-      const key = `${apt.providerId}:${apt.startTs.toISOString().slice(0, 10)}`;
+      const key = `${apt.providerId}:${utcToRiyadhDateStr(apt.startTs)}`;
       const ranges = bookedByDateProvider.get(key) || [];
       ranges.push({ start: apt.startTs.getTime(), end: apt.endTs.getTime() });
       bookedByDateProvider.set(key, ranges);
@@ -1392,10 +1416,13 @@ export class ToolRegistry {
     const lines: string[] = [`📅 ${this.label('المواعيد المتاحة خلال الأيام القادمة', 'Available appointments in the coming days')}:\n`];
     let hasAnySlots = false;
 
+    // Iterate over Riyadh dates (use UTC-aligned base so toISOString gives correct date)
+    const baseDate = new Date(Date.UTC(rNow.year, rNow.month - 1, rNow.day));
     for (let d = 0; d < daysAhead; d++) {
-      const date = new Date(today.getTime() + d * 86400000);
-      const dayOfWeek = date.getDay();
-      const dateStr = date.toISOString().slice(0, 10);
+      const iterDate = new Date(baseDate.getTime() + d * 86400000);
+      const dateStr = iterDate.toISOString().slice(0, 10);
+      const dayOfWeek = riyadhDayOfWeek(dateStr);
+      const date = riyadhMidnight(dateStr);
 
       let dayTotalSlots = 0;
       const dayProviderSummaries: string[] = [];
@@ -1429,8 +1456,7 @@ export class ToolRegistry {
 
           let h = startH, m = startM;
           while (h < endH || (h === endH && m < endM)) {
-            const slotStart = new Date(date);
-            slotStart.setHours(h, m, 0, 0);
+            const slotStart = riyadhDateWithTime(dateStr, h, m);
 
             // Skip past slots for today
             if (d === 0 && slotStart <= new Date()) {
@@ -1440,8 +1466,7 @@ export class ToolRegistry {
             }
 
             const slotEnd = new Date(slotStart.getTime() + slotDurationMin * 60000);
-            const windowEnd = new Date(date);
-            windowEnd.setHours(endH, endM, 0, 0);
+            const windowEnd = riyadhDateWithTime(dateStr, endH, endM);
             if (slotEnd > windowEnd) break;
 
             const conflictStart = new Date(slotStart.getTime() - bufferBeforeMs);
@@ -1459,17 +1484,15 @@ export class ToolRegistry {
 
         if (providerSlots > 0) {
           const ref = this.providerRef(provider.providerId);
-          dayProviderSummaries.push(`  🩺 [طبيب ${ref}] ${provider.displayName} — ${providerSlots} موعد متاح`);
+          dayProviderSummaries.push(`  🩺 [طبيب ${ref}] ${provider.displayName} (providerId: ${provider.providerId}) — ${providerSlots} موعد متاح`);
           dayTotalSlots += providerSlots;
         }
       }
 
       if (dayTotalSlots > 0) {
         hasAnySlots = true;
-        if (this.isWhatsApp) {
-          lines.push(`📆 ${formatDateAr(date)}:`);
-        } else {
-          lines.push(`📆 ${formatDateAr(date)} (${dateStr}):`);
+        lines.push(`📆 ${formatDateAr(date)} (${dateStr}):`);
+        if (!this.isWhatsApp) {
           lines.push(`   ${this.label('إجمالي المواعيد المتاحة', 'Total available slots')}: ${dayTotalSlots}`);
         }
         for (const summary of dayProviderSummaries) {
@@ -1512,7 +1535,7 @@ export class ToolRegistry {
     });
     if (!service) return this.formatError('الخدمة غير موجودة.', 'Service not found.');
 
-    const startTs = new Date(`${date}T${time}:00`);
+    const startTs = riyadhToUtc(date, time);
     if (isNaN(startTs.getTime())) return this.formatError('تاريخ أو وقت غير صحيح.', 'Invalid date/time.');
     if (startTs < new Date()) return this.formatError('لا يمكن الحجز في الماضي.', 'Cannot hold in the past.');
 
@@ -1615,7 +1638,7 @@ export class ToolRegistry {
       return this.formatError('الموعد غير موجود أو لا يمكن إعادة جدولته.', 'Appointment not found or cannot be rescheduled.');
     }
 
-    const newStartTs = new Date(`${newDate}T${newTime}:00`);
+    const newStartTs = riyadhToUtc(newDate, newTime);
     if (isNaN(newStartTs.getTime())) return 'Error: تاريخ أو وقت غير صحيح. Invalid date/time.';
     if (newStartTs < new Date()) return this.formatError('لا يمكن الحجز في الماضي.', 'Cannot reschedule to the past.');
 
@@ -1698,15 +1721,13 @@ export class ToolRegistry {
   // ── New Tool Implementations ──────────────────────────
 
   private async execGetTodayDate(): Promise<string> {
-    const now = new Date();
-    const dayAr = DAYS_AR[now.getDay()] ?? '';
-    const dayEn = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][now.getDay()];
-    const dateStr = now.toLocaleDateString('en-CA'); // YYYY-MM-DD
-    const timeStr = now.toLocaleTimeString('en-GB', { timeZone: 'Asia/Riyadh', hour: '2-digit', minute: '2-digit' });
+    const rNow = riyadhNow();
+    const dayAr = DAYS_AR[rNow.dayOfWeek] ?? '';
+    const dayEn = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][rNow.dayOfWeek];
 
     return (
-      `📅 التاريخ اليوم: ${dateStr} (${dayAr} / ${dayEn})\n` +
-      `⏰ الوقت الحالي (السعودية): ${timeStr}`
+      `📅 التاريخ اليوم: ${rNow.dateStr} (${dayAr} / ${dayEn})\n` +
+      `⏰ الوقت الحالي (السعودية): ${rNow.timeStr}`
     );
   }
 

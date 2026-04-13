@@ -215,7 +215,7 @@ export default function AgentBuilderList() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
           <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-            <Workflow className="w-6 h-6 text-teal-500" />
+            <Workflow className="w-6 h-6 text-primary-500" />
             بناء المحادثات
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
@@ -232,7 +232,7 @@ export default function AgentBuilderList() {
           </button>
           <button
             onClick={createNewFlow}
-            className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-teal-500 rounded-xl hover:bg-teal-600 transition-colors shadow-sm"
+            className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-600 transition-colors shadow-sm"
           >
             <Plus className="w-4 h-4" />
             إنشاء تدفق جديد
@@ -247,7 +247,7 @@ export default function AgentBuilderList() {
           <input
             type="text"
             placeholder="بحث في التدفقات..."
-            className="w-full ps-10 pe-4 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-200 focus:border-teal-300 bg-white"
+            className="w-full ps-10 pe-4 py-2 text-sm border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary-200 focus:border-primary-300 bg-white"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -259,7 +259,7 @@ export default function AgentBuilderList() {
               onClick={() => setFilter(tab.key)}
               className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
                 filter === tab.key
-                  ? 'bg-white text-teal-700 shadow-sm'
+                  ? 'bg-white text-primary-700 shadow-sm'
                   : 'text-gray-500 hover:text-gray-700'
               }`}
             >
@@ -272,20 +272,20 @@ export default function AgentBuilderList() {
       {/* Loading state */}
       {isLoading ? (
         <div className="text-center py-16 bg-white rounded-2xl border border-gray-100">
-          <Loader2 className="w-8 h-8 text-teal-400 animate-spin mx-auto mb-3" />
+          <Loader2 className="w-8 h-8 text-primary-400 animate-spin mx-auto mb-3" />
           <p className="text-sm text-gray-500">جاري التحميل...</p>
         </div>
       ) : filteredFlows.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-2xl border border-gray-100">
-          <div className="w-20 h-20 rounded-2xl bg-teal-50 flex items-center justify-center mx-auto mb-4">
-            <Workflow className="w-10 h-10 text-teal-300" />
+          <div className="w-20 h-20 rounded-2xl bg-primary-50 flex items-center justify-center mx-auto mb-4">
+            <Workflow className="w-10 h-10 text-primary-300" />
           </div>
           <h3 className="text-lg font-bold text-gray-700 mb-1">لا توجد تدفقات بعد</h3>
           <p className="text-sm text-gray-400 mb-4">ابدأ بإنشاء تدفق محادثة جديد أو استخدم قالب جاهز</p>
           <div className="flex items-center justify-center gap-3">
             <button
               onClick={createNewFlow}
-              className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-teal-500 rounded-xl hover:bg-teal-600 transition-colors"
+              className="flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-primary-500 rounded-xl hover:bg-primary-600 transition-colors"
             >
               <Plus className="w-4 h-4" />
               إنشاء تدفق جديد
@@ -297,7 +297,7 @@ export default function AgentBuilderList() {
           {filteredFlows.map((flow) => (
             <div
               key={flow.id}
-              className="bg-white rounded-2xl border border-gray-100 hover:border-teal-200 hover:shadow-md transition-all duration-200 overflow-hidden group cursor-pointer"
+              className="bg-white rounded-2xl border border-gray-100 hover:border-primary-200 hover:shadow-md transition-all duration-200 overflow-hidden group cursor-pointer"
               onClick={() => navigate(`/dashboard/agent-builder/${flow.id}`)}
             >
               {/* Card header */}
@@ -420,12 +420,12 @@ export default function AgentBuilderList() {
                     <button
                       key={tmpl.id}
                       onClick={() => useTemplate(tmpl)}
-                      className="w-full text-start p-4 bg-gray-50 rounded-xl hover:bg-teal-50 hover:border-teal-200 border border-gray-100 transition-all"
+                      className="w-full text-start p-4 bg-gray-50 rounded-xl hover:bg-primary-50 hover:border-primary-200 border border-gray-100 transition-all"
                     >
                       <h3 className="text-sm font-bold text-gray-800">{tmpl.nameAr || tmpl.name}</h3>
                       <p className="text-xs text-gray-500 mt-0.5">{tmpl.descriptionAr || tmpl.description}</p>
                       {tmpl.templateCategory && (
-                        <span className="inline-block mt-1.5 text-[10px] bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full">
+                        <span className="inline-block mt-1.5 text-[10px] bg-primary-100 text-primary-700 px-2 py-0.5 rounded-full">
                           {tmpl.templateCategory}
                         </span>
                       )}

@@ -135,11 +135,11 @@ const MEMORY_CATEGORIES = [
   { key: 'medication', icon: Pill, labelAr: 'الأدوية', labelEn: 'Medications', bgColor: 'bg-purple-50/50', borderColor: 'border-purple-200/50', iconColor: 'text-purple-500' },
   { key: 'preference', icon: Star, labelAr: 'التفضيلات', labelEn: 'Preferences', bgColor: 'bg-yellow-50/50', borderColor: 'border-yellow-200/50', iconColor: 'text-yellow-500' },
   { key: 'service_interest', icon: Sparkles, labelAr: 'اهتمامات بالخدمات', labelEn: 'Service Interests', bgColor: 'bg-green-50/50', borderColor: 'border-green-200/50', iconColor: 'text-green-500' },
-  { key: 'interest', icon: TrendingUp, labelAr: 'اهتمامات عامة', labelEn: 'Interests', bgColor: 'bg-teal-50/50', borderColor: 'border-teal-200/50', iconColor: 'text-teal-500' },
+  { key: 'interest', icon: TrendingUp, labelAr: 'اهتمامات عامة', labelEn: 'Interests', bgColor: 'bg-primary-50/50', borderColor: 'border-primary-200/50', iconColor: 'text-primary-500' },
   { key: 'behavioral', icon: BarChart3, labelAr: 'أنماط سلوكية', labelEn: 'Behavioral', bgColor: 'bg-indigo-50/50', borderColor: 'border-indigo-200/50', iconColor: 'text-indigo-500' },
   { key: 'satisfaction', icon: Heart, labelAr: 'مؤشرات الرضا', labelEn: 'Satisfaction', bgColor: 'bg-pink-50/50', borderColor: 'border-pink-200/50', iconColor: 'text-pink-500' },
   { key: 'family_history', icon: User, labelAr: 'معلومات عائلية', labelEn: 'Family', bgColor: 'bg-orange-50/50', borderColor: 'border-orange-200/50', iconColor: 'text-orange-500' },
-  { key: 'lifestyle', icon: Activity, labelAr: 'نمط الحياة', labelEn: 'Lifestyle', bgColor: 'bg-cyan-50/50', borderColor: 'border-cyan-200/50', iconColor: 'text-cyan-500' },
+  { key: 'lifestyle', icon: Activity, labelAr: 'نمط الحياة', labelEn: 'Lifestyle', bgColor: 'bg-primary-50/50', borderColor: 'border-primary-200/50', iconColor: 'text-primary-500' },
   { key: 'note', icon: ClipboardList, labelAr: 'ملاحظات', labelEn: 'Notes', bgColor: 'bg-gray-50/50', borderColor: 'border-gray-200/50', iconColor: 'text-gray-500' },
 ]
 

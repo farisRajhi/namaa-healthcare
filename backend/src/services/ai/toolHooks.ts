@@ -225,7 +225,6 @@ function extractResourceId(
   result?: string,
 ): string | null {
   if (args.appointmentId) return args.appointmentId as string;
-  if (args.prescriptionId) return args.prescriptionId as string;
   if (args.facilityId) return args.facilityId as string;
 
   // Extract appointment ID from booking result

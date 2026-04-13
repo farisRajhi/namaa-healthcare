@@ -21,16 +21,29 @@ export default async function baileysWhatsAppRoutes(app: FastifyInstance) {
   // Wire incoming Baileys messages → AI handler → send response back
   manager.on('message', async (orgId: string, msg: { phone: string; text: string; messageId: string; jid: string }) => {
     try {
-      app.log.info({ orgId, phone: msg.phone, jid: msg.jid }, 'Routing Baileys message to AI handler');
+      // Check if AI auto-reply is enabled for this org
+      const org = await app.prisma.org.findUnique({
+        where: { orgId },
+        select: { aiAutoReply: true },
+      });
+      const aiAutoReply = org?.aiAutoReply !== false;
 
-      // Show "typing..." while AI processes the message
-      await manager.sendTyping(orgId, msg.jid).catch(() => {});
+      if (!aiAutoReply) {
+        app.log.info({ orgId, phone: msg.phone }, 'AI auto-reply disabled — storing message only');
+      }
 
-      const response = await aiHandler.handleIncoming(msg.phone, msg.text, msg.messageId, orgId, true);
+      // Show "typing..." while AI processes (only if AI is active)
+      if (aiAutoReply) {
+        await manager.sendTyping(orgId, msg.jid).catch(() => {});
+      }
 
-      // Stop typing and send the response
-      await manager.stopTyping(orgId, msg.jid).catch(() => {});
-      await manager.sendMessage(orgId, msg.jid, response);
+      const response = await aiHandler.handleIncoming(msg.phone, msg.text, msg.messageId, orgId, true, aiAutoReply);
+
+      // Stop typing and send the response (only if AI replied)
+      if (aiAutoReply && response) {
+        await manager.stopTyping(orgId, msg.jid).catch(() => {});
+        await manager.sendMessage(orgId, msg.jid, response);
+      }
     } catch (err) {
       app.log.error({ err, orgId }, 'Failed to handle Baileys incoming message');
       await manager.stopTyping(orgId, msg.jid).catch(() => {});

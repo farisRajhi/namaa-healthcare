@@ -91,7 +91,10 @@ export default function QuickActionSms({ open, onClose, patientId, patientName, 
     },
   })
 
-  const phone = patient?.phone || patient?.phoneNumber || ''
+  const phone = patient?.phone || patient?.phoneNumber
+    || patient?.contacts?.find((c: any) => c.contactType === 'phone')?.contactValue
+    || patient?.contacts?.find((c: any) => c.contactType === 'whatsapp')?.contactValue
+    || ''
   const canSend = phone && (mode === 'template' ? !!selectedTemplate : customMessage.trim().length > 0)
 
   return (

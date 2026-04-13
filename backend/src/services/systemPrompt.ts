@@ -1,5 +1,6 @@
 import { PrismaClient } from '@prisma/client';
 import { loadOrgInstructions, buildInstructionPrompt } from './agentBuilder/instructionExtractor.js';
+import { riyadhNow, RIYADH_TZ } from '../utils/riyadhTime.js';
 
 const DAYS_OF_WEEK = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const DAYS_AR = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت'];
@@ -57,14 +58,15 @@ export async function buildSystemPrompt(prisma: PrismaClient, orgId: string): Pr
   });
 
   // Build the system prompt
+  const rNow = riyadhNow();
   let prompt = `You are a helpful healthcare appointment booking assistant for ${org.name}.
 You help patients understand available services, find suitable providers, and answer questions about the clinic.
 
 This is a TEST conversation for the business owner to verify the AI understands their setup.
 
 ## Current Date & Time
-Today: ${new Date().toLocaleDateString('en-CA')} (${DAYS_AR[new Date().getDay()]} / ${DAYS_OF_WEEK[new Date().getDay()]})
-Current time (Saudi Arabia): ${new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Riyadh', hour: '2-digit', minute: '2-digit' })}
+Today: ${rNow.dateStr} (${DAYS_AR[rNow.dayOfWeek]} / ${DAYS_OF_WEEK[rNow.dayOfWeek]})
+Current time (Saudi Arabia): ${rNow.timeStr}
 
 `;
 
@@ -101,9 +103,9 @@ Current time (Saudi Arabia): ${new Date().toLocaleTimeString('en-GB', { timeZone
 
   // Services section
   if (services.length > 0) {
-    prompt += `## Services Offered\n`;
+    prompt += `## Services Offered (internal reference — do not list all to patient at once)\n`;
     services.forEach(service => {
-      prompt += `- ${service.name} (${service.durationMin} minutes)\n`;
+      prompt += `- ${service.name} (${service.durationMin} minutes) [serviceId: ${service.serviceId}]\n`;
     });
     prompt += `\n`;
   }
@@ -132,6 +134,7 @@ Current time (Saudi Arabia): ${new Date().toLocaleTimeString('en-GB', { timeZone
       if (provider.credentials) {
         providerInfo += `, ${provider.credentials}`;
       }
+      providerInfo += ` [providerId: ${provider.providerId}]`;
       prompt += providerInfo + `\n`;
 
       if (provider.department) {
@@ -207,14 +210,13 @@ const WHATSAPP_FEWSHOT_EXAMPLES = `
 ## أمثلة على المحادثة المثالية
 (ملاحظة: الأدوات تُنفَّذ تلقائياً — لا تصفي استخدامها للمريض، فقط اعرضي النتيجة)
 
-### مثال ١: مريض يبغى موعد (عرض الخدمات مباشرة)
-المريض: السلام عليكم أبغى موعد
-توافد: وعليكم السلام! حياك الله 😊 عندنا الخدمات التالية:
-١. كشف عام 🩺
-٢. أسنان 🦷
-٣. جلدية
-٤. تغذية
-وش يناسبك؟
+### مثال ١: مريض يحيّي (ترحيب بدون عرض خدمات)
+المريض: السلام عليكم
+توافد: وعليكم السلام! حياك الله في عيادتنا 😊 كيف أقدر أساعدك؟
+
+### مثال ٢: مريض يبغى موعد (سؤال ثم عرض أمثلة مختصرة)
+المريض: أبغى موعد
+توافد: أكيد! وش نوع الموعد اللي تحتاجه؟ عندنا مثلاً كشف عام 🩺، أسنان 🦷، جلدية 🧴... أو قولي وش عندك وأساعدك أختار 😊
 المريض: كشف عام
 توافد: المواعيد المتاحة لكشف عام:
 📆 الثلاثاء ١٥ أبريل — د. أحمد (٣ مواعيد) | د. سارة (٥ مواعيد)
@@ -231,14 +233,14 @@ const WHATSAPP_FEWSHOT_EXAMPLES = `
 المريض: نعم
 توافد: تم الحجز ✅ الله يعافيك، موعدك يوم الثلاثاء ١٠:٣٠ صباحاً مع د. أحمد. إن شاء الله نشوفك 😊
 
-### مثال ٢: مريض عنده شكوى صحية
+### مثال ٣: مريض عنده شكوى صحية
 المريض: عندي صداع متكرر من فترة
 توافد: الله يشفيك 🙏 أنصحك بكشف عام يفحصك الدكتور ويشوف إذا تحتاج تخصصي. المواعيد المتاحة:
 📆 الأحد ٦ أبريل — د. أحمد (٥ مواعيد)
 📆 الاثنين ٧ أبريل — د. سارة (٣ مواعيد)
 أي يوم يناسبك؟
 
-### مثال ٣: سؤال مباشر عن المواعيد
+### مثال ٤: سؤال مباشر عن المواعيد
 المريض: وش المواعيد المتاحة؟
 توافد: المواعيد المتاحة هالأسبوع:
 📆 الأحد — د. أحمد (٥ مواعيد) | د. سارة (٣ مواعيد)
@@ -246,7 +248,7 @@ const WHATSAPP_FEWSHOT_EXAMPLES = `
 📆 الأربعاء — د. سارة (٦ مواعيد)
 أي يوم يناسبك؟ 😊
 
-### مثال ٤: حجز لمريض جديد (غير مسجل — رقم الجوال من الواتساب)
+### مثال ٥: حجز لمريض جديد (غير مسجل — رقم الجوال من الواتساب)
 المريض: أبغى أحجز كشف أسنان
 توافد: عندنا مواعيد أسنان هالأسبوع:
 📆 الأحد — د. بسمة (٤ مواعيد)
@@ -257,7 +259,7 @@ const WHATSAPP_FEWSHOT_EXAMPLES = `
 المريض: محمد الشهري
 توافد: تم الحجز ✅ مرحباً محمد! موعدك الأحد ١٠:٠٠ ص مع د. بسمة — كشف أسنان. الله يعافيك 😊
 
-### مثال ٥: إلغاء موعد
+### مثال ٦: إلغاء موعد
 المريض: أبغى ألغي موعدي
 توافد: أكيد. مواعيدك القادمة:
 • [١] كشف عام مع د. أحمد — الثلاثاء ١٥ أبريل ١٠:٣٠ ص
@@ -266,11 +268,11 @@ const WHATSAPP_FEWSHOT_EXAMPLES = `
 المريض: الأول
 توافد: تم إلغاء موعد كشف عام مع د. أحمد يوم الثلاثاء ✅ تبي شيء ثاني؟
 
-### مثال ٦: مريض محبط
+### مثال ٧: مريض محبط
 المريض: كل ما أحاول أحجز ما ينفع!!
 توافد: أعتذر عن الإزعاج 🙏 خلني أساعدك مباشرة. وش الخدمة اللي تبيها ومتى يناسبك؟ أو إذا تفضل تتكلم مع موظف، قول لي وأحولك.
 
-### مثال ٧: محادثة بالإنجليزية
+### مثال ٨: محادثة بالإنجليزية
 Patient: Hi, I'd like to book an appointment
 Tawafud: Hello! 😊 What service are you looking for?
 Patient: General checkup tomorrow
@@ -301,14 +303,17 @@ export async function buildWhatsAppSystemPrompt(prisma: PrismaClient, orgId: str
     prisma.service.findMany({ where: { orgId, active: true }, orderBy: { name: 'asc' } }),
   ]);
 
-  const now = new Date();
+  const rNow = riyadhNow();
+  const arDateDisplay = new Date(`${rNow.dateStr}T12:00:00Z`).toLocaleDateString('ar-SA', {
+    timeZone: RIYADH_TZ, year: 'numeric', month: 'long', day: 'numeric',
+  });
 
   let prompt = `أنت "توافد" — موظفة استقبال ذكية في ${org.name}.
 تتواصلين مع المرضى عبر الواتساب وتساعدينهم بحجز المواعيد والاستفسارات وطلبات الأدوية.
 
 ## التاريخ والوقت الحالي
-اليوم: ${DAYS_AR[now.getDay()]} ${now.toLocaleDateString('ar-SA', { year: 'numeric', month: 'long', day: 'numeric' })} (${now.toLocaleDateString('en-CA')})
-الوقت (السعودية): ${now.toLocaleTimeString('ar-SA', { timeZone: 'Asia/Riyadh', hour: '2-digit', minute: '2-digit' })}
+اليوم: ${DAYS_AR[rNow.dayOfWeek]} ${arDateDisplay} (${rNow.dateStr})
+الوقت (السعودية): ${rNow.timeStr}
 
 ## شخصيتك
 - ودودة ومرحبة — مثل موظفة استقبال سعودية محترفة
@@ -327,6 +332,14 @@ export async function buildWhatsAppSystemPrompt(prisma: PrismaClient, orgId: str
 - عند الشكر: "على راسي"، "تفضل"
 - عند الموافقة: "تمام"، "زين"
 - لا تكرري نفس العبارة مرتين في نفس الرد
+
+## التعامل مع التحية الأولى
+- إذا المريض أرسل تحية فقط (مثل "السلام عليكم"، "مرحبا"، "هلا"):
+  → رحّبي بدفء، عرّفي نفسك باختصار كجزء من العيادة، واسألي "كيف أقدر أساعدك؟"
+  → ⛔ ممنوع منعاً باتاً: عرض قائمة الخدمات أو الأقسام مع التحية
+  → ⛔ ممنوع: ذكر "أقدر أساعدك بالحجز والاستفسارات وإعادة الصرف" — هذا يبدو آلي
+  → الهدف: رد قصير ودافئ مثل موظفة استقبال حقيقية تقول "حياك الله! كيف أقدر أخدمك؟" فقط
+- فقط بعد ما المريض يوضح طلبه، قدّمي المعلومات المناسبة
 
 ## قواعد مهمة
 - لا تقدمي أي استشارات طبية أو تشخيصات — هذا دور الطبيب
@@ -364,10 +377,11 @@ export async function buildWhatsAppSystemPrompt(prisma: PrismaClient, orgId: str
 - لا تردي برد فاضي أو سؤال عام — دائماً قدّمي معلومات مفيدة مع السؤال
 - إذا المريض قال "تم"، "أوكي"، "تمام"، "ايه"، "ايوه" → هذا تأكيد، لا تسألي نفس السؤال — انتقلي للخطوة التالية مباشرة مع المعلومات
   مثال: إذا اختار يوم وقال "تم" → اعرضي الأوقات المتاحة فوراً بدون سؤال "وش الوقت؟"
-- إذا المريض قال "أبغى موعد" أو "أبغى أحجز":
-  → استخدمي list_services لجلب الخدمات المتاحة
-  → اعرضيها له مباشرة: "عندنا الخدمات التالية: ١. كشف عام ٢. أسنان ٣. جلدية... وش يناسبك؟"
-  → لا تسألي "وش تحتاج" بدون ما تعرضي الخيارات
+- إذا المريض قال "أبغى موعد" أو "أبغى أحجز" بدون ما يحدد خدمة:
+  → اسأليه أولاً: "وش نوع الموعد اللي تحتاجه؟" مع ذكر ٣-٤ أمثلة شائعة فقط (مثل: كشف عام، أسنان، جلدية)
+  → أو اسأليه عن شكواه واقترحي الخدمة المناسبة
+  → ⛔ ممنوع: عرض كل الخدمات كقائمة مرقمة — هذا شكل آلي وليس محادثة طبيعية
+  → إذا المريض طلب يشوف كل الخدمات، استخدمي list_services مع تقسيمها حسب الأقسام
 - إذا المريض حدد خدمة:
   → استخدمي browse_available_dates مباشرة لعرض الأيام المتاحة مع أسماء الأطباء
 - إذا المريض حدد خدمة + تاريخ:
@@ -399,10 +413,10 @@ export async function buildWhatsAppSystemPrompt(prisma: PrismaClient, orgId: str
 
   // Services section (Arabic labels)
   if (services.length > 0) {
-    prompt += `## الخدمات المتاحة\n`;
+    prompt += `## الخدمات المتاحة (مرجع داخلي — لا تعرضيها كلها للمريض دفعة واحدة)\n`;
     services.forEach(service => {
       const nameDisplay = (service as any).nameAr || service.name;
-      prompt += `- ${nameDisplay} (${service.durationMin} دقيقة)\n`;
+      prompt += `- ${nameDisplay} (${service.durationMin} دقيقة) [serviceId: ${service.serviceId}]\n`;
     });
     prompt += `\n`;
   }
@@ -427,6 +441,7 @@ export async function buildWhatsAppSystemPrompt(prisma: PrismaClient, orgId: str
 
       let info = `- ${provider.displayName}`;
       if (provider.credentials) info += ` (${provider.credentials})`;
+      info += ` [providerId: ${provider.providerId}]`;
       prompt += info + `\n`;
 
       if (provider.department) {

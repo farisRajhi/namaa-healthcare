@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 import { seedFlowTemplates } from '../src/services/agentBuilder/seedTemplates.js';
 import { seedPatientHabits } from './seedPatientHabits.js';
 
@@ -21,6 +22,26 @@ async function main() {
         },
       });
   console.log(existingOrg ? '♻️ Org already exists, reusing:' : '✅ Org created:', org.name);
+
+  // ─── Ensure admin user exists (idempotent) ──────────────────────────
+  const adminEmail = 'admin@tawafud.com';
+  const existingUser = await prisma.user.findUnique({ where: { email: adminEmail } });
+  if (!existingUser) {
+    const adminPassword = process.env.SEED_ADMIN_PASSWORD || 'Admin123!';
+    const hashedPassword = await bcrypt.hash(adminPassword, 12);
+    await prisma.user.create({
+      data: {
+        orgId: org.orgId,
+        email: adminEmail,
+        password: hashedPassword,
+        name: 'Admin',
+        nameAr: 'مدير النظام',
+      },
+    });
+    console.log('✅ Admin user created (admin@tawafud.com) — password set from SEED_ADMIN_PASSWORD env var');
+  } else {
+    console.log('♻️ Admin user already exists');
+  }
 
   // If org already existed, skip the rest to avoid duplicates
   if (existingOrg) {
@@ -135,19 +156,19 @@ async function main() {
 
   // ─── 5. Services ──────────────────────────────────────────────────
   const svcGeneral = await prisma.service.create({
-    data: { orgId: org.orgId, name: 'كشف عام', durationMin: 20 },
+    data: { orgId: org.orgId, name: 'كشف عام', nameEn: 'General Checkup', durationMin: 20, category: 'general', repeatCycleDays: 365, isRepeating: true },
   });
   const svcDental = await prisma.service.create({
-    data: { orgId: org.orgId, name: 'تنظيف أسنان', durationMin: 30 },
+    data: { orgId: org.orgId, name: 'تنظيف أسنان', nameEn: 'Dental Cleaning', durationMin: 30, category: 'dental', repeatCycleDays: 180, isRepeating: true },
   });
   const svcPediatric = await prisma.service.create({
-    data: { orgId: org.orgId, name: 'فحص أطفال', durationMin: 25 },
+    data: { orgId: org.orgId, name: 'فحص أطفال', nameEn: 'Pediatric Checkup', durationMin: 25, category: 'general', repeatCycleDays: 180, isRepeating: true },
   });
   const svcFollowUp = await prisma.service.create({
-    data: { orgId: org.orgId, name: 'متابعة', durationMin: 15 },
+    data: { orgId: org.orgId, name: 'متابعة', nameEn: 'Follow-up', durationMin: 15 },
   });
   const svcEmergency = await prisma.service.create({
-    data: { orgId: org.orgId, name: 'طوارئ', durationMin: 10, bufferAfterMin: 5 },
+    data: { orgId: org.orgId, name: 'طوارئ', nameEn: 'Emergency', durationMin: 10, bufferAfterMin: 5 },
   });
   console.log('✅ 5 Services created');
 
@@ -586,6 +607,194 @@ async function main() {
     },
   });
   console.log('✅ 2 Facility configs created');
+
+  // ─── 17. Patient Insights (engagement scores + return likelihood) ──
+  const insightData = [
+    { idx: 0, totalAppt: 8, completed: 7, noShow: 0, cancelled: 1, engagement: 85, returnLikelihood: 90, channel: 'whatsapp', interval: 30 },
+    { idx: 1, totalAppt: 12, completed: 10, noShow: 1, cancelled: 1, engagement: 72, returnLikelihood: 78, channel: 'whatsapp', interval: 45 },
+    { idx: 2, totalAppt: 5, completed: 4, noShow: 1, cancelled: 0, engagement: 55, returnLikelihood: 60, channel: 'sms', interval: 60 },
+    { idx: 3, totalAppt: 3, completed: 2, noShow: 0, cancelled: 1, engagement: 35, returnLikelihood: 40, channel: 'whatsapp', interval: 90 },
+    { idx: 4, totalAppt: 2, completed: 1, noShow: 1, cancelled: 0, engagement: 20, returnLikelihood: 25, channel: 'sms', interval: 120 },
+  ];
+
+  for (const ins of insightData) {
+    const p = patients[ins.idx];
+    const completionRate = ins.totalAppt > 0 ? ins.completed / ins.totalAppt : 0;
+    await prisma.patientInsight.create({
+      data: {
+        patientId: p.patientId,
+        orgId: org.orgId,
+        totalAppointments: ins.totalAppt,
+        completedAppointments: ins.completed,
+        noShowCount: ins.noShow,
+        cancelledCount: ins.cancelled,
+        completionRate,
+        engagementScore: ins.engagement,
+        returnLikelihood: ins.returnLikelihood,
+        channelPreference: ins.channel,
+        avgVisitIntervalDays: ins.interval,
+        lastInteractionAt: addDays(now, -(ins.interval - 5)),
+        totalConversations: ins.totalAppt * 2,
+        lifetimeValue: ins.completed * 15000, // halalas
+      },
+    });
+  }
+  console.log('✅ 5 Patient insights created');
+
+  // ─── 18. Patient Care Gaps ────────────────────────────────────────
+  // First get the care gap rules we created earlier
+  const careGapRules = await prisma.careGapRule.findMany({
+    where: { orgId: org.orgId },
+  });
+
+  if (careGapRules.length >= 2) {
+    const careGapData = [
+      { patientIdx: 2, ruleIdx: 0, riskScore: 85, status: 'open' },   // محمد — annual checkup overdue
+      { patientIdx: 4, ruleIdx: 0, riskScore: 70, status: 'open' },   // فهد — annual checkup overdue
+      { patientIdx: 1, ruleIdx: 1, riskScore: 92, status: 'open' },   // نورة — diabetes follow-up overdue
+      { patientIdx: 3, ruleIdx: 0, riskScore: 45, status: 'open' },   // سارة — annual checkup
+      { patientIdx: 0, ruleIdx: 0, riskScore: 30, status: 'contacted' }, // عبدالرحمن — already contacted
+    ];
+
+    for (const cg of careGapData) {
+      await prisma.patientCareGap.create({
+        data: {
+          patientId: patients[cg.patientIdx].patientId,
+          ruleId: careGapRules[cg.ruleIdx].careGapRuleId,
+          riskScore: cg.riskScore,
+          status: cg.status,
+          detectedAt: addDays(now, -7),
+        },
+      });
+    }
+    console.log('✅ 5 Patient care gaps created');
+  }
+
+  // ─── 19. Marketing Consent ────────────────────────────────────────
+  for (const p of patients) {
+    await prisma.marketingConsent.create({
+      data: {
+        patientId: p.patientId,
+        orgId: org.orgId,
+        smsMarketing: true,
+        whatsappMarketing: true,
+        voiceMarketing: false,
+        emailMarketing: false,
+        consentSource: 'booking_form',
+      },
+    });
+  }
+  console.log('✅ 5 Marketing consents created');
+
+  // ─── 20. Offers (active promotions) ───────────────────────────────
+  const offerValidFrom = new Date();
+  const offerValidUntil = addDays(now, 30);
+
+  await prisma.offer.createMany({
+    data: [
+      {
+        orgId: org.orgId,
+        name: '10% Checkup Discount',
+        nameAr: 'خصم ١٠٪ على الكشف العام',
+        offerType: 'percentage_discount',
+        discountValue: 10,
+        discountUnit: 'percent',
+        promoCode: 'CHECKUP10',
+        serviceIds: [svcGeneral.serviceId],
+        providerIds: [],
+        facilityIds: [],
+        validFrom: offerValidFrom,
+        validUntil: offerValidUntil,
+        targetPreset: 'lapsed_90',
+        targetFilter: { lastVisitDaysAgo: 90 },
+        status: 'active',
+        messageAr: 'مرحباً {patient_name}! احصل على خصم ١٠٪ على كشفك القادم. استخدم كود CHECKUP10 عند الحجز. احجز الآن!',
+        messageEn: 'Hi {patient_name}! Get 10% off your next checkup. Use code CHECKUP10 when booking. Book now!',
+        totalSent: 12,
+        totalRedeemed: 3,
+        totalRevenue: 45000,
+      },
+      {
+        orgId: org.orgId,
+        name: 'Free Dental Cleaning',
+        nameAr: 'تنظيف أسنان مجاني',
+        offerType: 'free_addon',
+        discountValue: 0,
+        discountUnit: 'percent',
+        promoCode: 'FREECLEAN',
+        serviceIds: [svcDental.serviceId],
+        providerIds: [],
+        facilityIds: [],
+        validFrom: offerValidFrom,
+        validUntil: offerValidUntil,
+        targetPreset: 'high_value',
+        targetFilter: { minEngagementScore: 70 },
+        status: 'active',
+        messageAr: 'مرحباً {patient_name}! نهديك جلسة تنظيف أسنان مجانية تقديراً لوفائك. احجز موعدك الآن!',
+        messageEn: 'Hi {patient_name}! We\'re offering you a free dental cleaning as a thank you for your loyalty. Book now!',
+        totalSent: 8,
+        totalRedeemed: 5,
+        totalRevenue: 0,
+      },
+      {
+        orgId: org.orgId,
+        name: '50 SAR Off Follow-up',
+        nameAr: 'خصم ٥٠ ريال على المتابعة',
+        offerType: 'fixed_discount',
+        discountValue: 5000,
+        discountUnit: 'sar',
+        promoCode: 'FOLLOW50',
+        serviceIds: [svcFollowUp.serviceId],
+        providerIds: [],
+        facilityIds: [],
+        validFrom: offerValidFrom,
+        validUntil: offerValidUntil,
+        targetPreset: 'at_risk',
+        targetFilter: { minEngagementScore: 20, maxEngagementScore: 50 },
+        status: 'active',
+        messageAr: 'مرحباً {patient_name}! احصل على خصم ٥٠ ريال على موعد المتابعة القادم. كود: FOLLOW50. نتمنى أن نراك قريباً!',
+        messageEn: 'Hi {patient_name}! Get 50 SAR off your next follow-up visit. Code: FOLLOW50. We hope to see you soon!',
+        totalSent: 6,
+        totalRedeemed: 2,
+        totalRevenue: 20000,
+      },
+    ],
+  });
+  console.log('✅ 3 Active offers created');
+
+  // ─── 21. Additional SMS Templates for engagement actions ──────────
+  await prisma.smsTemplate.createMany({
+    data: [
+      {
+        orgId: org.orgId,
+        name: 'دعوة عودة',
+        trigger: 'custom',
+        bodyEn: 'Hi {patient_name}, it\'s been a while since your last visit to Tawafud Hospital. We\'d love to see you again! Book your appointment: {clinic_name}',
+        bodyAr: 'مرحباً {patient_name}، مضى وقت على زيارتك الأخيرة لمستشفى توافد. يسعدنا رؤيتك مجدداً! احجز موعدك الآن',
+        variables: ['patient_name', 'clinic_name'],
+        channel: 'whatsapp',
+      },
+      {
+        orgId: org.orgId,
+        name: 'متابعة صحية',
+        trigger: 'follow_up',
+        bodyEn: 'Hi {patient_name}, your follow-up appointment is due. Please schedule your visit to ensure continued care. Call us or book online!',
+        bodyAr: 'مرحباً {patient_name}، حان موعد متابعتك الصحية. يرجى حجز زيارتك لضمان استمرار الرعاية. اتصل بنا أو احجز أونلاين!',
+        variables: ['patient_name'],
+        channel: 'whatsapp',
+      },
+      {
+        orgId: org.orgId,
+        name: 'عرض خاص',
+        trigger: 'custom',
+        bodyEn: 'Hi {patient_name}, we have a special offer just for you! {custom_message}. Limited time — book now!',
+        bodyAr: 'مرحباً {patient_name}، لدينا عرض خاص لك! {custom_message}. لفترة محدودة — احجز الآن!',
+        variables: ['patient_name', 'custom_message'],
+        channel: 'both',
+      },
+    ],
+  });
+  console.log('✅ 3 Additional SMS templates for engagement created');
 
   // ─── Agent Builder Templates ──────────────────────────────
   await seedFlowTemplates(prisma, org.orgId);

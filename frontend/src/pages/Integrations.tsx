@@ -50,7 +50,7 @@ const typeLabels: Record<string, { ar: string; en: string; icon: string }> = {
 const webhookEvents = [
   'appointment.created', 'appointment.cancelled', 'appointment.completed',
   'patient.created', 'call.completed', 'call.escalated',
-  'prescription.refill_requested', 'campaign.completed',
+  'campaign.completed',
 ]
 
 export default function Integrations() {

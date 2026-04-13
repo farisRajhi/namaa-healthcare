@@ -174,7 +174,7 @@ export default function PatientBooking() {
         </p>
         <button
           onClick={() => navigate('/patient/dashboard/appointments')}
-          className="bg-teal-500 text-white px-6 py-2.5 rounded-xl text-sm font-medium"
+          className="bg-primary-500 text-white px-6 py-2.5 rounded-xl text-sm font-medium"
         >
           {t('portal.booking.viewAppointments')}
         </button>
@@ -195,9 +195,9 @@ export default function PatientBooking() {
               className={cn(
                 'flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] font-medium transition-colors w-full justify-center',
                 i === step
-                  ? 'bg-teal-50 text-teal-700'
+                  ? 'bg-primary-50 text-primary-700'
                   : i < step
-                  ? 'text-teal-600'
+                  ? 'text-primary-600'
                   : 'text-slate-400'
               )}
             >
@@ -205,7 +205,7 @@ export default function PatientBooking() {
               <span className="hidden sm:inline">{s.label}</span>
             </div>
             {i < STEPS.length - 1 && (
-              <div className={cn('w-3 h-0.5 mx-0.5 rounded flex-shrink-0', i < step ? 'bg-teal-300' : 'bg-slate-200')} />
+              <div className={cn('w-3 h-0.5 mx-0.5 rounded flex-shrink-0', i < step ? 'bg-primary-300' : 'bg-slate-200')} />
             )}
           </div>
         ))}
@@ -239,13 +239,13 @@ export default function PatientBooking() {
                   className={cn(
                     'w-full text-start bg-white rounded-xl p-4 border transition-all',
                     selectedService?.serviceId === svc.serviceId
-                      ? 'border-teal-500 ring-2 ring-teal-100'
+                      ? 'border-primary-500 ring-2 ring-primary-100'
                       : 'border-slate-100 hover:border-slate-200'
                   )}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center flex-shrink-0">
-                      <Stethoscope className="w-5 h-5 text-teal-600" />
+                    <div className="w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center flex-shrink-0">
+                      <Stethoscope className="w-5 h-5 text-primary-600" />
                     </div>
                     <div className="flex-1">
                       <p className="font-medium text-sm text-slate-800">{svc.name}</p>
@@ -255,7 +255,7 @@ export default function PatientBooking() {
                       </p>
                     </div>
                     {selectedService?.serviceId === svc.serviceId && (
-                      <Check className="w-5 h-5 text-teal-500" />
+                      <Check className="w-5 h-5 text-primary-500" />
                     )}
                   </div>
                 </button>
@@ -293,7 +293,7 @@ export default function PatientBooking() {
                   className={cn(
                     'w-full text-start bg-white rounded-xl p-4 border transition-all',
                     selectedProvider?.providerId === prov.providerId
-                      ? 'border-teal-500 ring-2 ring-teal-100'
+                      ? 'border-primary-500 ring-2 ring-primary-100'
                       : 'border-slate-100 hover:border-slate-200'
                   )}
                 >
@@ -311,7 +311,7 @@ export default function PatientBooking() {
                       )}
                     </div>
                     {selectedProvider?.providerId === prov.providerId && (
-                      <Check className="w-5 h-5 text-teal-500 flex-shrink-0" />
+                      <Check className="w-5 h-5 text-primary-500 flex-shrink-0" />
                     )}
                   </div>
                 </button>
@@ -334,7 +334,7 @@ export default function PatientBooking() {
                 min={today}
                 max={maxDate}
                 dir="ltr"
-                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-colors text-left"
+                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors text-left"
               />
               {selectedDate && (
                 <p className="text-xs text-slate-500 mt-1 text-start">
@@ -386,11 +386,11 @@ export default function PatientBooking() {
                               'py-2.5 text-xs font-medium rounded-lg transition-all border relative',
                               !slot.available && 'opacity-30 cursor-not-allowed border-slate-100 bg-slate-50 text-slate-400',
                               slot.available && selectedTime === slot.time
-                                ? 'bg-teal-500 text-white border-teal-500'
+                                ? 'bg-primary-500 text-white border-primary-500'
                                 : slot.available
                                 ? prayerConflict
                                   ? 'bg-amber-50 border-amber-200 text-amber-700 hover:border-amber-300'
-                                  : 'bg-white border-slate-200 text-slate-700 hover:border-teal-300'
+                                  : 'bg-white border-slate-200 text-slate-700 hover:border-primary-300'
                                 : ''
                             )}
                             title={prayerConflict ? `${prayerConflict.nameAr} - ${prayerConflict.name}` : undefined}
@@ -414,8 +414,8 @@ export default function PatientBooking() {
         {step === 3 && (
           <div className="space-y-4">
             <div className="bg-white rounded-xl border border-slate-100 overflow-hidden">
-              <div className="bg-teal-50 px-4 py-3">
-                <h3 className="text-sm font-bold text-teal-800">{t('portal.booking.summary')}</h3>
+              <div className="bg-primary-50 px-4 py-3">
+                <h3 className="text-sm font-bold text-primary-800">{t('portal.booking.summary')}</h3>
               </div>
               <div className="p-4 space-y-3">
                 <div className="flex items-center justify-between text-sm">
@@ -454,7 +454,7 @@ export default function PatientBooking() {
                 onChange={(e) => setReason(e.target.value)}
                 rows={2}
                 placeholder={t('portal.booking.reasonPlaceholder')}
-                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
               />
             </div>
           </div>
@@ -485,7 +485,7 @@ export default function PatientBooking() {
           <button
             onClick={() => setStep(step + 1)}
             disabled={!canProceed()}
-            className="flex items-center gap-1 text-sm text-white bg-teal-500 px-6 py-2.5 rounded-xl font-medium hover:bg-teal-600 disabled:opacity-40 transition-all"
+            className="flex items-center gap-1 text-sm text-white bg-primary-500 px-6 py-2.5 rounded-xl font-medium hover:bg-primary-600 disabled:opacity-40 transition-all"
           >
             {t('portal.booking.next')}
             {isRTL ? <ArrowLeft className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
@@ -494,7 +494,7 @@ export default function PatientBooking() {
           <button
             onClick={handleSubmit}
             disabled={submitting}
-            className="flex items-center gap-1 text-sm text-white bg-teal-500 px-6 py-2.5 rounded-xl font-medium hover:bg-teal-600 disabled:opacity-60 transition-all"
+            className="flex items-center gap-1 text-sm text-white bg-primary-500 px-6 py-2.5 rounded-xl font-medium hover:bg-primary-600 disabled:opacity-60 transition-all"
           >
             {submitting ? (
               <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />

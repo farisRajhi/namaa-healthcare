@@ -124,8 +124,14 @@ export default async function whatsappChatRoutes(app: FastifyInstance) {
         'WhatsApp message received',
       );
 
-      // Process the message through AI
-      await handler.handleIncoming(From, Body, MessageSid, orgId);
+      // Check if AI auto-reply is enabled
+      const org = await app.prisma.org.findUnique({
+        where: { orgId },
+        select: { aiAutoReply: true },
+      });
+
+      // Process the message (stores it; AI only responds if auto-reply is on)
+      await handler.handleIncoming(From, Body, MessageSid, orgId, false, org?.aiAutoReply !== false);
 
       // Return empty TwiML (we send the reply via API, not TwiML)
       reply.header('Content-Type', 'text/xml');

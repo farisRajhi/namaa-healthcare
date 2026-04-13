@@ -28,7 +28,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 
-const COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#06b6d4']
+const COLORS = ['#4A7C6F', '#C4956A', '#8BB8AA', '#D97706', '#8B5CF6', '#B07D52']
 
 type TimeRange = 'hourly' | 'daily' | 'weekly'
 

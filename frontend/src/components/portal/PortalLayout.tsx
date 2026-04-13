@@ -42,7 +42,7 @@ export default function PortalLayout() {
         <div className="max-w-lg mx-auto flex items-center justify-between px-4 h-14">
           {/* Brand */}
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-gradient-to-br from-teal-500 to-teal-600 rounded-lg flex items-center justify-center shadow-sm">
+            <div className="w-8 h-8 bg-gradient-to-br from-primary-500 to-primary-600 rounded-lg flex items-center justify-center shadow-sm">
               <span className="text-white font-bold text-sm">✚</span>
             </div>
             <div>
@@ -84,7 +84,7 @@ export default function PortalLayout() {
                 cn(
                   'flex flex-col items-center gap-0.5 px-3 py-1.5 rounded-xl transition-colors min-w-[60px]',
                   isActive
-                    ? 'text-teal-600'
+                    ? 'text-primary-600'
                     : 'text-slate-400 hover:text-slate-600'
                 )
               }
@@ -93,7 +93,7 @@ export default function PortalLayout() {
                 <>
                   <div className={cn(
                     'p-1.5 rounded-xl transition-colors',
-                    isActive ? 'bg-teal-50' : ''
+                    isActive ? 'bg-primary-50' : ''
                   )}>
                     <item.icon className="w-5 h-5" />
                   </div>

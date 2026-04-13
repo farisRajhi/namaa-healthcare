@@ -33,13 +33,13 @@ export default async function auditRoutes(app: FastifyInstance) {
 
   app.get<{ Params: { orgId: string } }>(
     '/:orgId',
-    async (request) => {
+    async (request, reply) => {
       const { orgId: userOrgId } = request.user;
       const { orgId } = request.params;
 
       // Ensure user can only access their own org's audit logs
       if (orgId !== userOrgId) {
-        return { error: 'Forbidden: cannot access audit logs for another organization' };
+        return reply.code(403).send({ error: 'Forbidden: cannot access audit logs for another organization' });
       }
 
       const query = querySchema.parse(request.query);
@@ -66,7 +66,7 @@ export default async function auditRoutes(app: FastifyInstance) {
       const { orgId } = request.params;
 
       if (orgId !== userOrgId) {
-        return { error: 'Forbidden: cannot export audit logs for another organization' };
+        return reply.code(403).send({ error: 'Forbidden: cannot export audit logs for another organization' });
       }
 
       const { from, to, redact } = exportSchema.parse(request.query);

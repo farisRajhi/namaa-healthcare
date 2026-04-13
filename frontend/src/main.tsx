@@ -18,6 +18,8 @@ const queryClient = new QueryClient({
   },
 })
 
+document.documentElement.classList.add('js-loaded')
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <ErrorBoundary>

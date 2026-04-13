@@ -52,7 +52,7 @@ interface ReminderStats {
   noResponse: number
 }
 
-const COLORS = ['#22c55e', '#3b82f6', '#ef4444', '#9ca3af']
+const COLORS = ['#059669', '#4A7C6F', '#EF4444', '#8B7E74']
 
 const defaultConfigs: ReminderConfig[] = [
   { interval: '48h', label: { ar: '48 ساعة قبل', en: '48 hours before' }, channels: { sms: true, whatsapp: true, voice: false, email: true } },

@@ -191,6 +191,10 @@ export default function VoiceTest() {
 
     try {
       const token = localStorage.getItem('token')
+      if (!token) {
+        setError('Not authenticated')
+        return
+      }
       const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
       const wsUrl = `${protocol}//${window.location.host}/api/voice/test?token=${token}`
 

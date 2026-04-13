@@ -171,18 +171,10 @@ export default async function agentBuilderRoutes(app: FastifyInstance) {
   })
 
   // ──── PUT /api/agent-builder/flows/:id — Update flow ────
-  app.put<{ Params: { id: string } }>('/flows/:id', async (request) => {
+  app.put<{ Params: { id: string } }>('/flows/:id', async (request, reply) => {
     const { orgId } = request.user
     const { id } = request.params
     const body = updateFlowSchema.parse(request.body)
-
-    // Verify ownership
-    const existing = await app.prisma.agentFlow.findFirst({
-      where: { agentFlowId: id, orgId },
-    })
-    if (!existing) {
-      return { error: 'Flow not found', statusCode: 404 }
-    }
 
     const updateData: any = {}
     if (body.name !== undefined) updateData.name = body.name
@@ -194,47 +186,57 @@ export default async function agentBuilderRoutes(app: FastifyInstance) {
     if (body.variables !== undefined) updateData.variables = body.variables
     if (body.settings !== undefined) updateData.settings = body.settings
 
-    const flow = await app.prisma.agentFlow.update({
-      where: { agentFlowId: id },
+    // Atomic org-scoped update — no TOCTOU race
+    const result = await app.prisma.agentFlow.updateMany({
+      where: { agentFlowId: id, orgId },
       data: updateData,
+    })
+
+    if (result.count === 0) {
+      return reply.code(404).send({ error: 'Flow not found' })
+    }
+
+    const flow = await app.prisma.agentFlow.findFirst({
+      where: { agentFlowId: id, orgId },
     })
 
     return {
       data: {
-        id: flow.agentFlowId,
-        name: flow.name,
-        updatedAt: flow.updatedAt,
+        id: flow!.agentFlowId,
+        name: flow!.name,
+        updatedAt: flow!.updatedAt,
       },
     }
   })
 
   // ──── DELETE /api/agent-builder/flows/:id — Delete flow ────
-  app.delete<{ Params: { id: string } }>('/flows/:id', async (request) => {
+  app.delete<{ Params: { id: string } }>('/flows/:id', async (request, reply) => {
     const { orgId } = request.user
     const { id } = request.params
 
-    const existing = await app.prisma.agentFlow.findFirst({
+    // Atomic org-scoped delete — no TOCTOU race
+    const result = await app.prisma.agentFlow.deleteMany({
       where: { agentFlowId: id, orgId },
     })
-    if (!existing) {
-      return { error: 'Flow not found', statusCode: 404 }
-    }
 
-    await app.prisma.agentFlow.delete({ where: { agentFlowId: id } })
+    if (result.count === 0) {
+      return reply.code(404).send({ error: 'Flow not found' })
+    }
 
     return { success: true }
   })
 
   // ──── POST /api/agent-builder/flows/:id/publish — Publish flow ────
-  app.post<{ Params: { id: string } }>('/flows/:id/publish', async (request) => {
+  app.post<{ Params: { id: string } }>('/flows/:id/publish', async (request, reply) => {
     const { orgId } = request.user
     const { id } = request.params
 
+    // Verify ownership first (need to read nodes for validation)
     const existing = await app.prisma.agentFlow.findFirst({
       where: { agentFlowId: id, orgId },
     })
     if (!existing) {
-      return { error: 'Flow not found', statusCode: 404 }
+      return reply.code(404).send({ error: 'Flow not found' })
     }
 
     // Validate flow has at least a START node (or INSTRUCTION nodes for AI customization flows)
@@ -242,7 +244,7 @@ export default async function agentBuilderRoutes(app: FastifyInstance) {
     const hasStart = nodes.some((n: any) => n.type === 'start')
     const hasInstructions = nodes.some((n: any) => n.type === 'instruction')
     if (!hasStart && !hasInstructions) {
-      return { error: 'Flow must have a START or INSTRUCTION node to be published', statusCode: 400 }
+      return reply.code(400).send({ error: 'Flow must have a START or INSTRUCTION node to be published' })
     }
 
     // Deactivate all other flows for this org (only one active at a time)
@@ -251,8 +253,9 @@ export default async function agentBuilderRoutes(app: FastifyInstance) {
       data: { isActive: false },
     })
 
-    const flow = await app.prisma.agentFlow.update({
-      where: { agentFlowId: id },
+    // Atomic org-scoped update
+    const result = await app.prisma.agentFlow.updateMany({
+      where: { agentFlowId: id, orgId },
       data: {
         isActive: true,
         publishedAt: new Date(),
@@ -260,37 +263,43 @@ export default async function agentBuilderRoutes(app: FastifyInstance) {
       },
     })
 
+    if (result.count === 0) {
+      return reply.code(404).send({ error: 'Flow not found' })
+    }
+
+    const flow = await app.prisma.agentFlow.findFirst({
+      where: { agentFlowId: id, orgId },
+    })
+
     return {
       data: {
-        id: flow.agentFlowId,
-        isActive: flow.isActive,
-        publishedAt: flow.publishedAt,
-        version: flow.version,
+        id: flow!.agentFlowId,
+        isActive: flow!.isActive,
+        publishedAt: flow!.publishedAt,
+        version: flow!.version,
       },
     }
   })
 
   // ──── POST /api/agent-builder/flows/:id/unpublish — Unpublish flow ────
-  app.post<{ Params: { id: string } }>('/flows/:id/unpublish', async (request) => {
+  app.post<{ Params: { id: string } }>('/flows/:id/unpublish', async (request, reply) => {
     const { orgId } = request.user
     const { id } = request.params
 
-    const existing = await app.prisma.agentFlow.findFirst({
+    // Atomic org-scoped update — no TOCTOU race
+    const result = await app.prisma.agentFlow.updateMany({
       where: { agentFlowId: id, orgId },
-    })
-    if (!existing) {
-      return { error: 'Flow not found', statusCode: 404 }
-    }
-
-    const flow = await app.prisma.agentFlow.update({
-      where: { agentFlowId: id },
       data: { isActive: false },
     })
 
+    if (result.count === 0) {
+      return reply.code(404).send({ error: 'Flow not found' })
+    }
+
     return {
       data: {
-        id: flow.agentFlowId,
-        isActive: flow.isActive,
+        id,
+        isActive: false,
       },
     }
   })
@@ -492,27 +501,45 @@ export default async function agentBuilderRoutes(app: FastifyInstance) {
   })
 
   // ──── POST /api/agent-builder/sessions/:id/message — Send message to session ────
-  app.post<{ Params: { id: string } }>('/sessions/:id/message', async (request) => {
+  app.post<{ Params: { id: string } }>('/sessions/:id/message', async (request, reply) => {
+    const { orgId } = request.user
     const { id } = request.params
     const body = simulateMessageSchema.parse(request.body)
+
+    // Verify session belongs to the user's org via its flow
+    const session = await app.prisma.agentFlowSession.findFirst({
+      where: { sessionId: id, flow: { orgId } },
+    })
+    if (!session) {
+      return reply.code(404).send({ error: 'Session not found' })
+    }
 
     try {
       const response = await engine.processInput(id, body.message)
       return { data: response }
     } catch (err: any) {
-      return { error: err.message, statusCode: 400 }
+      return reply.code(400).send({ error: err.message })
     }
   })
 
   // ──── GET /api/agent-builder/sessions/:id — Get session state ────
-  app.get<{ Params: { id: string } }>('/sessions/:id', async (request) => {
+  app.get<{ Params: { id: string } }>('/sessions/:id', async (request, reply) => {
+    const { orgId } = request.user
     const { id } = request.params
+
+    // Verify session belongs to the user's org via its flow
+    const session = await app.prisma.agentFlowSession.findFirst({
+      where: { sessionId: id, flow: { orgId } },
+    })
+    if (!session) {
+      return reply.code(404).send({ error: 'Session not found' })
+    }
 
     try {
       const state = await engine.getSessionState(id)
       return { data: state }
     } catch (err: any) {
-      return { error: err.message, statusCode: 404 }
+      return reply.code(404).send({ error: err.message })
     }
   })
 

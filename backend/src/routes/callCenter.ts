@@ -37,9 +37,9 @@ export default async function callCenterRoutes(app: FastifyInstance) {
   // Org-scoped aliases: GET /api/call-center/:orgId/<endpoint>
   // ════════════════════════════════════════════════════════════════════════
 
-  app.get<{ Params: { orgId: string } }>('/:orgId/status', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/:orgId/status', async (request, reply) => {
     const { orgId } = request.user;
-    if (request.params.orgId !== orgId) return { error: 'Forbidden' };
+    if (request.params.orgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
     const smartRouter = getSmartRouter(app.prisma);
     const queueSummary = callRouter.getQueueSummary(orgId);
@@ -85,9 +85,9 @@ export default async function callCenterRoutes(app: FastifyInstance) {
     };
   });
 
-  app.get<{ Params: { orgId: string } }>('/:orgId/queue', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/:orgId/queue', async (request, reply) => {
     const { orgId } = request.user;
-    if (request.params.orgId !== orgId) return { error: 'Forbidden' };
+    if (request.params.orgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
     const query = querySchema.parse(request.query);
     const skip = (query.page - 1) * query.limit;
@@ -110,9 +110,9 @@ export default async function callCenterRoutes(app: FastifyInstance) {
     return { data, pagination: { page: query.page, limit: query.limit, total, totalPages: Math.ceil(total / query.limit) } };
   });
 
-  app.get<{ Params: { orgId: string } }>('/:orgId/active', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/:orgId/active', async (request, reply) => {
     const { orgId } = request.user;
-    if (request.params.orgId !== orgId) return { error: 'Forbidden' };
+    if (request.params.orgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
     const activeCalls = callRouter.getActiveCalls(orgId);
     return {
       data: activeCalls.map((call) => ({
@@ -126,9 +126,9 @@ export default async function callCenterRoutes(app: FastifyInstance) {
     };
   });
 
-  app.get<{ Params: { orgId: string } }>('/:orgId/handoffs', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/:orgId/handoffs', async (request, reply) => {
     const { orgId } = request.user;
-    if (request.params.orgId !== orgId) return { error: 'Forbidden' };
+    if (request.params.orgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
     const query = querySchema.parse(request.query);
     const skip = (query.page - 1) * query.limit;

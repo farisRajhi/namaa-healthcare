@@ -25,8 +25,8 @@ const statusColors: Record<string, string> = {
   confirmed: 'bg-green-100 text-green-700',
   cancelled: 'bg-red-100 text-red-700',
   completed: 'bg-blue-100 text-blue-700',
-  checked_in: 'bg-teal-100 text-teal-700',
-  in_progress: 'bg-teal-100 text-teal-700',
+  checked_in: 'bg-primary-100 text-primary-700',
+  in_progress: 'bg-primary-100 text-primary-700',
   held: 'bg-orange-100 text-orange-700',
   no_show: 'bg-red-100 text-red-700',
   expired: 'bg-slate-100 text-slate-500',
@@ -82,7 +82,7 @@ export default function PatientAppointments() {
         <h2 className="text-lg font-bold text-slate-800">{t('portal.appointments.title')}</h2>
         <Link
           to="/patient/dashboard/book"
-          className="flex items-center gap-1.5 bg-teal-500 text-white px-3 py-2 rounded-xl text-xs font-medium hover:bg-teal-600 transition-colors shadow-sm"
+          className="flex items-center gap-1.5 bg-primary-500 text-white px-3 py-2 rounded-xl text-xs font-medium hover:bg-primary-600 transition-colors shadow-sm"
         >
           <Plus className="w-3.5 h-3.5" />
           {t('portal.appointments.newBooking')}
@@ -127,7 +127,7 @@ export default function PatientAppointments() {
           {activeTab === 'upcoming' && (
             <Link
               to="/patient/dashboard/book"
-              className="inline-flex items-center gap-1 mt-4 text-xs text-teal-600 font-medium bg-teal-50 px-4 py-2 rounded-lg"
+              className="inline-flex items-center gap-1 mt-4 text-xs text-primary-600 font-medium bg-primary-50 px-4 py-2 rounded-lg"
             >
               <Plus className="w-3.5 h-3.5" />
               {t('portal.appointments.bookNew')}
@@ -168,7 +168,7 @@ export default function PatientAppointments() {
                   <Clock className="w-3.5 h-3.5" />
                   {formatTime(appt.startTs)}
                 </span>
-                <span className="text-slate-300">•</span>
+                <span className="text-slate-300">ï¿½</span>
                 <span>{appt.service.durationMin} {t('portal.appointments.minutes')}</span>
               </div>
 

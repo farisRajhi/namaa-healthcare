@@ -15,7 +15,6 @@ let createdDepartmentId = null;
 let createdFacilityId = null;
 let createdAppointmentId = null;
 let createdFaqId = null;
-let createdPrescriptionId = null;
 let createdWaitlistId = null;
 let createdTemplateId = null;
 let createdFlowId = null;
@@ -212,31 +211,6 @@ async function run() {
     orgId: ORG_ID, keywords: ['chest pain', 'breathing'], severity: 'emergency',
     responseEn: 'Call 911 immediately', responseAr: 'اتصل بالطوارئ فوراً', action: 'call_emergency'
   });
-
-  // ==================== PRESCRIPTIONS ====================
-  console.log('\n─── PRESCRIPTIONS ───');
-  if (createdPatientId && createdProviderId) {
-    const rxRes = await test('Prescriptions', 'Create', 'POST', '/api/prescriptions', {
-      patientId: createdPatientId, providerId: createdProviderId,
-      medicationName: 'Paracetamol', medicationNameAr: 'باراسيتامول',
-      dosage: '500mg', frequency: 'twice_daily', refillsTotal: 3,
-      startDate: '2026-02-09', endDate: '2026-03-09', notes: 'Take with food'
-    });
-    if (rxRes.ok) createdPrescriptionId = rxRes.data?.data?.prescriptionId;
-
-    await test('Prescriptions', 'List by patient', 'GET', `/api/prescriptions/patient/${createdPatientId}`);
-
-    if (createdPrescriptionId) {
-      await test('Prescriptions', 'Get by ID', 'GET', `/api/prescriptions/${createdPrescriptionId}`);
-      await test('Prescriptions', 'Refill status', 'GET', `/api/prescriptions/${createdPrescriptionId}/status`);
-      await test('Prescriptions', 'Request refill', 'POST', `/api/prescriptions/${createdPrescriptionId}/refill`, {
-        requestedVia: 'web', notes: 'Need refill'
-      });
-    }
-
-    await test('Prescriptions', 'Check interactions', 'GET',
-      `/api/prescriptions/patient/${createdPatientId}/interactions?medication=Ibuprofen`);
-  }
 
   // ==================== WAITLIST ====================
   console.log('\n─── WAITLIST ───');

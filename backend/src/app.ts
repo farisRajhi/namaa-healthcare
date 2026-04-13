@@ -7,6 +7,7 @@ import swagger from '@fastify/swagger';
 import swaggerUi from '@fastify/swagger-ui';
 import websocket from '@fastify/websocket';
 import formbody from '@fastify/formbody';
+import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -55,6 +56,8 @@ export async function buildApp() {
       directives: {
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'"],
+        // 'unsafe-inline' required for Tailwind CSS runtime style injection
+        // and inline styles in React components. Removing this breaks UI rendering.
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:'],
         connectSrc: ["'self'"],
@@ -121,6 +124,13 @@ export async function buildApp() {
       console.error('❌  FATAL: SKIP_TWILIO_VERIFY=true is not allowed in production.');
       process.exit(1);
     }
+    if (!process.env.OPENAI_API_KEY) {
+      console.error('FATAL: OPENAI_API_KEY is not set');
+      process.exit(1);
+    }
+    if (!process.env.REGISTRATION_TOKEN) {
+      console.warn('WARNING: REGISTRATION_TOKEN is not set — registration is open to the public');
+    }
   }
 
   if (!jwtSecret || INSECURE_DEFAULTS.has(jwtSecret)) {
@@ -135,11 +145,15 @@ export async function buildApp() {
   }
   await app.register(jwt, {
     secret: jwtSecret,
-    sign: { expiresIn: '2h' },
+    sign: { expiresIn: '2h', algorithm: 'HS256' },
+    verify: { algorithms: ['HS256'] },
   });
 
   // Form body parser (required for Twilio webhooks)
   await app.register(formbody);
+
+  // Multipart file upload (for Patient Intelligence CSV upload)
+  await app.register(multipart, { limits: { fileSize: 10 * 1024 * 1024 } });
 
   // Static file serving for audio files
   await app.register(fastifyStatic, {
@@ -217,7 +231,7 @@ export async function buildApp() {
   // Health check
   app.get('/health', async (_request, reply) => {
     try {
-      await app.prisma.$queryRawUnsafe('SELECT 1');
+      await app.prisma.$queryRaw`SELECT 1`;
       return { status: 'ok', timestamp: new Date().toISOString(), version: '1.1.0' };
     } catch {
       return reply.code(503).send({ status: 'unhealthy', error: 'Database unavailable' });

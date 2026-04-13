@@ -11,7 +11,7 @@ Tawafud (توافد) is a full-stack AI-powered medical receptionist platform fo
 ### Backend (`cd backend`)
 
 ```bash
-npm run dev                    # Dev server (tsx watch, port 3003)
+npm run dev                    # Dev server (tsx watch, PORT env or default 3003)
 npm run build                  # Compile TypeScript → dist/
 npm run db:generate            # prisma generate (after schema changes)
 npm run db:push                # Push schema to DB (no migration file)
@@ -33,7 +33,7 @@ npm run test:legacy            # Legacy Node.js test runner (tests/api.test.ts)
 ### Frontend (`cd frontend`)
 
 ```bash
-npm run dev                    # Vite dev server (port 5174, proxies /api → :3003)
+npm run dev                    # Vite dev server (port 5174, proxies /api → :3007)
 npm run build                  # TypeScript check + Vite production build
 npm run build:widget           # Build embeddable chat widget (IIFE → dist-widget/)
 npm run lint                   # ESLint
@@ -51,12 +51,12 @@ docker compose down                        # Stop all
 ```
 Frontend (React 18 + Vite 6 + Tailwind 3)
   │  Landing │ Admin Dashboard │ Patient Portal │ Embeddable Widget
-  │  /api/* proxied via Vite → :3003
+  │  /api/* proxied via Vite → :3007
   ▼
 Backend (Fastify 4 + TypeScript, ES Modules)
   ├─ Routes (src/routes/)           ← API endpoints, registered in routes/index.ts
   ├─ Services (src/services/)       ← Business logic layer
-  ├─ Plugins (src/plugins/)         ← Fastify decorators (prisma, openai, gemini, twilio, jwt, scheduler)
+  ├─ Plugins (src/plugins/)         ← Fastify decorators (prisma, openai, gemini, twilio, jwt, scheduler, subscriptionGuard)
   └─ Prisma ORM → PostgreSQL :5434
        │
   External: OpenAI GPT-4 (chat) · Gemini Live (voice) · Twilio (calls/SMS/WhatsApp) · ElevenLabs (TTS)
@@ -65,10 +65,11 @@ Backend (Fastify 4 + TypeScript, ES Modules)
 ### Key Layers
 
 - **Entry**: `server.ts` → `app.ts` (builds Fastify instance with all plugins, CORS, Swagger, routes)
-- **Route registration**: `routes/index.ts` — central file that registers all ~30 route modules with `/api/` prefix
+- **Route registration**: `routes/index.ts` — central file that registers all ~47 route modules with `/api/` prefix
 - **Services**: Business logic lives in `src/services/`, routes are thin wrappers calling services
-- **Plugins**: Each external dependency (Prisma, OpenAI, Gemini, Twilio) is a Fastify plugin that decorates `app` (e.g., `app.prisma`, `app.openai`)
-- **Tests**: `backend/__tests__/` organized into `routes/`, `services/`, `integration/`, `helpers/` — Vitest with 30s timeout, aliases `@` → `./src` and `@tests` → `./__tests__`
+- **Plugins**: Each external dependency (Prisma, OpenAI, Gemini, Twilio) is a Fastify plugin that decorates `app` (e.g., `app.prisma`, `app.openai`). `subscriptionGuard.ts` validates org subscription status
+- **Middleware order** (in `app.ts`): Helmet → Rate Limiting (100 req/min global, 10 req/min auth) → CORS → JWT → custom JSON parser → form/multipart
+- **Tests**: `backend/__tests__/` organized into `routes/`, `services/`, `integration/`, `helpers/` — Vitest with 30s timeout, aliases `@` → `./src` and `@tests` → `./__tests__`. Test helpers in `__tests__/helpers/testUtils.ts` provide factories (`createTestUser()`, `createTestPatient()`, `createTestProvider()`), unique generators (`uniqueEmail()`, `uniquePhone()`), and `waitFor()` polling
 
 ### Multi-tenancy
 
@@ -96,6 +97,24 @@ Twilio webhook (`/api/voice/incoming`) → TwiML → Twilio WebSocket media stre
 
 Visual no-code flow editor using `@xyflow/react`. Flows stored as JSON nodes + edges in `AgentFlow` model. INSTRUCTION nodes customize LLM behavior within flows (they guide the AI, not replace it). Templates seeded via `seedFlowTemplates()`.
 
+### Frontend Architecture
+
+- **Routing**: React Router v7 in `App.tsx` — public routes (`/`, `/login`, `/book/:slug`), staff routes (`/dashboard/*` with `ProtectedRoute`), patient routes (`/patient/*` with `ProtectedPatientRoute`)
+- **Layouts**: `DashboardLayout` (staff sidebar + outlet), `PortalLayout` (patient mobile-optimized, bottom nav)
+- **API client**: `lib/api.ts` — Axios instance with Bearer token interceptor, 401 auto-logout redirect. Patient API uses `sessionStorage` instead of `localStorage`
+- **State**: React Context for auth (`AuthContext`, `PatientAuthContext`, `BranchContext`) + TanStack Query v5 for server state (staleTime varies 30s–5min)
+- **i18n**: i18next with Arabic fallback, browser detection → localStorage. `useTranslation()` hook, RTL via `i18n.language === 'ar'`
+- **Widget**: Embeddable chat built as IIFE via `vite.widget.config.ts` → `dist-widget/widget.js`, self-contained with no external deps
+
+### Production Startup Guards
+
+Backend hard-fails on startup in production if: `JWT_SECRET` is default/missing, `WEBHOOK_API_KEY` not set, `SKIP_TWILIO_VERIFY=true`, `OPENAI_API_KEY` missing, or `CORS_ORIGIN` not configured. See `app.ts`.
+
+### CI/CD
+
+- **CI** (`.github/workflows/ci.yml`): Runs on push/PR — 3 parallel jobs: backend (Prisma generate + type check + Vitest), frontend (lint + type check + build), security audit (`npm audit`)
+- **Deploy** (`.github/workflows/deploy.yml`): Push to `main` → Docker build → SSH to VPS → DB migrations → zero-downtime compose up → health check
+
 ## Conventions
 
 - **ES Modules everywhere** — `.js` extensions in imports, `"type": "module"` in both packages
@@ -120,13 +139,15 @@ docker compose up -d app_postgres redis     # 1. Start DB
 cd backend && npm install                   # 2. Install deps
 npx prisma generate && npx prisma db push   # 3. Setup schema
 npx prisma db seed                          # 4. Seed demo org
-npm run dev                                 # 5. Start backend → :3003
+npm run dev                                 # 5. Start backend (PORT env or :3003)
 
 # Separate terminal:
 cd frontend && npm install && npm run dev   # 6. Start frontend → :5174
 ```
 
-Swagger docs: `http://localhost:3003/docs` · Health: `http://localhost:3003/health`
+Swagger docs: `http://localhost:{PORT}/docs` (non-prod only) · Health: `http://localhost:{PORT}/health`
+
+**Note**: Vite proxy in `vite.config.ts` currently targets port 3007. Ensure backend `PORT` env matches or update the proxy target.
 
 ## Known Issues
 

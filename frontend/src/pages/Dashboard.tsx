@@ -35,7 +35,7 @@ import Badge, { getStatusBadgeVariant } from '../components/ui/Badge'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import StatusDot from '../components/ui/StatusDot'
 
-const CHART_COLORS = ['#0891B2', '#22D3EE', '#059669', '#F59E0B', '#8B5CF6']
+const CHART_COLORS = ['#4A7C6F', '#C4956A', '#059669', '#F59E0B', '#8B5CF6']
 
 export default function Dashboard() {
   const { t, i18n } = useTranslation()
@@ -139,17 +139,17 @@ export default function Dashboard() {
 
       {/* Onboarding Checklist for new clinics */}
       {isNewClinic && (
-        <div className="bg-gradient-to-br from-teal-50 to-cyan-50 border border-teal-100 rounded-2xl p-6 space-y-4">
+        <div className="bg-gradient-to-br from-primary-50 to-secondary-50 border border-primary-200 rounded-2xl p-6 space-y-4">
           <div>
-            <h2 className="text-lg font-bold text-teal-900">{t('dashboard.onboarding.title')}</h2>
-            <p className="text-sm text-teal-700 mt-1">{t('dashboard.onboarding.subtitle')}</p>
+            <h2 className="text-lg font-bold text-primary-900">{t('dashboard.onboarding.title')}</h2>
+            <p className="text-sm text-primary-700 mt-1">{t('dashboard.onboarding.subtitle')}</p>
           </div>
           <div className="space-y-3">
             {onboardingSteps.map((step, i) => (
               <button
                 key={i}
                 onClick={() => navigate(step.route)}
-                className="w-full flex items-center gap-3 bg-white rounded-xl p-4 border border-teal-100 hover:border-teal-300 hover:shadow-sm transition-all text-start"
+                className="w-full flex items-center gap-3 bg-white rounded-xl p-4 border border-primary-200 hover:border-primary-300 hover:shadow-sm transition-all text-start"
               >
                 <div className={`w-10 h-10 rounded-xl ${step.iconBg} flex items-center justify-center flex-shrink-0`}>
                   <step.icon className={`w-5 h-5 ${step.iconColor}`} />
@@ -231,8 +231,8 @@ export default function Dashboard() {
               <AreaChart data={chartData || []}>
                 <defs>
                   <linearGradient id="totalGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#0891B2" stopOpacity={0.15} />
-                    <stop offset="95%" stopColor="#0891B2" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#4A7C6F" stopOpacity={0.15} />
+                    <stop offset="95%" stopColor="#4A7C6F" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="completedGrad" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#059669" stopOpacity={0.15} />
@@ -245,12 +245,12 @@ export default function Dashboard() {
                   tickFormatter={(value) =>
                     new Date(value).toLocaleDateString(dateLocale, { month: 'short', day: 'numeric' })
                   }
-                  tick={{ fontSize: 11, fill: '#5B7B8A' }}
+                  tick={{ fontSize: 11, fill: '#6B7280' }}
                   axisLine={false}
                   tickLine={false}
                 />
                 <YAxis
-                  tick={{ fontSize: 11, fill: '#5B7B8A' }}
+                  tick={{ fontSize: 11, fill: '#6B7280' }}
                   axisLine={false}
                   tickLine={false}
                 />
@@ -258,7 +258,7 @@ export default function Dashboard() {
                   labelFormatter={(value) => new Date(value).toLocaleDateString(dateLocale)}
                   contentStyle={{
                     background: 'white',
-                    border: '1px solid #B2D8E4',
+                    border: '1px solid #D6D3CC',
                     borderRadius: '10px',
                     boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
                     fontSize: '12px',
@@ -267,7 +267,7 @@ export default function Dashboard() {
                 <Area
                   type="monotone"
                   dataKey="total"
-                  stroke="#0891B2"
+                  stroke="#4A7C6F"
                   strokeWidth={2}
                   fill="url(#totalGrad)"
                   name={t('dashboard.charts.total')}
@@ -311,7 +311,7 @@ export default function Dashboard() {
                 <Tooltip
                   contentStyle={{
                     background: 'white',
-                    border: '1px solid #B2D8E4',
+                    border: '1px solid #D6D3CC',
                     borderRadius: '10px',
                     boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
                     fontSize: '12px',

@@ -19,7 +19,10 @@ const createPaymentSchema = z.object({
   amount: z.number().positive().optional(),
   currency: z.string().default('SAR'),
   description: z.string().optional(),
-  source: z.any(),
+  source: z.record(z.unknown()).refine(
+    (s) => s && typeof s === 'object' && 'type' in s,
+    { message: 'source must have a type field' }
+  ),
   callbackUrl: z.string().optional(),
   plan: z.string().optional(),
 });
@@ -87,7 +90,7 @@ export default async function paymentsRoutes(app: FastifyInstance) {
             status: moyasarData.status || 'pending',
             moyasarId: moyasarData.id,
             source:
-              typeof body.source === 'object' ? body.source.type : body.source,
+              typeof body.source === 'object' ? String(body.source.type) : String(body.source),
             description,
             plan: body.plan,
             callbackUrl: body.callbackUrl,
@@ -126,9 +129,9 @@ export default async function paymentsRoutes(app: FastifyInstance) {
 
         const moyasarPayment = await moyasarResponse.json();
 
-        // Update local DB
+        // Update local DB — org-scoped to prevent cross-tenant access
         const localPayment = await app.prisma.tawafudPayment.findFirst({
-          where: { moyasarId: id },
+          where: { moyasarId: id, orgId: user.orgId },
         });
 
         if (localPayment) {

@@ -9,7 +9,6 @@ const actionLabels: Record<string, string> = {
   book_appointment: 'حجز موعد',
   check_availability: 'التحقق من التوفر',
   search_faq: 'بحث FAQ',
-  refill_prescription: 'إعادة صرف وصفة',
   get_patient_info: 'بيانات المريض',
   cancel_appointment: 'إلغاء موعد',
 }

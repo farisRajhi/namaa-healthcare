@@ -60,11 +60,11 @@ const colorMap: Record<string, { bg: string; border: string; text: string; badge
     scoreBg: 'from-green-500 to-green-600',
   },
   cyan: {
-    bg: 'bg-cyan-50',
-    border: 'border-cyan-200',
-    text: 'text-cyan-700',
-    badge: 'bg-cyan-100 text-cyan-800',
-    scoreBg: 'from-cyan-500 to-cyan-600',
+    bg: 'bg-primary-50',
+    border: 'border-primary-200',
+    text: 'text-primary-700',
+    badge: 'bg-primary-100 text-primary-800',
+    scoreBg: 'from-primary-500 to-primary-600',
   },
   rose: {
     bg: 'bg-rose-50',

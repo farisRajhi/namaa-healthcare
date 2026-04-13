@@ -3,10 +3,14 @@ import { z } from 'zod';
 
 const createServiceSchema = z.object({
   name: z.string().min(1),
+  nameEn: z.string().optional(),
   durationMin: z.number().min(5),
   bufferBeforeMin: z.number().default(0),
   bufferAfterMin: z.number().default(0),
   active: z.boolean().default(true),
+  category: z.string().optional(),
+  repeatCycleDays: z.number().int().min(1).optional(),
+  isRepeating: z.boolean().default(false),
 });
 
 export default async function servicesRoutes(app: FastifyInstance) {
@@ -65,10 +69,14 @@ export default async function servicesRoutes(app: FastifyInstance) {
       data: {
         orgId,
         name: body.name,
+        nameEn: body.nameEn,
         durationMin: body.durationMin,
         bufferBeforeMin: body.bufferBeforeMin,
         bufferAfterMin: body.bufferAfterMin,
         active: body.active,
+        category: body.category,
+        repeatCycleDays: body.repeatCycleDays,
+        isRepeating: body.isRepeating,
       },
     });
 

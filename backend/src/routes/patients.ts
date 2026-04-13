@@ -5,7 +5,7 @@ import { getInsightBuilder } from '../services/patient/insightBuilder.js';
 const createPatientSchema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
-  dateOfBirth: z.string().optional(),
+  dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}(T.*)?$/).optional(),
   // QA-5: enum-validated to prevent arbitrary string injection into medical records
   sex: z.enum(['male', 'female']).optional(),
   mrn: z.string().optional(),
@@ -64,6 +64,97 @@ export default async function patientsRoutes(app: FastifyInstance) {
     };
   });
 
+  // Knowledge base summary — enriched patient list with insights, tags, memories
+  const kbQuerySchema = z.object({
+    page: z.coerce.number().int().min(1).default(1),
+    limit: z.coerce.number().int().min(1).max(200).default(50),
+    search: z.string().optional(),
+    tag: z.string().optional(),
+    serviceInterest: z.string().optional(),
+  });
+
+  app.get('/knowledge-summary', async (request: FastifyRequest) => {
+    const { orgId } = request.user;
+    const query = kbQuerySchema.parse(request.query);
+    const skip = (query.page - 1) * query.limit;
+
+    const where: any = {
+      orgId,
+      ...(query.search && {
+        OR: [
+          { firstName: { contains: query.search, mode: 'insensitive' as const } },
+          { lastName: { contains: query.search, mode: 'insensitive' as const } },
+          { contacts: { some: { contactValue: { contains: query.search } } } },
+        ],
+      }),
+      ...(query.tag && {
+        tags: { some: { tag: query.tag } },
+      }),
+      ...(query.serviceInterest && {
+        memories: { some: { memoryType: 'service_interest', memoryKey: query.serviceInterest, isActive: true } },
+      }),
+    };
+
+    const [patients, total, allTags, allInterests] = await Promise.all([
+      app.prisma.patient.findMany({
+        where,
+        skip,
+        take: query.limit,
+        include: {
+          contacts: true,
+          insight: {
+            select: {
+              engagementScore: true,
+              lifetimeValue: true,
+              completionRate: true,
+              channelPreference: true,
+              preferredTimeSlot: true,
+              lastInteractionAt: true,
+            },
+          },
+          tags: { select: { tag: true, source: true } },
+          memories: {
+            where: {
+              memoryType: { in: ['service_interest', 'condition', 'satisfaction'] },
+              isActive: true,
+            },
+            select: { memoryType: true, memoryKey: true, memoryValue: true },
+          },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      app.prisma.patient.count({ where }),
+      app.prisma.patientTag.findMany({
+        where: { orgId },
+        distinct: ['tag'],
+        select: { tag: true },
+      }),
+      app.prisma.patientMemory.findMany({
+        where: {
+          patient: { orgId },
+          memoryType: 'service_interest',
+          isActive: true,
+        },
+        distinct: ['memoryKey'],
+        select: { memoryKey: true },
+      }),
+    ]);
+
+    return {
+      data: patients,
+      pagination: {
+        page: query.page,
+        limit: query.limit,
+        total,
+        totalPages: Math.ceil(total / query.limit),
+      },
+      filters: {
+        allTags: allTags.map(t => t.tag),
+        allServiceInterests: allInterests.map(i => i.memoryKey),
+      },
+    };
+  });
+
   // Get single patient
   app.get<{ Params: { id: string } }>('/:id', async (request, reply) => {
     const { orgId } = request.user;
@@ -72,7 +163,14 @@ export default async function patientsRoutes(app: FastifyInstance) {
     const patient = await app.prisma.patient.findFirst({
       where: { patientId: id, orgId },
       include: {
-        contacts: true,
+        contacts: {
+          select: {
+            contactId: true,
+            contactType: true,
+            contactValue: true,
+            isPrimary: true,
+          },
+        },
         appointments: {
           include: {
             provider: true,
@@ -301,7 +399,7 @@ export default async function patientsRoutes(app: FastifyInstance) {
 
     const [memories, insight, tags] = await Promise.all([
       app.prisma.patientMemory.findMany({
-        where: { patientId: id, isActive: true },
+        where: { patientId: id, patient: { orgId }, isActive: true },
         orderBy: { updatedAt: 'desc' },
       }),
       app.prisma.patientInsight.findUnique({

@@ -28,7 +28,7 @@ import StatCard from '../components/ui/StatCard'
 import ComingSoonOverlay from '../components/ui/ComingSoonOverlay'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 
-const COLORS = ['#0891B2', '#059669', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899']
+const COLORS = ['#4A7C6F', '#C4956A', '#8BB8AA', '#D97706', '#8B5CF6', '#B07D52']
 
 type ExportType = 'appointments' | 'patients' | 'calls' | 'campaigns'
 
@@ -218,14 +218,14 @@ export default function Reports() {
                       <XAxis
                         dataKey="date"
                         tickFormatter={(v) => new Date(v).toLocaleDateString(isAr ? 'ar-SA' : 'en-US', { month: 'short', day: 'numeric' })}
-                        tick={{ fontSize: 10, fill: '#5B7B8A' }}
+                        tick={{ fontSize: 10, fill: '#6B7280' }}
                         axisLine={false}
                         tickLine={false}
                       />
-                      <YAxis tick={{ fontSize: 10, fill: '#5B7B8A' }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: '#6B7280' }} axisLine={false} tickLine={false} />
                       <Tooltip
                         labelFormatter={(v) => new Date(v).toLocaleDateString(isAr ? 'ar-SA' : 'en-US')}
-                        contentStyle={{ background: 'white', border: '1px solid #B2D8E4', borderRadius: '10px', fontSize: '12px' }}
+                        contentStyle={{ background: 'white', border: '1px solid #D6D3CC', borderRadius: '10px', fontSize: '12px' }}
                       />
                       <Bar dataKey="completed" stackId="a" fill="#059669" name={isAr ? 'مكتملة' : 'Completed'} radius={[0, 0, 0, 0]} />
                       <Bar dataKey="cancelled" stackId="a" fill="#EF4444" name={isAr ? 'ملغاة' : 'Cancelled'} radius={[0, 0, 0, 0]} />
@@ -263,7 +263,7 @@ export default function Reports() {
                           <Cell key={i} fill={COLORS[i % COLORS.length]} />
                         ))}
                       </Pie>
-                      <Tooltip contentStyle={{ background: 'white', border: '1px solid #B2D8E4', borderRadius: '10px', fontSize: '12px' }} />
+                      <Tooltip contentStyle={{ background: 'white', border: '1px solid #D6D3CC', borderRadius: '10px', fontSize: '12px' }} />
                     </PieChart>
                   </ResponsiveContainer>
                 ) : (

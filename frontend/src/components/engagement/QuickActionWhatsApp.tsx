@@ -79,7 +79,11 @@ export default function QuickActionWhatsApp({ open, onClose, patientId, patientN
   })
 
   const selected = templates?.find((t) => t.id === selectedTemplate)
-  const phone = patient?.phone || patient?.phoneNumber || ''
+  // Phone can be a direct field or inside contacts array
+  const phone = patient?.phone || patient?.phoneNumber
+    || patient?.contacts?.find((c: any) => c.contactType === 'whatsapp')?.contactValue
+    || patient?.contacts?.find((c: any) => c.contactType === 'phone')?.contactValue
+    || ''
 
   return (
     <Modal open={open} onClose={onClose} title={isAr ? 'إرسال واتساب' : 'Send WhatsApp'} size="md">

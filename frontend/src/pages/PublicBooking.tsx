@@ -157,9 +157,9 @@ export default function PublicBooking() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 to-blue-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-blue-50">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <div className="w-12 h-12 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-gray-600">جاري التحميل...</p>
         </div>
       </div>
@@ -168,7 +168,7 @@ export default function PublicBooking() {
 
   if (error && !clinic) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 to-blue-50">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-blue-50">
         <div className="text-center p-8 bg-white rounded-2xl shadow-lg">
           <Building2 className="w-16 h-16 text-gray-300 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-800 mb-2">العيادة غير موجودة</h1>
@@ -180,15 +180,15 @@ export default function PublicBooking() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-teal-50 to-blue-50 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary-50 to-blue-50 p-4">
         <div className="text-center p-8 bg-white rounded-2xl shadow-lg max-w-md w-full">
-          <CheckCircle2 className="w-20 h-20 text-teal-500 mx-auto mb-4" />
+          <CheckCircle2 className="w-20 h-20 text-primary-500 mx-auto mb-4" />
           <h1 className="text-2xl font-bold text-gray-800 mb-2">تم تأكيد موعدك! 🎉</h1>
           <p className="text-gray-600 mb-4">
             ستصلك رسالة تأكيد على رقم هاتفك <strong>{phone}</strong>
           </p>
-          <div className="bg-teal-50 rounded-xl p-4 text-right">
-            <p className="text-sm text-teal-800 font-medium">{clinic?.name}</p>
+          <div className="bg-primary-50 rounded-xl p-4 text-right">
+            <p className="text-sm text-primary-800 font-medium">{clinic?.name}</p>
             <p className="text-sm text-gray-600">{selectedService?.name} مع {selectedProvider?.displayName}</p>
             <p className="text-sm text-gray-600">
               {selectedSlot && new Date(selectedSlot.start).toLocaleDateString('ar-SA', {
@@ -207,17 +207,17 @@ export default function PublicBooking() {
   const minDate = new Date().toISOString().split('T')[0]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-50 to-blue-50 p-4" dir="rtl">
+    <div className="min-h-screen bg-gradient-to-br from-primary-50 to-blue-50 p-4" dir="rtl">
       <div className="max-w-2xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8 pt-8">
-          <div className="w-16 h-16 bg-teal-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
+          <div className="w-16 h-16 bg-primary-500 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg">
             <Building2 className="w-8 h-8 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-gray-800">{clinic?.name}</h1>
           {clinic?.city && <p className="text-gray-500 mt-1">{clinic.city}</p>}
           {clinic?.addressLine1 && <p className="text-gray-400 text-sm">{clinic.addressLine1}</p>}
-          <p className="text-teal-600 font-semibold mt-2">احجز موعدك الآن</p>
+          <p className="text-primary-600 font-semibold mt-2">احجز موعدك الآن</p>
         </div>
 
         {/* Step indicator */}
@@ -231,21 +231,21 @@ export default function PublicBooking() {
                 )}>
                   <div className={cn(
                     'w-9 h-9 rounded-full flex items-center justify-center transition-all',
-                    i < step ? 'bg-teal-500 text-white' :
-                    i === step ? 'bg-teal-600 text-white shadow-md scale-110' :
+                    i < step ? 'bg-primary-500 text-white' :
+                    i === step ? 'bg-primary-600 text-white shadow-md scale-110' :
                     'bg-gray-200 text-gray-400',
                   )}>
                     <Icon className="w-4 h-4" />
                   </div>
                   <span className={cn(
                     'text-xs font-medium hidden sm:block',
-                    i === step ? 'text-teal-600' : 'text-gray-400',
+                    i === step ? 'text-primary-600' : 'text-gray-400',
                   )}>{s.label}</span>
                 </div>
                 {i < STEPS.length - 1 && (
                   <div className={cn(
                     'w-8 h-0.5 mb-5',
-                    i < step ? 'bg-teal-500' : 'bg-gray-200',
+                    i < step ? 'bg-primary-500' : 'bg-gray-200',
                   )} />
                 )}
               </div>
@@ -264,13 +264,13 @@ export default function PublicBooking() {
                   <button
                     key={s.serviceId}
                     onClick={() => { setSelectedService(s); setStep(1) }}
-                    className="flex items-center justify-between p-4 rounded-xl border-2 border-gray-100 hover:border-teal-400 hover:bg-teal-50 transition-all text-right"
+                    className="flex items-center justify-between p-4 rounded-xl border-2 border-gray-100 hover:border-primary-400 hover:bg-primary-50 transition-all text-right"
                   >
                     <div>
                       <p className="font-semibold text-gray-800">{s.name}</p>
                       <p className="text-sm text-gray-500">{s.durationMin} دقيقة</p>
                     </div>
-                    <Stethoscope className="w-5 h-5 text-teal-500" />
+                    <Stethoscope className="w-5 h-5 text-primary-500" />
                   </button>
                 ))}
               </div>
@@ -291,14 +291,14 @@ export default function PublicBooking() {
                     <button
                       key={p.providerId}
                       onClick={() => { setSelectedProvider(p); setStep(2) }}
-                      className="flex items-center justify-between p-4 rounded-xl border-2 border-gray-100 hover:border-teal-400 hover:bg-teal-50 transition-all text-right"
+                      className="flex items-center justify-between p-4 rounded-xl border-2 border-gray-100 hover:border-primary-400 hover:bg-primary-50 transition-all text-right"
                     >
                       <div>
                         <p className="font-semibold text-gray-800">{p.displayName}</p>
                         {p.credentials && <p className="text-sm text-gray-500">{p.credentials}</p>}
-                        {p.department && <p className="text-xs text-teal-600">{p.department.name}</p>}
+                        {p.department && <p className="text-xs text-primary-600">{p.department.name}</p>}
                       </div>
-                      <UserCog className="w-5 h-5 text-teal-500" />
+                      <UserCog className="w-5 h-5 text-primary-500" />
                     </button>
                   ))}
                 </div>
@@ -318,7 +318,7 @@ export default function PublicBooking() {
                 min={minDate}
                 value={selectedDate}
                 onChange={(e) => { setSelectedDate(e.target.value); setSelectedSlot(null) }}
-                className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-gray-800 focus:border-teal-400 outline-none mb-4"
+                className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 text-gray-800 focus:border-primary-400 outline-none mb-4"
               />
               {selectedDate && (
                 loadingSlots ? (
@@ -336,8 +336,8 @@ export default function PublicBooking() {
                           className={cn(
                             'flex items-center justify-center gap-1 p-3 rounded-xl border-2 transition-all text-sm font-medium',
                             selectedSlot?.start === s.start
-                              ? 'border-teal-500 bg-teal-50 text-teal-700'
-                              : 'border-gray-100 hover:border-teal-300 text-gray-700',
+                              ? 'border-primary-500 bg-primary-50 text-primary-700'
+                              : 'border-gray-100 hover:border-primary-300 text-gray-700',
                           )}
                         >
                           <Clock className="w-3 h-3" />
@@ -355,7 +355,7 @@ export default function PublicBooking() {
                 <button
                   onClick={() => setStep(3)}
                   disabled={!selectedSlot}
-                  className="flex-1 py-3 rounded-xl bg-teal-500 text-white font-medium hover:bg-teal-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex-1 py-3 rounded-xl bg-primary-500 text-white font-medium hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   التالي
                 </button>
@@ -372,13 +372,13 @@ export default function PublicBooking() {
                   placeholder="الاسم الأول *"
                   value={firstName}
                   onChange={(e) => setFirstName(e.target.value)}
-                  className="border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-teal-400 outline-none"
+                  className="border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-primary-400 outline-none"
                 />
                 <input
                   placeholder="اسم العائلة *"
                   value={lastName}
                   onChange={(e) => setLastName(e.target.value)}
-                  className="border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-teal-400 outline-none"
+                  className="border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-primary-400 outline-none"
                 />
               </div>
               <div className="relative mb-3">
@@ -387,7 +387,7 @@ export default function PublicBooking() {
                   placeholder="رقم الجوال * (مثال: 0512345678)"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="w-full border-2 border-gray-200 rounded-xl pr-10 pl-4 py-3 focus:border-teal-400 outline-none"
+                  className="w-full border-2 border-gray-200 rounded-xl pr-10 pl-4 py-3 focus:border-primary-400 outline-none"
                   type="tel"
                 />
               </div>
@@ -396,7 +396,7 @@ export default function PublicBooking() {
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 rows={3}
-                className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-teal-400 outline-none resize-none mb-4"
+                className="w-full border-2 border-gray-200 rounded-xl px-4 py-3 focus:border-primary-400 outline-none resize-none mb-4"
               />
               <div className="flex gap-3">
                 <button onClick={() => setStep(2)} className="flex-1 py-3 rounded-xl border-2 border-gray-200 text-gray-600 font-medium hover:bg-gray-50">
@@ -405,7 +405,7 @@ export default function PublicBooking() {
                 <button
                   onClick={() => setStep(4)}
                   disabled={!firstName || !lastName || !phone}
-                  className="flex-1 py-3 rounded-xl bg-teal-500 text-white font-medium hover:bg-teal-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="flex-1 py-3 rounded-xl bg-primary-500 text-white font-medium hover:bg-primary-600 disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   مراجعة الحجز
                 </button>
@@ -447,7 +447,7 @@ export default function PublicBooking() {
                 <button
                   onClick={handleSubmit}
                   disabled={submitting}
-                  className="flex-1 py-3 rounded-xl bg-teal-500 text-white font-bold hover:bg-teal-600 disabled:opacity-60"
+                  className="flex-1 py-3 rounded-xl bg-primary-500 text-white font-bold hover:bg-primary-600 disabled:opacity-60"
                 >
                   {submitting ? 'جاري الحجز...' : '✓ تأكيد الحجز'}
                 </button>

@@ -78,6 +78,28 @@ function WhatsAppConnectionCard() {
     },
   })
 
+  // AI auto-reply toggle
+  const { data: aiReplyData } = useQuery({
+    queryKey: ['ai-auto-reply'],
+    queryFn: async () => {
+      const res = await api.get('/api/settings/ai-auto-reply')
+      return res.data
+    },
+    refetchOnWindowFocus: true,
+  })
+
+  const aiAutoReply = aiReplyData?.data?.aiAutoReply ?? true
+
+  const toggleAiMutation = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const res = await api.put('/api/settings/ai-auto-reply', { aiAutoReply: enabled })
+      return res.data
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ai-auto-reply'] })
+    },
+  })
+
   const handleConnect = () => {
     connectMutation.mutate()
   }
@@ -138,10 +160,12 @@ function WhatsAppConnectionCard() {
       {/* Connected state */}
       {isConnected && (
         <div className="space-y-4">
-          <div className="p-4 bg-[#25D366]/5 border border-[#25D366]/20 rounded-xl">
+          <div className={`p-4 ${aiAutoReply ? 'bg-[#25D366]/5 border-[#25D366]/20' : 'bg-amber-50/50 border-amber-200/50'} border rounded-xl`}>
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-2 h-2 rounded-full bg-[#25D366] animate-pulse" />
-              <p className="text-sm font-medium text-[#25D366]">{t('settings.whatsapp.statusActive')}</p>
+              <div className={`w-2 h-2 rounded-full ${aiAutoReply ? 'bg-[#25D366] animate-pulse' : 'bg-amber-500'}`} />
+              <p className={`text-sm font-medium ${aiAutoReply ? 'text-[#25D366]' : 'text-amber-600'}`}>
+                {aiAutoReply ? t('settings.whatsapp.statusActive') : t('settings.whatsapp.statusActiveNoAi')}
+              </p>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {phone && (
@@ -157,6 +181,23 @@ function WhatsAppConnectionCard() {
                 </div>
               )}
             </div>
+          </div>
+          {/* AI Auto-Reply Toggle */}
+          <div className="flex items-center justify-between p-4 bg-primary-50/30 rounded-xl">
+            <div>
+              <p className="font-medium text-healthcare-text text-sm">{t('settings.whatsapp.aiAutoReply')}</p>
+              <p className="text-xs text-healthcare-muted mt-0.5">{t('settings.whatsapp.aiAutoReplyDesc')}</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input
+                type="checkbox"
+                checked={aiAutoReply}
+                onChange={(e) => toggleAiMutation.mutate(e.target.checked)}
+                disabled={toggleAiMutation.isPending}
+                className="sr-only peer"
+              />
+              <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-[3px] peer-focus:ring-primary-400/30 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary-500"></div>
+            </label>
           </div>
           <button
             onClick={handleDisconnect}

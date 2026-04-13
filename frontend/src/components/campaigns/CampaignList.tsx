@@ -60,8 +60,8 @@ const typeIconConfig: Record<string, { icon: LucideIcon; bg: string; color: stri
   satisfaction: { icon: Smile, bg: 'bg-pink-50', color: 'text-pink-600' },
   announcement: { icon: Megaphone, bg: 'bg-indigo-50', color: 'text-indigo-600' },
   promotional: { icon: Gift, bg: 'bg-purple-50', color: 'text-purple-600' },
-  reminder: { icon: Bell, bg: 'bg-cyan-50', color: 'text-cyan-600' },
-  outreach: { icon: Send, bg: 'bg-teal-50', color: 'text-teal-600' },
+  reminder: { icon: Bell, bg: 'bg-primary-50', color: 'text-primary-600' },
+  outreach: { icon: Send, bg: 'bg-primary-50', color: 'text-primary-600' },
   survey: { icon: ClipboardList, bg: 'bg-orange-50', color: 'text-orange-600' },
 }
 

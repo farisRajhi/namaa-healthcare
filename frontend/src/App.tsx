@@ -25,6 +25,8 @@ import Reports from './pages/Reports'
 import KnowledgeBase from './pages/KnowledgeBase'
 // Offers, PatientInsights, MarketingHub pages removed — redirects to PatientEngagement
 import PatientEngagement from './pages/PatientEngagement'
+import PatientSuggestions from './pages/PatientSuggestions'
+import PatientIntelligence from './pages/PatientIntelligence'
 import PatientLogin from './pages/portal/PatientLogin'
 import PatientDashboard from './pages/portal/PatientDashboard'
 import PatientAppointments from './pages/portal/PatientAppointments'
@@ -98,6 +100,7 @@ function App() {
         <Route path="settings" element={<Settings />} />
         <Route path="faq" element={<FAQ />} />
         <Route path="patient-engagement" element={<PatientEngagement />} />
+        <Route path="patient-suggestions" element={<PatientSuggestions />} />
         <Route path="campaigns" element={<Campaigns />} />
         <Route path="reminders" element={<Reminders />} />
         <Route path="analytics-dashboard" element={<AnalyticsDashboard />} />
@@ -107,6 +110,7 @@ function App() {
         <Route path="agent-builder/:id" element={<AgentBuilder />} />
         <Route path="reports" element={<Reports />} />
         <Route path="knowledge-base" element={<KnowledgeBase />} />
+        <Route path="patient-intelligence" element={<PatientIntelligence />} />
         {/* Redirects: old marketing pages → Patient Engagement */}
         <Route path="marketing" element={<Navigate to="/dashboard/patient-engagement" replace />} />
         <Route path="sms-templates" element={<Navigate to="/dashboard/patient-engagement" replace />} />

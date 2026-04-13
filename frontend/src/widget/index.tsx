@@ -50,7 +50,6 @@ const i18n = {
     quickActions: [
       { label: 'حجز موعد', value: 'أريد حجز موعد' },
       { label: 'استفسار عام', value: 'لدي استفسار عام' },
-      { label: 'إعادة صرف وصفة', value: 'أحتاج إعادة صرف وصفة طبية' },
     ],
     errorMsg: 'عذراً، حدث خطأ. يرجى المحاولة مرة أخرى.',
     connectionError: 'عذراً، لم أتمكن من الاتصال. يرجى المحاولة لاحقاً.',
@@ -65,7 +64,6 @@ const i18n = {
     quickActions: [
       { label: 'Book Appointment', value: 'I want to book an appointment' },
       { label: 'General Inquiry', value: 'I have a general inquiry' },
-      { label: 'Prescription Refill', value: 'I need a prescription refill' },
     ],
     errorMsg: 'Sorry, an error occurred. Please try again.',
     connectionError: 'Sorry, I couldn\'t connect. Please try again later.',
@@ -899,10 +897,18 @@ function init(): void {
     }
   }
 
-  // Allow override via data attribute
+  // Allow override via data attribute (restricted to known Tawafud domains)
   const customBaseUrl = tag?.getAttribute('data-base-url')
   if (customBaseUrl) {
-    baseUrl = customBaseUrl
+    try {
+      const url = new URL(customBaseUrl)
+      const allowedHosts = ['tawafud.com', 'localhost']
+      if (allowedHosts.some(h => url.hostname === h || url.hostname.endsWith('.' + h))) {
+        baseUrl = customBaseUrl
+      }
+    } catch {
+      // Invalid URL, ignore
+    }
   }
 
   const config: WidgetConfig = {

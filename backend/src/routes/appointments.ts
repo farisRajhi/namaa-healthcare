@@ -9,7 +9,7 @@ const createAppointmentSchema = z.object({
   serviceId: z.string().uuid(),
   facilityId: z.string().uuid().optional(),
   departmentId: z.string().uuid().optional(),
-  startTs: z.string(),
+  startTs: z.string().datetime(),
   reason: z.string().optional(),
   notes: z.string().optional(),
 });
@@ -27,9 +27,12 @@ const querySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
   providerId: z.string().uuid().optional(),
   patientId: z.string().uuid().optional(),
-  status: z.string().optional(),
-  from: z.string().optional(),
-  to: z.string().optional(),
+  status: z.enum([
+    'held', 'booked', 'confirmed', 'checked_in',
+    'in_progress', 'completed', 'cancelled', 'no_show', 'expired'
+  ]).optional(),
+  from: z.string().regex(/^\d{4}-\d{2}-\d{2}(T.*)?$/).optional(),
+  to: z.string().regex(/^\d{4}-\d{2}-\d{2}(T.*)?$/).optional(),
 });
 
 export default async function appointmentsRoutes(app: FastifyInstance) {
@@ -46,7 +49,7 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
         orgId,
         ...(query.providerId && { providerId: query.providerId }),
         ...(query.patientId && { patientId: query.patientId }),
-        ...(query.status && { status: query.status as any }),
+        ...(query.status && { status: query.status }),
         ...(query.from && { startTs: { gte: new Date(query.from) } }),
         ...(query.to && { startTs: { lte: new Date(query.to) } }),
       };
@@ -277,7 +280,7 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
     const { orgId, userId } = request.user;
     const { id } = request.params;
     const body = z.object({
-      newStartTs: z.string(),
+      newStartTs: z.string().datetime(),
     }).parse(request.body);
 
     const existing = await app.prisma.appointment.findFirst({
@@ -341,7 +344,7 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
     const { orgId } = request.user;
     const { providerId } = request.params;
     const query = z.object({
-      date: z.string(),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       serviceId: z.string().uuid(),
     }).parse(request.query);
 

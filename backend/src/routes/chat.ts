@@ -347,10 +347,11 @@ export default async function chatRoutes(app: FastifyInstance) {
     // ── Memory Extraction (async) ──
     if (resolvedPatientId) {
       const contextBuilder = getContextBuilder(app.prisma);
+      const { redactedText: redactedMessage } = redactPII(body.message);
       contextBuilder
         .extractMemories(
           resolvedPatientId,
-          [{ direction: 'in', bodyText: body.message }],
+          [{ direction: 'in', bodyText: redactedMessage }],
           conversationId,
         )
         .catch((err) => {

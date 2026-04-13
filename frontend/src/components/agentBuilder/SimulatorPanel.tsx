@@ -230,7 +230,7 @@ export default function SimulatorPanel({ flowId, onClose }: SimulatorPanelProps)
             </button>
             <button
               onClick={() => { setInput('أبي أحجز موعد'); }}
-              className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-full border border-gray-200 text-gray-500 hover:border-teal-200 hover:text-teal-600 hover:bg-teal-50 transition-colors"
+              className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-full border border-gray-200 text-gray-500 hover:border-primary-200 hover:text-primary-600 hover:bg-primary-50 transition-colors"
             >
               <CalendarCheck className="w-2.5 h-2.5" />
               اختبر الحجز

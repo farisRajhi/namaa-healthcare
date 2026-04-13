@@ -169,18 +169,6 @@ async function run() {
     category: 'general'
   });
 
-  // ==================== PRESCRIPTIONS ====================
-  console.log('\n--- PRESCRIPTIONS ---');
-  await test('Prescriptions', 'List', 'GET', '/api/prescriptions');
-  if (createdPatientId) {
-    await test('Prescriptions', 'Create', 'POST', '/api/prescriptions', {
-      patientId: createdPatientId,
-      providerId: createdProviderId || undefined,
-      medications: [{ name: 'Paracetamol', dosage: '500mg', frequency: 'twice daily', duration: '5 days' }],
-      notes: 'Take with food'
-    });
-  }
-
   // ==================== WAITLIST ====================
   console.log('\n--- WAITLIST ---');
   await test('Waitlist', 'List', 'GET', '/api/waitlist');

@@ -52,7 +52,7 @@ export default function PatientLogin() {
   }
 
   return (
-    <div dir={isRTL ? 'rtl' : 'ltr'} className="min-h-screen bg-gradient-to-br from-teal-50 via-white to-cyan-50 flex flex-col">
+    <div dir={isRTL ? 'rtl' : 'ltr'} className="min-h-screen bg-gradient-to-br from-primary-50 via-white to-secondary-50 flex flex-col">
       {/* Language Toggle */}
       <div className="absolute top-4 end-4 z-10">
         <button
@@ -66,7 +66,7 @@ export default function PatientLogin() {
 
       {/* Header */}
       <div className="px-6 pt-8 pb-4 text-center">
-        <div className="w-16 h-16 bg-gradient-to-br from-teal-500 to-teal-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-teal-200">
+        <div className="w-16 h-16 bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg shadow-primary-200">
           <span className="text-white font-bold text-2xl">✚</span>
         </div>
         <h1 className="text-2xl font-bold text-slate-800">{t('portal.brand')}</h1>
@@ -103,7 +103,7 @@ export default function PatientLogin() {
                     placeholder="+966 5X XXX XXXX"
                     required
                     dir="ltr"
-                    className="w-full ps-10 pe-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-colors text-left"
+                    className="w-full ps-10 pe-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors text-left"
                   />
                 </div>
               </div>
@@ -121,7 +121,7 @@ export default function PatientLogin() {
                     onChange={(e) => setDateOfBirth(e.target.value)}
                     required
                     dir="ltr"
-                    className="w-full ps-10 pe-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 transition-colors text-left"
+                    className="w-full ps-10 pe-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500 transition-colors text-left"
                   />
                 </div>
               </div>
@@ -130,7 +130,7 @@ export default function PatientLogin() {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full bg-gradient-to-r from-teal-500 to-teal-600 text-white py-3 rounded-xl font-medium text-sm hover:from-teal-600 hover:to-teal-700 transition-all disabled:opacity-60 flex items-center justify-center gap-2 shadow-sm shadow-teal-200"
+                className="w-full bg-gradient-to-r from-primary-500 to-primary-600 text-white py-3 rounded-xl font-medium text-sm hover:from-primary-600 hover:to-primary-700 transition-all disabled:opacity-60 flex items-center justify-center gap-2 shadow-sm shadow-primary-200"
               >
                 {isLoading ? (
                   <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />

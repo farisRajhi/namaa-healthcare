@@ -51,7 +51,10 @@ export function useWebSocketChat(options: UseWebSocketChatOptions = {}) {
   // Build WebSocket URL relative to current page
   const buildWsUrl = useCallback(() => {
     const token = localStorage.getItem('token')
-    if (!token) return null
+    if (!token) {
+      console.error('No auth token available')
+      return null
+    }
 
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.host // includes port

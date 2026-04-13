@@ -263,6 +263,10 @@ export class ConversationalIntelligenceService {
     const range = dateRange(from, to);
     const interval = truncInterval(period);
 
+    // Security: whitelist-assert interval to prevent SQL injection via $queryRawUnsafe
+    const VALID_INTERVALS = new Set(['hour', 'day', 'week', 'month']);
+    if (!VALID_INTERVALS.has(interval)) throw new Error(`Invalid SQL interval: ${interval}`);
+
     // Raw SQL for bucketed aggregation
     const rows: any[] = await this.prisma.$queryRawUnsafe(
       `
@@ -310,9 +314,19 @@ export class ConversationalIntelligenceService {
   ): Promise<KnowledgeGap[]> {
     const range = dateRange(from, to);
 
+    // Get org-scoped conversation IDs to enforce tenant isolation
+    const orgConversations = await this.prisma.conversation.findMany({
+      where: { orgId },
+      select: { conversationId: true },
+    });
+    const orgConvoIds = orgConversations.map((c) => c.conversationId);
+
     // Approach: find conversations that resulted in handoff, then pull the last inbound message
     const handoffConversations = await this.prisma.handoff.findMany({
-      where: { createdAt: { gte: range.gte, lte: range.lte } },
+      where: {
+        conversationId: { in: orgConvoIds },
+        createdAt: { gte: range.gte, lte: range.lte },
+      },
       select: { conversationId: true, reason: true },
       orderBy: { createdAt: 'desc' },
       take: limit * 2,

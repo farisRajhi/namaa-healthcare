@@ -14,7 +14,10 @@ const loginSchema = z.object({
 
 const registerSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8),
+  password: z.string().min(8).regex(
+    /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/,
+    'Password must contain at least one uppercase letter, one lowercase letter, and one number',
+  ),
   orgName: z.string().min(2),
   name: z.string().optional(),
 });
@@ -148,18 +151,18 @@ export default async function authRoutes(app: FastifyInstance) {
       roleName = roleRecord?.name ?? undefined;
     }
 
-    // Update last login
-    await app.prisma.user.update({
-      where: { userId: user.userId },
-      data: { lastLogin: new Date() },
-    });
-
-    // Sign JWT — include role so RBAC middleware can gate routes
+    // Sign JWT first — before updating lastLogin to avoid iat < lastLogin race
     const token = app.jwt.sign({
       userId: user.userId,
       orgId: user.orgId,
       email: user.email,
       role: roleName ?? 'viewer',
+    });
+
+    // Update last login AFTER signing so new token's iat >= lastLogin (in seconds)
+    await app.prisma.user.update({
+      where: { userId: user.userId },
+      data: { lastLogin: new Date() },
     });
 
     return { token };
@@ -204,5 +207,53 @@ export default async function authRoutes(app: FastifyInstance) {
       data: { lastLogin: new Date() },
     });
     return { success: true };
+  });
+
+  // Change password — requires current password verification
+  const changePasswordSchema = z.object({
+    currentPassword: z.string().min(1),
+    newPassword: z.string().min(8).regex(
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/,
+      'Password must contain at least one uppercase letter, one lowercase letter, and one number',
+    ),
+  });
+
+  app.post('/change-password', {
+    preHandler: [app.authenticate],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const body = changePasswordSchema.parse(request.body);
+    const lang = getLang(request.headers['accept-language']);
+
+    const user = await app.prisma.user.findUnique({
+      where: { userId: request.user.userId },
+    });
+
+    if (!user) {
+      return reply.code(404).send({ error: msg(messages.auth.userNotFound, lang) });
+    }
+
+    // Verify current password
+    const valid = await bcrypt.compare(body.currentPassword, user.password);
+    if (!valid) {
+      return reply.code(401).send({ error: 'Current password is incorrect' });
+    }
+
+    // Prevent reuse of same password
+    const isSame = await bcrypt.compare(body.newPassword, user.password);
+    if (isSame) {
+      return reply.code(400).send({ error: 'New password must be different from current password' });
+    }
+
+    // Hash and update
+    const hashedPassword = await bcrypt.hash(body.newPassword, 12);
+    await app.prisma.user.update({
+      where: { userId: user.userId },
+      data: {
+        password: hashedPassword,
+        lastLogin: new Date(), // Invalidate existing tokens
+      },
+    });
+
+    return { success: true, message: 'Password changed successfully' };
   });
 }

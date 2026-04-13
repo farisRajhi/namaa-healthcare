@@ -62,7 +62,7 @@ export default function PatientProfile() {
         {!editing && (
           <button
             onClick={() => setEditing(true)}
-            className="flex items-center gap-1 text-xs text-teal-600 font-medium bg-teal-50 px-3 py-1.5 rounded-lg"
+            className="flex items-center gap-1 text-xs text-primary-600 font-medium bg-primary-50 px-3 py-1.5 rounded-lg"
           >
             <Edit3 className="w-3.5 h-3.5" />
             {t('portal.profile.edit')}
@@ -91,7 +91,8 @@ export default function PatientProfile() {
                   <input
                     value={firstName}
                     onChange={(e) => setFirstName(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                    autoComplete="off"
+                    className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
                   />
                 </div>
                 <div>
@@ -99,7 +100,8 @@ export default function PatientProfile() {
                   <input
                     value={lastName}
                     onChange={(e) => setLastName(e.target.value)}
-                    className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                    autoComplete="off"
+                    className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
                   />
                 </div>
               </div>
@@ -109,7 +111,8 @@ export default function PatientProfile() {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   dir="ltr"
-                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-left focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                  autoComplete="off"
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-left focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
                 />
               </div>
               <div>
@@ -119,15 +122,16 @@ export default function PatientProfile() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   dir="ltr"
+                  autoComplete="off"
                   placeholder="example@email.com"
-                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-left focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500"
+                  className="w-full px-3 py-2.5 border border-slate-200 rounded-lg text-sm text-left focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-500"
                 />
               </div>
               <div className="flex items-center gap-2 pt-2">
                 <button
                   onClick={handleSave}
                   disabled={saving}
-                  className="flex items-center gap-1 text-xs text-white bg-teal-500 px-4 py-2 rounded-lg font-medium disabled:opacity-60"
+                  className="flex items-center gap-1 text-xs text-white bg-primary-500 px-4 py-2 rounded-lg font-medium disabled:opacity-60"
                 >
                   {saving ? (
                     <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
@@ -148,8 +152,8 @@ export default function PatientProfile() {
           ) : (
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-teal-50 flex items-center justify-center flex-shrink-0">
-                  <User className="w-6 h-6 text-teal-600" />
+                <div className="w-12 h-12 rounded-xl bg-primary-50 flex items-center justify-center flex-shrink-0">
+                  <User className="w-6 h-6 text-primary-600" />
                 </div>
                 <div>
                   <p className="font-medium text-slate-800">
@@ -169,7 +173,7 @@ export default function PatientProfile() {
                       <Phone className="w-4 h-4 text-slate-400" />
                       <span dir="ltr">{c.value}</span>
                       {c.isPrimary && (
-                        <span className="text-[9px] bg-teal-50 text-teal-600 px-1.5 py-0.5 rounded">{t('portal.profile.primary')}</span>
+                        <span className="text-[9px] bg-primary-50 text-primary-600 px-1.5 py-0.5 rounded">{t('portal.profile.primary')}</span>
                       )}
                     </div>
                   ))}

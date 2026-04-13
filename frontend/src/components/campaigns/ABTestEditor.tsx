@@ -113,7 +113,7 @@ export default function ABTestEditor({ enabled, onToggle, variants, onChange, is
             </p>
             <div className="flex h-4 rounded-full overflow-hidden">
               {variants.map((v, idx) => {
-                const colors = ['bg-purple-500', 'bg-blue-500', 'bg-teal-500', 'bg-amber-500', 'bg-pink-500']
+                const colors = ['bg-purple-500', 'bg-blue-500', 'bg-primary-500', 'bg-amber-500', 'bg-pink-500']
                 return (
                   <div
                     key={idx}

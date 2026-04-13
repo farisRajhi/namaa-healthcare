@@ -281,7 +281,7 @@ function checkPIILeak(response: string): GuardrailFlag[] {
     if (pattern.test(response)) {
       flags.push({
         type: 'pii_leak',
-        severity: 'warn',
+        severity: 'block',
         description: 'AI response may contain PII (National ID or phone number)',
       });
       break;

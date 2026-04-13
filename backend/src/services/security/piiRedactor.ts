@@ -5,6 +5,12 @@
 
 const REDACTED = '[REDACTED]';
 
+// ── Arabic-Indic numeral normalization ──────────────────
+// Converts Arabic-Indic numerals (٠١٢٣٤٥٦٧٨٩) to Western (0123456789)
+function normalizeArabicNumerals(text: string): string {
+  return text.replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+}
+
 // ── Pattern definitions ─────────────────────────────────
 
 interface RedactionRule {
@@ -107,7 +113,8 @@ export interface RedactionResult {
  * Returns the redacted text plus metadata about what was redacted.
  */
 export function redactPII(text: string): RedactionResult {
-  let result = text;
+  // Normalize Arabic-Indic numerals so patterns catch e.g. ٠٥٣١٢٣٤٥٦٧
+  let result = normalizeArabicNumerals(text);
   const redactions: RedactionResult['redactionsApplied'] = [];
 
   for (const rule of RULES) {
@@ -204,10 +211,11 @@ export function redactPHI(text: string): RedactionResult {
  * Useful for quick checks/alerts.
  */
 export function containsPII(text: string): boolean {
+  const normalized = normalizeArabicNumerals(text);
   for (const rule of RULES) {
     for (const pattern of rule.patterns) {
       const regex = new RegExp(pattern.source, pattern.flags);
-      if (regex.test(text)) return true;
+      if (regex.test(normalized)) return true;
     }
   }
   return false;
@@ -251,12 +259,13 @@ export function sanitizeForExport<T extends Record<string, unknown>>(
  * Returns a list of detected PII type names.
  */
 export function detectPIITypes(text: string): string[] {
+  const normalized = normalizeArabicNumerals(text);
   const found: string[] = [];
 
   for (const rule of RULES) {
     for (const pattern of rule.patterns) {
       const regex = new RegExp(pattern.source, pattern.flags);
-      if (regex.test(text)) {
+      if (regex.test(normalized)) {
         found.push(rule.name);
         break; // Only add once per rule
       }

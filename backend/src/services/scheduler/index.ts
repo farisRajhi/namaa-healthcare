@@ -21,6 +21,7 @@ import { PredictiveEngine } from '../analytics/predictiveEngine.js';
 import { CareGapCampaignPipeline } from '../pipelines/careGapCampaign.js';
 import { getInsightBuilder } from '../patient/insightBuilder.js';
 import { OfferManager } from '../offers/offerManager.js';
+import { getServiceCyclePredictor } from '../patient/serviceCyclePredictor.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -512,6 +513,54 @@ export class TaskScheduler {
           }
 
           console.log(`[Scheduler]   ✓ Salary day: ${started} campaigns started, ${salaryResults.length} campaigns processed`);
+        },
+      },
+
+      // 13. Service Cycle Suggestions — daily at 3:30 AM AST (after insights rebuild)
+      {
+        name: 'service-cycle-suggestions',
+        schedule: '30 3 * * *',
+        description: 'Generate service-cycle-based patient suggestions (reminder/offer)',
+        enabled: true,
+        timezone: 'Asia/Riyadh',
+        handler: async () => {
+          const predictor = getServiceCyclePredictor(this.prisma);
+          const orgs = await this.prisma.org.findMany({ select: { orgId: true } });
+          let totalSuggestions = 0;
+          for (const org of orgs) {
+            try {
+              const result = await predictor.generateSuggestions(org.orgId);
+              totalSuggestions += result.suggestionsCreated;
+            } catch (err: any) {
+              console.error(`[Scheduler]   → Suggestion generation failed for org ${org.orgId}:`, err?.message);
+            }
+          }
+          console.log(`[Scheduler]   ✓ ${totalSuggestions} service cycle suggestions generated across ${orgs.length} orgs`);
+        },
+      },
+
+      // 14. Dismiss Completed Suggestions — daily at 4:00 AM AST
+      {
+        name: 'dismiss-completed-suggestions',
+        schedule: '0 4 * * *',
+        description: 'Clean up suggestions where patient already completed the service',
+        enabled: true,
+        timezone: 'Asia/Riyadh',
+        handler: async () => {
+          const predictor = getServiceCyclePredictor(this.prisma);
+          const orgs = await this.prisma.org.findMany({ select: { orgId: true } });
+          let totalDismissed = 0;
+          for (const org of orgs) {
+            try {
+              const count = await predictor.dismissCompleted(org.orgId);
+              totalDismissed += count;
+            } catch (err: any) {
+              console.error(`[Scheduler]   → Dismiss completed failed for org ${org.orgId}:`, err?.message);
+            }
+          }
+          if (totalDismissed > 0) {
+            console.log(`[Scheduler]   ✓ ${totalDismissed} completed suggestions dismissed`);
+          }
         },
       },
 

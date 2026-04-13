@@ -33,7 +33,7 @@ export default function AudiencePreviewBadge({
   }
 
   return (
-    <div className="bg-gradient-to-br from-primary-50 to-cyan-50 border border-primary-200 rounded-xl p-5">
+    <div className="bg-gradient-to-br from-primary-50 to-secondary-50 border border-primary-200 rounded-xl p-5">
       <h4 className="text-sm font-semibold text-gray-700 mb-4">
         {isAr ? 'معاينة الجمهور' : 'Audience Preview'}
       </h4>

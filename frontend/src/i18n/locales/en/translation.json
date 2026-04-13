@@ -274,6 +274,7 @@
     "marketingHub": "Marketing Hub",
     "knowledgeBase": "Knowledge Base",
     "patientInsights": "Patient Insights",
+    "patientIntelligence": "Patient Intelligence",
     "patientEngagement": "Patient Engagement",
     "agentBuilder": "Agent Builder",
     "branches": "Branches",
@@ -336,7 +337,6 @@
       "welcome": "Welcome 👋",
       "welcomeBack": "Welcome back, {{name}}",
       "bookAppointment": "Book Appointment",
-      "myPrescriptions": "My Prescriptions",
       "myAccount": "My Account",
       "upcomingAppointments": "Upcoming Appointments",
       "viewAll": "View All",
@@ -463,7 +463,10 @@
       "linkedName": "WhatsApp Name",
       "statusActive": "AI receptionist is active and responding to messages",
       "statusInactive": "Connect your WhatsApp to start receiving patient messages",
-      "confirmDisconnect": "Are you sure you want to disconnect WhatsApp? The AI will stop responding to messages."
+      "confirmDisconnect": "Are you sure you want to disconnect WhatsApp? The AI will stop responding to messages.",
+      "aiAutoReply": "AI Auto-Reply",
+      "aiAutoReplyDesc": "When enabled, the AI receptionist automatically responds to patient messages",
+      "statusActiveNoAi": "WhatsApp connected — AI auto-reply is off"
     },
     "notifications": {
       "title": "Notifications",

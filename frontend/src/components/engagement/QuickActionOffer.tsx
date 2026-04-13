@@ -69,6 +69,8 @@ export default function QuickActionOffer({ open, onClose, patientId, patientName
   const sendMutation = useMutation({
     mutationFn: async () => {
       const phone = patient?.phone || patient?.phoneNumber
+        || patient?.contacts?.find((c: any) => c.contactType === 'whatsapp')?.contactValue
+        || patient?.contacts?.find((c: any) => c.contactType === 'phone')?.contactValue
       if (!phone) throw new Error('No phone number')
       const offer = offers?.find((o) => o.offerId === selectedOffer)
       if (!offer) throw new Error('No offer selected')

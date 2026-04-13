@@ -8,12 +8,14 @@ declare module '@fastify/jwt' {
       orgId: string;
       email: string;
       role?: string;
+      iat?: number;
     };
     user: {
       userId: string;
       orgId: string;
       email: string;
       role?: string;
+      iat?: number;
     };
   }
 }
@@ -26,10 +28,16 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       // Verify user is still active in the database
       const dbUser = await fastify.prisma.user.findUnique({
         where: { userId: request.user.userId },
-        select: { isActive: true },
+        select: { isActive: true, lastLogin: true },
       });
       if (!dbUser || !dbUser.isActive) {
         return reply.code(401).send({ error: 'Unauthorized', message: 'User account is inactive or not found' });
+      }
+      if (dbUser.lastLogin && request.user.iat) {
+        const lastLoginSeconds = Math.floor(dbUser.lastLogin.getTime() / 1000);
+        if (request.user.iat < lastLoginSeconds) {
+          return reply.code(401).send({ error: 'Token has been invalidated' });
+        }
       }
     } catch (err) {
       reply.code(401).send({ error: 'Unauthorized', message: 'Invalid or expired token' });

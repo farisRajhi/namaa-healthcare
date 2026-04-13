@@ -38,7 +38,7 @@ export default function BranchSelector() {
           'transition-colors duration-150',
         )}
       >
-        <Building2 className="h-4 w-4 text-teal-600" />
+        <Building2 className="h-4 w-4 text-primary-600" />
         <span className="max-w-[140px] truncate">{label}</span>
         <ChevronDown className={cn('h-4 w-4 transition-transform', open && 'rotate-180')} />
       </button>
@@ -50,7 +50,7 @@ export default function BranchSelector() {
             onClick={() => { setSelectedBranchId(null); setOpen(false) }}
             className={cn(
               'w-full text-right px-4 py-2 text-sm hover:bg-gray-50 transition-colors',
-              !selectedBranch && 'font-semibold text-teal-600',
+              !selectedBranch && 'font-semibold text-primary-600',
             )}
           >
             كل الفروع
@@ -64,7 +64,7 @@ export default function BranchSelector() {
               onClick={() => { setSelectedBranchId(b.branchId); setOpen(false) }}
               className={cn(
                 'w-full text-right px-4 py-2 text-sm hover:bg-gray-50 transition-colors',
-                selectedBranch?.branchId === b.branchId && 'font-semibold text-teal-600',
+                selectedBranch?.branchId === b.branchId && 'font-semibold text-primary-600',
               )}
             >
               {b.name}

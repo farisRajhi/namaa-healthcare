@@ -23,8 +23,8 @@ export interface FlowTemplate {
 export const generalClinicTemplate: FlowTemplate = {
   name: 'General Clinic',
   nameAr: 'عيادة عامة',
-  description: 'Full-featured general clinic flow: greeting → intent detection → book appointment / FAQ / prescription refill / transfer',
-  descriptionAr: 'تدفق عيادة عامة شامل: ترحيب → تحديد الطلب → حجز موعد / أسئلة شائعة / إعادة تعبئة وصفة / تحويل',
+  description: 'Full-featured general clinic flow: greeting → intent detection → book appointment / FAQ / transfer',
+  descriptionAr: 'تدفق عيادة عامة شامل: ترحيب → تحديد الطلب → حجز موعد / أسئلة شائعة / تحويل',
   templateCategory: 'general',
   nodes: [
     {
@@ -49,7 +49,6 @@ export const generalClinicTemplate: FlowTemplate = {
         messageAr: 'يرجى اختيار إحدى الخدمات التالية:',
         buttons: [
           { label: 'Book Appointment', labelAr: 'حجز موعد', value: 'book_appointment' },
-          { label: 'Prescription Refill', labelAr: 'إعادة تعبئة وصفة', value: 'prescription' },
           { label: 'General Inquiry', labelAr: 'استفسار عام', value: 'faq' },
           { label: 'Speak to Agent', labelAr: 'التحدث مع موظف', value: 'transfer' },
         ],
@@ -64,11 +63,10 @@ export const generalClinicTemplate: FlowTemplate = {
         labelAr: 'توجيه حسب الطلب',
         condition: {
           type: 'intent',
-          value: 'book_appointment,prescription,faq,transfer',
+          value: 'book_appointment,faq,transfer',
         },
         branches: [
           { label: 'Book Appointment', value: 'book_appointment' },
-          { label: 'Prescription', value: 'prescription' },
           { label: 'FAQ', value: 'faq' },
           { label: 'Transfer', value: 'transfer' },
         ],
@@ -137,53 +135,6 @@ export const generalClinicTemplate: FlowTemplate = {
         endMessageAr: 'تم حجز موعدك بنجاح! ستصلك رسالة تأكيد قريباً. شكراً لاختيارك عيادتنا. 🏥',
       },
     },
-    // ── Prescription Branch ──
-    {
-      id: 'q-rx-name',
-      type: NodeType.QUESTION,
-      position: { x: 350, y: 500 },
-      data: {
-        label: 'Ask Patient Name',
-        labelAr: 'اسأل عن اسم المريض',
-        question: 'Please provide your full name or medical record number (MRN):',
-        questionAr: 'يرجى ذكر اسمك الكامل أو رقم الملف الطبي:',
-        variableName: 'patientName',
-      },
-    },
-    {
-      id: 'q-rx-med',
-      type: NodeType.QUESTION,
-      position: { x: 350, y: 650 },
-      data: {
-        label: 'Ask Medication',
-        labelAr: 'اسأل عن الدواء',
-        question: 'Which medication do you need to refill?',
-        questionAr: 'أي دواء ترغب بإعادة تعبئته؟',
-        variableName: 'medication',
-      },
-    },
-    {
-      id: 'msg-rx-confirm',
-      type: NodeType.MESSAGE,
-      position: { x: 350, y: 800 },
-      data: {
-        label: 'Refill Submitted',
-        labelAr: 'تم تقديم الطلب',
-        message: 'Your prescription refill request for {{medication}} has been submitted. Our pharmacy team will contact you within 24 hours.',
-        messageAr: 'تم تقديم طلب إعادة تعبئة {{medication}}. سيتواصل معك فريق الصيدلية خلال 24 ساعة.',
-      },
-    },
-    {
-      id: 'end-rx',
-      type: NodeType.END,
-      position: { x: 350, y: 950 },
-      data: {
-        label: 'End - Prescription',
-        labelAr: 'نهاية - وصفة',
-        endMessage: 'Thank you! Is there anything else I can help you with? Have a great day! 😊',
-        endMessageAr: 'شكراً لك! هل تحتاج مساعدة بشيء آخر؟ أتمنى لك يوماً سعيداً! 😊',
-      },
-    },
     // ── FAQ Branch ──
     {
       id: 'q-faq',
@@ -240,11 +191,6 @@ export const generalClinicTemplate: FlowTemplate = {
     { id: 'e-date-check', source: 'q-date', target: 'api-check' },
     { id: 'e-check-avail', source: 'api-check', target: 'msg-avail' },
     { id: 'e-avail-booked', source: 'msg-avail', target: 'end-booked' },
-    // Prescription
-    { id: 'e-cond-rx', source: 'cond-intent', target: 'q-rx-name', sourceHandle: 'prescription', label: 'وصفة طبية' },
-    { id: 'e-rxname-med', source: 'q-rx-name', target: 'q-rx-med' },
-    { id: 'e-rxmed-confirm', source: 'q-rx-med', target: 'msg-rx-confirm' },
-    { id: 'e-rxconfirm-end', source: 'msg-rx-confirm', target: 'end-rx' },
     // FAQ
     { id: 'e-cond-faq', source: 'cond-intent', target: 'q-faq', sourceHandle: 'faq', label: 'استفسار' },
     { id: 'e-faq-ai', source: 'q-faq', target: 'ai-faq' },
@@ -257,8 +203,6 @@ export const generalClinicTemplate: FlowTemplate = {
   variables: {
     department: '',
     preferredDate: '',
-    patientName: '',
-    medication: '',
     faqQuery: '',
   },
   settings: {
@@ -645,245 +589,7 @@ export const dermatologyClinicTemplate: FlowTemplate = {
 }
 
 // ─────────────────────────────────────────────────────────
-// 4. Pharmacy — صيدلية
-// ─────────────────────────────────────────────────────────
-export const pharmacyTemplate: FlowTemplate = {
-  name: 'Pharmacy',
-  nameAr: 'صيدلية',
-  description: 'Pharmacy flow: greeting → refill request / drug availability / operating hours',
-  descriptionAr: 'تدفق صيدلية: ترحيب → طلب إعادة تعبئة / توفر أدوية / ساعات العمل',
-  templateCategory: 'pharmacy',
-  nodes: [
-    {
-      id: 'start-1',
-      type: NodeType.START,
-      position: { x: 400, y: 50 },
-      data: {
-        label: 'Welcome',
-        labelAr: 'ترحيب',
-        message: 'Welcome to Tawafud Pharmacy! 💊',
-        messageAr: 'أهلاً بك في صيدلية توافد! 💊',
-      },
-    },
-    {
-      id: 'msg-services',
-      type: NodeType.MESSAGE,
-      position: { x: 400, y: 180 },
-      data: {
-        label: 'Pharmacy Services',
-        labelAr: 'خدمات الصيدلية',
-        message: 'How can we help you today?',
-        messageAr: 'كيف يمكننا مساعدتك اليوم؟',
-        buttons: [
-          { label: 'Prescription Refill', labelAr: 'إعادة تعبئة وصفة', value: 'refill' },
-          { label: 'Drug Availability', labelAr: 'توفر دواء', value: 'availability' },
-          { label: 'Operating Hours', labelAr: 'ساعات العمل', value: 'hours' },
-          { label: 'Speak to Pharmacist', labelAr: 'التحدث مع صيدلي', value: 'pharmacist' },
-        ],
-      },
-    },
-    {
-      id: 'cond-service',
-      type: NodeType.CONDITION,
-      position: { x: 400, y: 340 },
-      data: {
-        label: 'Route Service',
-        labelAr: 'توجيه الخدمة',
-        condition: {
-          type: 'intent',
-          value: 'prescription,faq,hours,transfer',
-        },
-        branches: [
-          { label: 'Refill', value: 'refill' },
-          { label: 'Availability', value: 'availability' },
-          { label: 'Hours', value: 'hours' },
-          { label: 'Pharmacist', value: 'pharmacist' },
-        ],
-      },
-    },
-    // ── Refill Branch ──
-    {
-      id: 'q-rx-id',
-      type: NodeType.QUESTION,
-      position: { x: 50, y: 500 },
-      data: {
-        label: 'Prescription Number',
-        labelAr: 'رقم الوصفة',
-        question: 'Please provide your prescription number or the medication name:',
-        questionAr: 'يرجى ذكر رقم الوصفة أو اسم الدواء:',
-        variableName: 'rxInfo',
-      },
-    },
-    {
-      id: 'q-rx-patient',
-      type: NodeType.QUESTION,
-      position: { x: 50, y: 650 },
-      data: {
-        label: 'Patient Name',
-        labelAr: 'اسم المريض',
-        question: 'And your full name:',
-        questionAr: 'واسمك الكامل:',
-        variableName: 'patientName',
-      },
-    },
-    {
-      id: 'q-rx-phone',
-      type: NodeType.QUESTION,
-      position: { x: 50, y: 800 },
-      data: {
-        label: 'Phone Number',
-        labelAr: 'رقم الجوال',
-        question: 'Your phone number for notification:',
-        questionAr: 'رقم جوالك للإشعار:',
-        variableName: 'phone',
-      },
-    },
-    {
-      id: 'msg-rx-submitted',
-      type: NodeType.MESSAGE,
-      position: { x: 50, y: 950 },
-      data: {
-        label: 'Refill Submitted',
-        labelAr: 'تم تقديم الطلب',
-        message: '✅ Your refill request for "{{rxInfo}}" has been submitted.\n\nName: {{patientName}}\nPhone: {{phone}}\n\nWe\'ll SMS you when it\'s ready (usually within 2-4 hours).',
-        messageAr: '✅ تم تقديم طلب إعادة تعبئة "{{rxInfo}}".\n\nالاسم: {{patientName}}\nالجوال: {{phone}}\n\nسنرسل لك رسالة عندما يكون جاهزاً (عادة خلال 2-4 ساعات).',
-      },
-    },
-    {
-      id: 'end-refill',
-      type: NodeType.END,
-      position: { x: 50, y: 1100 },
-      data: {
-        label: 'End - Refill',
-        labelAr: 'نهاية - إعادة تعبئة',
-        endMessage: 'Thank you for using Tawafud Pharmacy! Stay healthy! 💚',
-        endMessageAr: 'شكراً لاستخدام صيدلية توافد! دمت بصحة! 💚',
-      },
-    },
-    // ── Availability Branch ──
-    {
-      id: 'q-drug-name',
-      type: NodeType.QUESTION,
-      position: { x: 300, y: 500 },
-      data: {
-        label: 'Drug Name',
-        labelAr: 'اسم الدواء',
-        question: 'What medication are you looking for?',
-        questionAr: 'ما الدواء الذي تبحث عنه؟',
-        variableName: 'drugName',
-      },
-    },
-    {
-      id: 'ai-drug-check',
-      type: NodeType.AI_RESPONSE,
-      position: { x: 300, y: 650 },
-      data: {
-        label: 'Check Availability',
-        labelAr: 'فحص التوفر',
-        aiPrompt: 'The patient is asking about the availability of "{{drugName}}" at our pharmacy. Provide a helpful response. If you don\'t know the exact availability, suggest they call or visit.',
-      },
-    },
-    {
-      id: 'end-avail',
-      type: NodeType.END,
-      position: { x: 300, y: 800 },
-      data: {
-        label: 'End - Availability',
-        labelAr: 'نهاية - توفر',
-        endMessage: 'Hope that helps! You can also call us at 0XX-XXXXXXX for immediate assistance. 📞',
-        endMessageAr: 'أتمنى أن يكون ذلك مفيداً! يمكنك أيضاً الاتصال بنا على 0XX-XXXXXXX للمساعدة الفورية. 📞',
-      },
-    },
-    // ── Hours Branch ──
-    {
-      id: 'api-hours',
-      type: NodeType.API_CALL,
-      position: { x: 550, y: 500 },
-      data: {
-        label: 'Get Hours',
-        labelAr: 'جلب ساعات العمل',
-        apiAction: 'get_operating_hours',
-        apiParams: {},
-        variableKey: 'operatingHours',
-      },
-    },
-    {
-      id: 'msg-hours',
-      type: NodeType.MESSAGE,
-      position: { x: 550, y: 650 },
-      data: {
-        label: 'Show Hours',
-        labelAr: 'عرض ساعات العمل',
-        message: '🕐 Pharmacy Hours:\n• Sunday – Thursday: 8:00 AM – 10:00 PM\n• Friday: 4:00 PM – 10:00 PM\n• Saturday: 9:00 AM – 10:00 PM',
-        messageAr: '🕐 ساعات عمل الصيدلية:\n• الأحد – الخميس: 8:00 صباحاً – 10:00 مساءً\n• الجمعة: 4:00 مساءً – 10:00 مساءً\n• السبت: 9:00 صباحاً – 10:00 مساءً',
-      },
-    },
-    {
-      id: 'end-hours',
-      type: NodeType.END,
-      position: { x: 550, y: 800 },
-      data: {
-        label: 'End - Hours',
-        labelAr: 'نهاية - ساعات',
-        endMessage: 'Feel free to visit us anytime during working hours. Stay well! 😊',
-        endMessageAr: 'لا تتردد في زيارتنا خلال ساعات العمل. دمت بخير! 😊',
-      },
-    },
-    // ── Pharmacist Transfer ──
-    {
-      id: 'transfer-pharm',
-      type: NodeType.TRANSFER,
-      position: { x: 800, y: 500 },
-      data: {
-        label: 'Transfer to Pharmacist',
-        labelAr: 'تحويل لصيدلي',
-        department: 'الصيدلية',
-        transferReason: 'Patient requested to speak with a pharmacist directly',
-      },
-    },
-  ],
-  edges: [
-    { id: 'e-start-services', source: 'start-1', target: 'msg-services' },
-    { id: 'e-services-cond', source: 'msg-services', target: 'cond-service' },
-    // Refill
-    { id: 'e-cond-refill', source: 'cond-service', target: 'q-rx-id', sourceHandle: 'prescription', label: 'إعادة تعبئة' },
-    { id: 'e-cond-refill2', source: 'cond-service', target: 'q-rx-id', sourceHandle: 'refill' },
-    { id: 'e-rxid-patient', source: 'q-rx-id', target: 'q-rx-patient' },
-    { id: 'e-patient-phone', source: 'q-rx-patient', target: 'q-rx-phone' },
-    { id: 'e-phone-submitted', source: 'q-rx-phone', target: 'msg-rx-submitted' },
-    { id: 'e-submitted-end', source: 'msg-rx-submitted', target: 'end-refill' },
-    // Availability
-    { id: 'e-cond-avail', source: 'cond-service', target: 'q-drug-name', sourceHandle: 'faq', label: 'توفر دواء' },
-    { id: 'e-cond-avail2', source: 'cond-service', target: 'q-drug-name', sourceHandle: 'availability' },
-    { id: 'e-drug-check', source: 'q-drug-name', target: 'ai-drug-check' },
-    { id: 'e-check-endavail', source: 'ai-drug-check', target: 'end-avail' },
-    // Hours
-    { id: 'e-cond-hours', source: 'cond-service', target: 'api-hours', sourceHandle: 'hours', label: 'ساعات العمل' },
-    { id: 'e-hours-msg', source: 'api-hours', target: 'msg-hours' },
-    { id: 'e-msg-endhours', source: 'msg-hours', target: 'end-hours' },
-    // Pharmacist
-    { id: 'e-cond-pharm', source: 'cond-service', target: 'transfer-pharm', sourceHandle: 'transfer', label: 'صيدلي' },
-    { id: 'e-cond-pharm2', source: 'cond-service', target: 'transfer-pharm', sourceHandle: 'pharmacist' },
-    // Default → Availability
-    { id: 'e-cond-default', source: 'cond-service', target: 'q-drug-name', sourceHandle: 'default', label: 'افتراضي' },
-  ],
-  variables: {
-    rxInfo: '',
-    patientName: '',
-    phone: '',
-    drugName: '',
-    operatingHours: null,
-  },
-  settings: {
-    language: 'ar',
-    fallbackMessage: 'عذراً، لم أفهم. يرجى اختيار أحد الخيارات.',
-    maxInactivityMinutes: 15,
-  },
-}
-
-// ─────────────────────────────────────────────────────────
 // Export all templates
-// ─────────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────
 // 5. Default Template — قالب افتراضي
 // Minimal starting flow any clinic can customize
@@ -1331,5 +1037,4 @@ export const ALL_TEMPLATES: FlowTemplate[] = [
   generalClinicTemplate,
   dentalClinicTemplate,
   dermatologyClinicTemplate,
-  pharmacyTemplate,
 ]

@@ -39,8 +39,8 @@ const createCampaignSchema = z.object({
   scriptAr: z.string().optional(),
   targetAudience: z.string().optional(),
   maxCallsPerHour: z.number().min(1).max(500).optional(),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
+  startDate: z.string().datetime().optional(),
+  endDate: z.string().datetime().optional(),
 });
 
 const updateCampaignSchema = createCampaignSchema.partial();
@@ -59,10 +59,10 @@ export default async function campaignRoutes(app: FastifyInstance) {
   const getManager = () => getCampaignManager(app.prisma, app.twilio);
 
   // GET /api/campaigns/:orgId — List campaigns
-  app.get<{ Params: { orgId: string } }>('/:orgId', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/:orgId', async (request, reply) => {
     const { orgId: userOrgId } = request.user;
     const { orgId } = request.params;
-    if (userOrgId !== orgId) return { error: 'Forbidden' };
+    if (userOrgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
     const query = listQuerySchema.parse(request.query);
     const manager = getManager();
@@ -74,10 +74,10 @@ export default async function campaignRoutes(app: FastifyInstance) {
   });
 
   // POST /api/campaigns/:orgId — Create campaign
-  app.post<{ Params: { orgId: string } }>('/:orgId', async (request) => {
+  app.post<{ Params: { orgId: string } }>('/:orgId', async (request, reply) => {
     const { orgId: userOrgId } = request.user;
     const { orgId } = request.params;
-    if (userOrgId !== orgId) return { error: 'Forbidden' };
+    if (userOrgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
     const body = createCampaignSchema.parse(request.body);
     const manager = getManager();
@@ -105,24 +105,24 @@ export default async function campaignRoutes(app: FastifyInstance) {
   });
 
   // GET /api/campaigns/:orgId/:id — Get campaign details
-  app.get<{ Params: { orgId: string; id: string } }>('/:orgId/:id', async (request) => {
+  app.get<{ Params: { orgId: string; id: string } }>('/:orgId/:id', async (request, reply) => {
     const { orgId: userOrgId } = request.user;
     const { orgId, id } = request.params;
-    if (userOrgId !== orgId) return { error: 'Forbidden' };
+    if (userOrgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
     const manager = getManager();
     const campaign = await manager.getCampaign(id);
-    if (!campaign) return { error: 'Campaign not found' };
-    if (campaign.orgId !== orgId) return { error: 'Forbidden' };
+    if (!campaign) return reply.code(404).send({ error: 'Campaign not found' });
+    if (campaign.orgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
     return campaign;
   });
 
   // PUT /api/campaigns/:orgId/:id — Update campaign
-  app.put<{ Params: { orgId: string; id: string } }>('/:orgId/:id', async (request) => {
+  app.put<{ Params: { orgId: string; id: string } }>('/:orgId/:id', async (request, reply) => {
     const { orgId: userOrgId } = request.user;
     const { orgId, id } = request.params;
-    if (userOrgId !== orgId) return { error: 'Forbidden' };
+    if (userOrgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
     const body = updateCampaignSchema.parse(request.body);
     const manager = getManager();

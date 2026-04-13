@@ -523,10 +523,18 @@ export class QualityAnalyzerService {
   /**
    * Get quality detail for a single call.
    */
-  async getCallQualityDetail(callId: string) {
+  async getCallQualityDetail(callId: string, orgId: string) {
+    // Get org-scoped conversation IDs to enforce tenant isolation
+    const orgConversations = await this.prisma.conversation.findMany({
+      where: { orgId },
+      select: { conversationId: true },
+    });
+    const orgConvoIds = orgConversations.map((c) => c.conversationId);
+
     return this.prisma.callQualityScore.findFirst({
       where: {
         OR: [{ callId }, { conversationId: callId }],
+        conversationId: { in: orgConvoIds },
       },
     });
   }
@@ -545,6 +553,10 @@ export class QualityAnalyzerService {
     const lte = to ? new Date(to) : now;
 
     const interval = period === 'daily' ? 'day' : period === 'weekly' ? 'week' : 'month';
+
+    // Security: whitelist-assert interval to prevent SQL injection via $queryRawUnsafe
+    const VALID_INTERVALS = new Set(['day', 'week', 'month']);
+    if (!VALID_INTERVALS.has(interval)) throw new Error(`Invalid SQL interval: ${interval}`);
 
     // Use raw SQL for efficient bucketing
     const rows: any[] = await this.prisma.$queryRawUnsafe(

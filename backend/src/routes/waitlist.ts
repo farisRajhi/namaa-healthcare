@@ -37,10 +37,10 @@ export default async function waitlistRoutes(app: FastifyInstance) {
    * POST /api/waitlist/:orgId
    * Add a patient to the appointment waitlist (org-scoped alias)
    */
-  app.post<{ Params: { orgId: string } }>('/:orgId', async (request) => {
+  app.post<{ Params: { orgId: string } }>('/:orgId', async (request, reply) => {
     const { orgId: userOrgId } = request.user;
     const { orgId } = request.params;
-    if (userOrgId !== orgId) return { error: 'Forbidden' };
+    if (userOrgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
     const body = addToWaitlistSchema.parse(request.body);
 
@@ -75,10 +75,10 @@ export default async function waitlistRoutes(app: FastifyInstance) {
   /**
    * POST /api/waitlist/:orgId/:id/notify
    */
-  app.post<{ Params: { orgId: string; id: string } }>('/:orgId/:id/notify', async (request) => {
+  app.post<{ Params: { orgId: string; id: string } }>('/:orgId/:id/notify', async (request, reply) => {
     const { orgId: userOrgId } = request.user;
     const { orgId, id } = request.params;
-    if (userOrgId !== orgId) return { error: 'Forbidden' };
+    if (userOrgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
     const body = z.object({ message: z.string().optional() }).parse(request.body);
 
@@ -117,10 +117,10 @@ export default async function waitlistRoutes(app: FastifyInstance) {
   /**
    * GET /api/waitlist/:orgId/stats
    */
-  app.get<{ Params: { orgId: string } }>('/:orgId/stats', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/:orgId/stats', async (request, reply) => {
     const { orgId: userOrgId } = request.user;
     const { orgId } = request.params;
-    if (userOrgId !== orgId) return { error: 'Forbidden' };
+    if (userOrgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
     const [waiting, notified, booked, expired] = await Promise.all([
       app.prisma.waitlist.count({ where: { orgId, status: 'waiting' } }),
@@ -190,13 +190,13 @@ export default async function waitlistRoutes(app: FastifyInstance) {
    * GET /api/waitlist/:orgId
    * List waitlist entries for the org, ordered by priority (desc) then creation time
    */
-  app.get<{ Params: { orgId: string } }>('/:orgId', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/:orgId', async (request, reply) => {
     const { orgId: userOrgId } = request.user;
     const { orgId: paramOrgId } = request.params;
 
     // Ensure user can only access their own org
     if (userOrgId !== paramOrgId) {
-      return { error: 'Forbidden' };
+      return reply.code(403).send({ error: 'Forbidden' });
     }
 
     const query = querySchema.parse(request.query);
@@ -354,12 +354,12 @@ export default async function waitlistRoutes(app: FastifyInstance) {
    * GET /api/waitlist/stats/:orgId
    * Quick stats for the waitlist dashboard
    */
-  app.get<{ Params: { orgId: string } }>('/stats/:orgId', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/stats/:orgId', async (request, reply) => {
     const { orgId: userOrgId } = request.user;
     const { orgId: paramOrgId } = request.params;
 
     if (userOrgId !== paramOrgId) {
-      return { error: 'Forbidden' };
+      return reply.code(403).send({ error: 'Forbidden' });
     }
 
     const [waiting, notified, booked, expired] = await Promise.all([

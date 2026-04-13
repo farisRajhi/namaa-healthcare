@@ -519,6 +519,7 @@ async function handleFunctionCall(
             where: {
               appointmentId,
               patientId: cancelContact.patientId,
+              orgId,
             },
           })
         : null;

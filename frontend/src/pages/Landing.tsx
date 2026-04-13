@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
@@ -14,7 +15,6 @@ import {
   ArrowRight,
   Bot,
   Building2,
-  PhoneCall,
   Sparkles,
   Heart,
   Globe,
@@ -26,9 +26,11 @@ import {
 // ../components/voice/VoiceDemoRealtime
 // ../components/ui/ComingSoonOverlay
 import DemoChatEmbed from '../components/chat/DemoChatEmbed'
+import { gsap, ScrollTrigger, useGSAP } from '../lib/gsap'
 
 export default function Landing() {
   const { t, i18n } = useTranslation()
+  const containerRef = useRef<HTMLDivElement>(null)
 
   const toggleLanguage = () => {
     const newLang = i18n.language === 'ar' ? 'en' : 'ar'
@@ -134,8 +136,232 @@ export default function Landing() {
     t('landing.benefits.security.audit'),
   ]
 
+  // --- GSAP Animations ---
+  const { contextSafe } = useGSAP(() => {
+    const mm = gsap.matchMedia()
+
+    mm.add(
+      {
+        isDesktop: '(min-width: 768px)',
+        isMobile: '(max-width: 767px)',
+        prefersMotion: '(prefers-reduced-motion: no-preference)',
+        reducedMotion: '(prefers-reduced-motion: reduce)',
+      },
+      (context) => {
+        const { prefersMotion, isDesktop } = context.conditions!
+
+        if (!prefersMotion) {
+          // Show everything immediately for reduced-motion users
+          gsap.set('[data-hero], [data-feature], [data-step], [data-demo], [data-benefits], [data-cta], [data-footer]', {
+            autoAlpha: 1,
+            y: 0,
+          })
+          return
+        }
+
+        // ── Hero entrance timeline (plays immediately) ──
+        const heroTl = gsap.timeline({
+          defaults: { duration: 0.6, ease: 'power2.out' },
+        })
+
+        heroTl
+          .from('[data-hero="badge"]', {
+            autoAlpha: 0,
+            y: 20,
+            scale: 0.95,
+            duration: 0.5,
+          })
+          .from('[data-hero="title"]', {
+            autoAlpha: 0,
+            y: 30,
+          }, '<0.15')
+          .from('[data-hero="subtitle"]', {
+            autoAlpha: 0,
+            y: 20,
+          }, '<0.2')
+          .from('[data-hero="channel"]', {
+            autoAlpha: 0,
+            y: 15,
+            stagger: 0.08,
+          }, '<0.15')
+          .from('[data-hero="cta"] > *', {
+            autoAlpha: 0,
+            y: 15,
+            stagger: 0.1,
+          }, '<0.15')
+
+        // Stats cards — scroll-triggered (below fold on mobile)
+        gsap.from('[data-hero="stat"]', {
+          scrollTrigger: {
+            trigger: '[data-hero="stats"]',
+            start: 'top 85%',
+            toggleActions: 'play none none none',
+          },
+          autoAlpha: 0,
+          y: 30,
+          stagger: 0.1,
+          duration: 0.5,
+        })
+
+        // ── Features — category headers + batch cards ──
+        gsap.utils.toArray<HTMLElement>('[data-feature="category-header"]').forEach((header) => {
+          gsap.from(header, {
+            scrollTrigger: {
+              trigger: header,
+              start: 'top 85%',
+              toggleActions: 'play none none none',
+            },
+            autoAlpha: 0,
+            y: 20,
+            duration: 0.5,
+          })
+        })
+
+        ScrollTrigger.batch('[data-feature="card"]', {
+          onEnter: (batch) => {
+            gsap.from(batch, {
+              autoAlpha: 0,
+              y: 40,
+              stagger: 0.08,
+              duration: 0.5,
+              ease: 'power2.out',
+              overwrite: true,
+            })
+          },
+          start: 'top 85%',
+          once: true,
+        })
+
+        // ── How It Works — sequential step reveal ──
+        const stepsTl = gsap.timeline({
+          scrollTrigger: {
+            trigger: '[data-section="how-it-works"]',
+            start: 'top 70%',
+            toggleActions: 'play none none none',
+          },
+          defaults: { duration: 0.5, ease: 'power2.out' },
+        })
+
+        if (isDesktop) {
+          stepsTl.from('[data-step="line"]', {
+            scaleX: 0,
+            transformOrigin: document.dir === 'rtl' ? 'right center' : 'left center',
+            stagger: 0.15,
+            duration: 0.4,
+          })
+        }
+
+        stepsTl.from('[data-step="item"]', {
+          autoAlpha: 0,
+          y: 30,
+          stagger: 0.15,
+        }, isDesktop ? '<0.1' : 0)
+
+        // ── Demo Chat — gentle reveal ──
+        const demoTl = gsap.timeline({
+          scrollTrigger: {
+            trigger: '#demo',
+            start: 'top 75%',
+            toggleActions: 'play none none none',
+          },
+          defaults: { duration: 0.5, ease: 'power2.out' },
+        })
+
+        demoTl
+          .from('[data-demo="badge"]', { autoAlpha: 0, y: 15, scale: 0.95 })
+          .from('[data-demo="header"]', { autoAlpha: 0, y: 20 }, '<0.1')
+          .from('[data-demo="chat"]', {
+            autoAlpha: 0,
+            y: 30,
+            scale: 0.98,
+            duration: 0.7,
+            ease: 'power3.out',
+          }, '<0.2')
+          .from('[data-demo="feature"]', {
+            autoAlpha: 0,
+            y: 15,
+            stagger: 0.08,
+          }, '<0.3')
+
+        // ── Benefits — two-column stagger ──
+        const benefitsTl = gsap.timeline({
+          scrollTrigger: {
+            trigger: '[data-benefits="content"]',
+            start: 'top 75%',
+            toggleActions: 'play none none none',
+          },
+          defaults: { duration: 0.5, ease: 'power2.out' },
+        })
+
+        benefitsTl
+          .from('[data-benefits="content"]', { autoAlpha: 0, y: 25 })
+          .from('[data-benefits="item"]', {
+            autoAlpha: 0,
+            y: 15,
+            stagger: 0.06,
+          }, '<0.15')
+          .from('[data-benefits="security"]', {
+            autoAlpha: 0,
+            y: 30,
+            scale: 0.98,
+            duration: 0.6,
+          }, '<0.1')
+
+        // ── CTA — punchy entrance ──
+        const ctaTl = gsap.timeline({
+          scrollTrigger: {
+            trigger: '[data-cta="icon"]',
+            start: 'top 80%',
+            toggleActions: 'play none none none',
+          },
+          defaults: { duration: 0.5, ease: 'power2.out' },
+        })
+
+        ctaTl
+          .from('[data-cta="icon"]', {
+            autoAlpha: 0,
+            scale: 0.5,
+            duration: 0.4,
+            ease: 'back.out(1.7)',
+          })
+          .from('[data-cta="heading"]', { autoAlpha: 0, y: 20 }, '<0.1')
+          .from('[data-cta="subtitle"]', { autoAlpha: 0, y: 15 }, '<0.1')
+          .from('[data-cta="button"]', {
+            autoAlpha: 0,
+            y: 15,
+            scale: 0.95,
+          }, '<0.15')
+
+        // ── Footer — minimal fade ──
+        gsap.from('[data-footer="content"]', {
+          scrollTrigger: {
+            trigger: 'footer',
+            start: 'top 90%',
+            toggleActions: 'play none none none',
+          },
+          autoAlpha: 0,
+          y: 20,
+          duration: 0.6,
+        })
+      }
+    )
+  }, { scope: containerRef })
+
+  // Smooth scroll for anchor links
+  const handleAnchorClick = contextSafe((e: React.MouseEvent<HTMLAnchorElement>) => {
+    const href = e.currentTarget.getAttribute('href')
+    if (href?.startsWith('#')) {
+      e.preventDefault()
+      gsap.to(window, {
+        duration: 0.8,
+        scrollTo: { y: href, offsetY: 80 },
+        ease: 'power2.inOut',
+      })
+    }
+  })
+
   return (
-    <div className="min-h-screen bg-white overflow-hidden">
+    <div ref={containerRef} className="min-h-screen bg-white overflow-hidden">
       {/* Navigation */}
       <nav className="fixed top-0 start-0 end-0 glass z-50 border-b border-healthcare-border/20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -150,13 +376,6 @@ export default function Landing() {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <a
-                href="#demo"
-                className="hidden sm:flex items-center gap-1.5 text-primary-600 hover:text-primary-700 font-medium text-sm transition-colors"
-              >
-                <PhoneCall className="w-4 h-4" />
-                {t('landing.demo.tryNow')}
-              </a>
               <button
                 onClick={toggleLanguage}
                 className="flex items-center gap-1.5 text-healthcare-muted hover:text-healthcare-text font-medium text-sm transition-colors"
@@ -186,26 +405,26 @@ export default function Landing() {
       <section className="pt-28 pb-20 px-4 sm:px-6 lg:px-8 bg-hero-gradient bg-mesh relative">
         <div className="max-w-7xl mx-auto">
           <div className="text-center max-w-4xl mx-auto">
-            <div className="inline-flex items-center gap-2 bg-white/80 backdrop-blur text-primary-700 px-5 py-2.5 rounded-full text-sm font-semibold mb-8 shadow-card border border-primary-200/50">
+            <div data-hero="badge" className="inline-flex items-center gap-2 bg-white/80 backdrop-blur text-primary-700 px-5 py-2.5 rounded-full text-sm font-semibold mb-8 shadow-card border border-primary-200/50">
               <Sparkles className="w-4 h-4" />
               {t('landing.badge')}
             </div>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-heading font-bold text-healthcare-text leading-tight mb-6">
+            <h1 data-hero="title" className="text-4xl sm:text-5xl lg:text-6xl font-heading font-bold text-healthcare-text leading-tight mb-6">
               {t('landing.hero.title')}{' '}
               <span className="text-gradient">{t('landing.hero.highlight')}</span>
             </h1>
-            <p className="text-lg sm:text-xl text-healthcare-muted mb-8 max-w-2xl mx-auto leading-relaxed">
+            <p data-hero="subtitle" className="text-lg sm:text-xl text-healthcare-muted mb-8 max-w-2xl mx-auto leading-relaxed">
               {t('landing.hero.subtitle')}
             </p>
-            <div className="flex flex-wrap justify-center gap-3 mb-10">
+            <div data-hero="channels" className="flex flex-wrap justify-center gap-3 mb-10">
               {channels.map((channel) => (
-                <div key={channel.label} className="inline-flex items-center gap-2 bg-white/80 backdrop-blur text-primary-700 px-4 py-2 rounded-full text-sm font-medium border border-primary-200/50 shadow-sm">
+                <div key={channel.label} data-hero="channel" className="inline-flex items-center gap-2 bg-white/80 backdrop-blur text-primary-700 px-4 py-2 rounded-full text-sm font-medium border border-primary-200/50 shadow-sm">
                   <channel.icon className="w-4 h-4" />
                   {channel.label}
                 </div>
               ))}
             </div>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div data-hero="cta" className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
                 to="/register"
                 className="btn-primary btn-lg shadow-lg hover:shadow-xl transition-shadow"
@@ -215,6 +434,7 @@ export default function Landing() {
               </Link>
               <a
                 href="#features"
+                onClick={handleAnchorClick}
                 className="btn-outline btn-lg"
               >
                 {t('landing.cta.howItWorks')}
@@ -223,9 +443,9 @@ export default function Landing() {
           </div>
 
           {/* Stats */}
-          <div className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div data-hero="stats" className="mt-20 grid grid-cols-2 md:grid-cols-4 gap-6">
             {stats.map((stat) => (
-              <div key={stat.label} className="card-neu text-center p-6">
+              <div key={stat.label} data-hero="stat" className="card-neu text-center p-6">
                 <span className="text-2xl mb-2 block">{stat.icon}</span>
                 <div className="text-3xl sm:text-4xl font-heading font-bold text-primary-500 mb-1">{stat.value}</div>
                 <div className="text-sm text-healthcare-muted">{stat.label}</div>
@@ -250,13 +470,14 @@ export default function Landing() {
           <div className="space-y-12">
             {featureCategories.map((category) => (
               <div key={category.title}>
-                <div className={`border-s-4 ${category.borderColor} ps-4 mb-6`}>
+                <div data-feature="category-header" className={`border-s-4 ${category.borderColor} ps-4 mb-6`}>
                   <h3 className="text-lg font-heading font-semibold text-healthcare-text">{category.title}</h3>
                 </div>
                 <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {category.features.map((feature) => (
                     <div
                       key={feature.title}
+                      data-feature="card"
                       className="card-interactive p-8 group"
                     >
                       <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-6 ${category.iconColor} transition-transform group-hover:scale-110`}>
@@ -274,7 +495,7 @@ export default function Landing() {
       </section>
 
       {/* How It Works */}
-      <section className="py-20 bg-healthcare-bg px-4 sm:px-6 lg:px-8">
+      <section data-section="how-it-works" className="py-20 bg-healthcare-bg px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-heading font-bold text-healthcare-text mb-4">
@@ -287,9 +508,9 @@ export default function Landing() {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {steps.map((item, index) => (
-              <div key={item.step} className="text-center relative">
+              <div key={item.step} data-step="item" className="text-center relative">
                 {index < steps.length - 1 && (
-                  <div className="hidden lg:block absolute top-8 start-[55%] w-[90%] h-0.5 bg-primary-200 -z-10" />
+                  <div data-step="line" className="hidden lg:block absolute top-8 start-[55%] w-[90%] h-0.5 bg-primary-200 -z-10" />
                 )}
                 <div className="inline-flex items-center justify-center w-16 h-16 bg-teal-gradient rounded-2xl mb-6 shadow-btn relative">
                   <item.icon className="w-7 h-7 text-white" />
@@ -309,25 +530,27 @@ export default function Landing() {
       <section id="demo" className="py-20 bg-white px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-16">
-            <div className="inline-flex items-center gap-2 bg-primary-50 text-primary-700 px-5 py-2.5 rounded-full text-sm font-semibold mb-6 border border-primary-200/50">
+            <div data-demo="badge" className="inline-flex items-center gap-2 bg-primary-50 text-primary-700 px-5 py-2.5 rounded-full text-sm font-semibold mb-6 border border-primary-200/50">
               <Bot className="w-4 h-4" />
               {t('landing.demo.badge')}
             </div>
-            <h2 className="text-3xl sm:text-4xl font-heading font-bold text-healthcare-text mb-4">
-              {t('landing.demo.title')}
-            </h2>
-            <p className="text-lg text-healthcare-muted max-w-2xl mx-auto">
-              {t('landing.demo.subtitle')}
-            </p>
+            <div data-demo="header">
+              <h2 className="text-3xl sm:text-4xl font-heading font-bold text-healthcare-text mb-4">
+                {t('landing.demo.title')}
+              </h2>
+              <p className="text-lg text-healthcare-muted max-w-2xl mx-auto">
+                {t('landing.demo.subtitle')}
+              </p>
+            </div>
           </div>
 
-          <div className="max-w-2xl mx-auto">
+          <div data-demo="chat" className="max-w-2xl mx-auto">
             <DemoChatEmbed />
           </div>
 
           <div className="mt-12 flex flex-wrap justify-center gap-4">
             {[t('landing.demo.features.dialects'), t('landing.demo.features.booking'), t('landing.demo.features.availability')].map((text) => (
-              <div key={text} className="card flex items-center gap-2 px-5 py-2.5">
+              <div key={text} data-demo="feature" className="card flex items-center gap-2 px-5 py-2.5">
                 <CheckCircle className="w-5 h-5 text-success-500" />
                 <span className="text-sm font-medium text-healthcare-text">{text}</span>
               </div>
@@ -344,7 +567,7 @@ export default function Landing() {
         </div>
         <div className="max-w-7xl mx-auto relative z-10">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
-            <div>
+            <div data-benefits="content">
               <h2 className="text-3xl sm:text-4xl font-heading font-bold text-white mb-6">
                 {t('landing.benefits.title')}
               </h2>
@@ -353,7 +576,7 @@ export default function Landing() {
               </p>
               <ul className="space-y-4">
                 {benefits.map((benefit) => (
-                  <li key={benefit} className="flex items-center gap-3 text-white">
+                  <li key={benefit} data-benefits="item" className="flex items-center gap-3 text-white">
                     <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
                       <CheckCircle className="w-4 h-4" />
                     </div>
@@ -362,7 +585,7 @@ export default function Landing() {
                 ))}
               </ul>
             </div>
-            <div className="bg-white rounded-2xl p-8 shadow-xl">
+            <div data-benefits="security" className="bg-white rounded-2xl p-8 shadow-xl">
               <div className="flex items-center gap-4 mb-6">
                 <div className="w-14 h-14 bg-primary-50 rounded-2xl flex items-center justify-center">
                   <Shield className="w-7 h-7 text-primary-600" />
@@ -388,16 +611,17 @@ export default function Landing() {
       {/* CTA Section */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-hero-gradient">
         <div className="max-w-4xl mx-auto text-center">
-          <div className="inline-flex mb-6">
+          <div data-cta="icon" className="inline-flex mb-6">
             <Heart className="w-8 h-8 text-danger-400" />
           </div>
-          <h2 className="text-3xl sm:text-4xl font-heading font-bold text-healthcare-text mb-6">
+          <h2 data-cta="heading" className="text-3xl sm:text-4xl font-heading font-bold text-healthcare-text mb-6">
             {t('landing.finalCta.title')}
           </h2>
-          <p className="text-lg text-healthcare-muted mb-10 max-w-2xl mx-auto">
+          <p data-cta="subtitle" className="text-lg text-healthcare-muted mb-10 max-w-2xl mx-auto">
             {t('landing.finalCta.subtitle')}
           </p>
           <Link
+            data-cta="button"
             to="/register"
             className="btn-primary btn-lg shadow-lg hover:shadow-xl transition-shadow"
           >
@@ -409,7 +633,7 @@ export default function Landing() {
 
       {/* Footer */}
       <footer className="bg-healthcare-text text-white/70 py-12 px-4 sm:px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
+        <div data-footer="content" className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             {/* Brand */}
             <div className="md:col-span-1">
@@ -431,9 +655,8 @@ export default function Landing() {
             <div>
               <h4 className="text-sm font-semibold text-white mb-4">{t('landing.footer.product')}</h4>
               <ul className="space-y-2.5 text-sm">
-                <li><a href="#features" className="hover:text-white transition-colors">{t('common.features')}</a></li>
+                <li><a href="#features" onClick={handleAnchorClick} className="hover:text-white transition-colors">{t('common.features')}</a></li>
                 <li><Link to="/pricing" className="hover:text-white transition-colors">{t('landing.footer.pricing')}</Link></li>
-                <li><a href="#demo" className="hover:text-white transition-colors">{t('landing.demo.tryNow')}</a></li>
               </ul>
             </div>
 

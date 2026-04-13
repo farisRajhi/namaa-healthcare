@@ -51,7 +51,6 @@ const T = {
     quickActions: [
       { label: '📅 حجز موعد', value: 'أريد حجز موعد طبي' },
       { label: '❓ استفسار عام', value: 'لدي استفسار عام' },
-      { label: '💊 إعادة صرف وصفة', value: 'أحتاج إعادة صرف وصفة طبية' },
       { label: '🚨 حالة طارئة', value: 'لدي حالة طارئة طبية' },
     ],
   },
@@ -66,7 +65,6 @@ const T = {
     quickActions: [
       { label: '📅 Book Appointment', value: 'I want to book a medical appointment' },
       { label: '❓ General Inquiry', value: 'I have a general inquiry' },
-      { label: '💊 Prescription Refill', value: 'I need a prescription refill' },
       { label: '🚨 Emergency', value: 'I have a medical emergency' },
     ],
   },
@@ -74,7 +72,7 @@ const T = {
 
 // ─── Theme Map ────────────────────────────────────────────────────────
 const THEMES = {
-  teal:   { bg: 'bg-teal-600',   hover: 'hover:bg-teal-700',   ring: 'ring-teal-300',   text: 'text-teal-600',   light: 'bg-teal-50',   border: 'border-teal-200'  },
+  teal:   { bg: 'bg-primary-600',   hover: 'hover:bg-primary-700',   ring: 'ring-primary-300',   text: 'text-primary-600',   light: 'bg-primary-50',   border: 'border-primary-200'  },
   blue:   { bg: 'bg-blue-600',   hover: 'hover:bg-blue-700',   ring: 'ring-blue-300',   text: 'text-blue-600',   light: 'bg-blue-50',   border: 'border-blue-200'  },
   green:  { bg: 'bg-green-600',  hover: 'hover:bg-green-700',  ring: 'ring-green-300',  text: 'text-green-600',  light: 'bg-green-50',  border: 'border-green-200' },
   purple: { bg: 'bg-purple-600', hover: 'hover:bg-purple-700', ring: 'ring-purple-300', text: 'text-purple-600', light: 'bg-purple-50', border: 'border-purple-200'},

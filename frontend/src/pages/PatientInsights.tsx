@@ -66,7 +66,7 @@ interface BehaviorPatterns {
   }
 }
 
-const CHART_COLORS = ['#0891B2', '#14B8A6', '#F59E0B', '#EF4444', '#8B5CF6', '#06B6D4']
+const CHART_COLORS = ['#4A7C6F', '#C4956A', '#8BB8AA', '#D97706', '#8B5CF6', '#B07D52']
 
 export default function PatientInsights() {
   const { i18n } = useTranslation()
@@ -212,8 +212,8 @@ export default function PatientInsights() {
                 <BarChart data={patterns.engagementDistribution}>
                   <defs>
                     <linearGradient id="engageGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#0891B2" stopOpacity={1} />
-                      <stop offset="100%" stopColor="#0891B2" stopOpacity={0.4} />
+                      <stop offset="0%" stopColor="#4A7C6F" stopOpacity={1} />
+                      <stop offset="100%" stopColor="#4A7C6F" stopOpacity={0.4} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
@@ -238,8 +238,8 @@ export default function PatientInsights() {
                 <AreaChart data={patterns.returnLikelihoodDistribution}>
                   <defs>
                     <linearGradient id="returnGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#14B8A6" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#14B8A6" stopOpacity={0} />
+                      <stop offset="5%" stopColor="#C4956A" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#C4956A" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" />
@@ -248,7 +248,7 @@ export default function PatientInsights() {
                   <Tooltip
                     formatter={(value: number) => [value, isAr ? 'مرضى' : 'Patients']}
                   />
-                  <Area type="monotone" dataKey="count" stroke="#14B8A6" fill="url(#returnGradient)" strokeWidth={2} />
+                  <Area type="monotone" dataKey="count" stroke="#C4956A" fill="url(#returnGradient)" strokeWidth={2} />
                 </AreaChart>
               </ResponsiveContainer>
             </div>

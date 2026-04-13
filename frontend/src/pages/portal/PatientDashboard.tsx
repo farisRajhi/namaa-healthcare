@@ -42,19 +42,19 @@ export default function PatientDashboard() {
     confirmed: 'bg-green-100 text-green-700',
     cancelled: 'bg-red-100 text-red-700',
     completed: 'bg-blue-100 text-blue-700',
-    checked_in: 'bg-teal-100 text-teal-700',
-    in_progress: 'bg-teal-100 text-teal-700',
+    checked_in: 'bg-primary-100 text-primary-700',
+    in_progress: 'bg-primary-100 text-primary-700',
   }
 
   return (
     <div className="space-y-5">
       {/* Welcome */}
-      <div className="bg-gradient-to-br from-teal-500 to-teal-600 rounded-2xl p-5 text-white shadow-sm">
-        <p className="text-teal-100 text-sm">{t('portal.dashboard.welcome')}</p>
+      <div className="bg-gradient-to-br from-primary-500 to-primary-600 rounded-2xl p-5 text-white shadow-sm">
+        <p className="text-primary-100 text-sm">{t('portal.dashboard.welcome')}</p>
         <h2 className="text-xl font-bold mt-1">
           {patient?.firstName} {patient?.lastName}
         </h2>
-        <p className="text-teal-100 text-xs mt-1">
+        <p className="text-primary-100 text-xs mt-1">
           {t('portal.dashboard.welcomeBack', { name: patient?.firstName })}
         </p>
       </div>
@@ -63,16 +63,16 @@ export default function PatientDashboard() {
       <div className="grid grid-cols-3 gap-3">
         <Link
           to="/patient/dashboard/book"
-          className="bg-white rounded-xl p-3 flex flex-col items-center gap-2 border border-slate-100 shadow-sm hover:border-teal-200 hover:shadow-md transition-all"
+          className="bg-white rounded-xl p-3 flex flex-col items-center gap-2 border border-slate-100 shadow-sm hover:border-primary-200 hover:shadow-md transition-all"
         >
-          <div className="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center">
-            <Plus className="w-5 h-5 text-teal-600" />
+          <div className="w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center">
+            <Plus className="w-5 h-5 text-primary-600" />
           </div>
           <span className="text-xs font-medium text-slate-700 text-center">{t('portal.dashboard.bookAppointment')}</span>
         </Link>
         <Link
           to="/patient/dashboard/profile"
-          className="bg-white rounded-xl p-3 flex flex-col items-center gap-2 border border-slate-100 shadow-sm hover:border-teal-200 hover:shadow-md transition-all"
+          className="bg-white rounded-xl p-3 flex flex-col items-center gap-2 border border-slate-100 shadow-sm hover:border-primary-200 hover:shadow-md transition-all"
         >
           <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
             <User className="w-5 h-5 text-blue-600" />
@@ -85,7 +85,7 @@ export default function PatientDashboard() {
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-bold text-slate-800 text-sm">{t('portal.dashboard.upcomingAppointments')}</h3>
-          <Link to="/patient/dashboard/appointments" className="text-xs text-teal-600 font-medium">
+          <Link to="/patient/dashboard/appointments" className="text-xs text-primary-600 font-medium">
             {t('portal.dashboard.viewAll')}
           </Link>
         </div>
@@ -106,7 +106,7 @@ export default function PatientDashboard() {
             <p className="text-sm text-slate-500">{t('portal.dashboard.noUpcoming')}</p>
             <Link
               to="/patient/dashboard/book"
-              className="inline-flex items-center gap-1 mt-3 text-xs text-teal-600 font-medium"
+              className="inline-flex items-center gap-1 mt-3 text-xs text-primary-600 font-medium"
             >
               <Plus className="w-3.5 h-3.5" />
               {t('portal.dashboard.bookNew')}

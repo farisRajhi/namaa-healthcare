@@ -274,6 +274,7 @@
     "marketingHub": "مركز التسويق",
     "knowledgeBase": "قاعدة المعرفة",
     "patientInsights": "تحليلات المرضى",
+    "patientIntelligence": "ذكاء المرضى",
     "patientEngagement": "متابعة المرضى",
     "agentBuilder": "بناء المحادثات",
     "branches": "الفروع",
@@ -336,7 +337,6 @@
       "welcome": "مرحباً 👋",
       "welcomeBack": "مرحباً بعودتك، {{name}}",
       "bookAppointment": "حجز موعد",
-      "myPrescriptions": "وصفاتي",
       "myAccount": "حسابي",
       "upcomingAppointments": "المواعيد القادمة",
       "viewAll": "عرض الكل",
@@ -463,7 +463,10 @@
       "linkedName": "اسم الواتساب",
       "statusActive": "المساعد الذكي نشط ويرد على الرسائل",
       "statusInactive": "اربط واتسابك لبدء استقبال رسائل المرضى",
-      "confirmDisconnect": "هل أنت متأكد من قطع اتصال الواتساب؟ سيتوقف المساعد الذكي عن الرد على الرسائل."
+      "confirmDisconnect": "هل أنت متأكد من قطع اتصال الواتساب؟ سيتوقف المساعد الذكي عن الرد على الرسائل.",
+      "aiAutoReply": "الرد التلقائي بالذكاء الاصطناعي",
+      "aiAutoReplyDesc": "عند التفعيل، يرد المساعد الذكي على رسائل المرضى تلقائياً",
+      "statusActiveNoAi": "الواتساب متصل — الرد التلقائي متوقف"
     },
     "notifications": {
       "title": "الإشعارات",

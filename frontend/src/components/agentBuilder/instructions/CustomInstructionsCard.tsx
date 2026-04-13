@@ -33,7 +33,7 @@ export default function CustomInstructionsCard({ instructions, onChange }: Custo
       <div className="space-y-2">
         {items.map((instruction, index) => (
           <div key={index} className="flex items-start gap-2 group">
-            <div className="w-1.5 h-1.5 rounded-full bg-teal-400 mt-3 flex-shrink-0" />
+            <div className="w-1.5 h-1.5 rounded-full bg-primary-400 mt-3 flex-shrink-0" />
             <textarea
               className="field-textarea flex-1"
               rows={2}
@@ -53,7 +53,7 @@ export default function CustomInstructionsCard({ instructions, onChange }: Custo
 
         <button
           onClick={addInstruction}
-          className="flex items-center gap-1.5 text-xs font-semibold text-teal-600 hover:text-teal-700 transition-colors mt-2 px-1"
+          className="flex items-center gap-1.5 text-xs font-semibold text-primary-600 hover:text-primary-700 transition-colors mt-2 px-1"
         >
           <Plus className="w-3.5 h-3.5" />
           إضافة تعليمات

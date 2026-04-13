@@ -27,13 +27,11 @@ const defaultQuickReplies: Record<string, QuickReply[]> = {
     { label: 'حجز موعد', value: 'أريد حجز موعد' },
     { label: 'إلغاء موعد', value: 'أريد إلغاء موعدي' },
     { label: 'استفسار عام', value: 'لدي استفسار' },
-    { label: 'وصفة طبية', value: 'أحتاج إعادة صرف وصفة' },
   ],
   en: [
     { label: 'Book Appointment', value: 'I want to book an appointment' },
     { label: 'Cancel Appointment', value: 'I want to cancel my appointment' },
     { label: 'General Inquiry', value: 'I have a question' },
-    { label: 'Prescription Refill', value: 'I need a prescription refill' },
   ],
 }
 

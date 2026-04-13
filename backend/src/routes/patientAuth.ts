@@ -12,6 +12,7 @@ interface PatientJwtPayload {
 const loginSchema = z.object({
   phone: z.string().min(10).max(15),
   dateOfBirth: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
+  clinicSlug: z.string().optional(),
 });
 
 /**
@@ -58,11 +59,24 @@ export default async function patientAuthRoutes(app: FastifyInstance) {
       phone = '+' + phone;
     }
 
-    // Look up patient by phone number
+    // Resolve org scope from clinicSlug if provided
+    let orgScope: { orgId: string } | undefined;
+    if (body.clinicSlug) {
+      const facility = await app.prisma.facility.findUnique({
+        where: { clinicSlug: body.clinicSlug },
+        select: { orgId: true },
+      });
+      if (facility) {
+        orgScope = { orgId: facility.orgId };
+      }
+    }
+
+    // Look up patient by phone number, scoped to org if available
     const contact = await app.prisma.patientContact.findFirst({
       where: {
         contactType: 'phone',
         contactValue: phone,
+        ...(orgScope ? { patient: orgScope } : {}),
       },
       include: {
         patient: true,
@@ -75,6 +89,7 @@ export default async function patientAuthRoutes(app: FastifyInstance) {
         where: {
           contactType: 'phone',
           contactValue: { in: [phone, phone.replace('+', ''), '0' + phone.slice(4)] },
+          ...(orgScope ? { patient: orgScope } : {}),
         },
         include: {
           patient: true,
@@ -107,7 +122,7 @@ export default async function patientAuthRoutes(app: FastifyInstance) {
 
       const token = (app.jwt.sign as any)(
         { patientId: patient.patientId, orgId: patient.orgId, type: 'patient' },
-        { expiresIn: '7d' }
+        { expiresIn: '8h' }
       );
 
       return {
@@ -141,7 +156,7 @@ export default async function patientAuthRoutes(app: FastifyInstance) {
     // Generate JWT
     const token = (app.jwt.sign as any)(
       { patientId: patient.patientId, orgId: patient.orgId, type: 'patient' },
-      { expiresIn: '7d' }
+      { expiresIn: '8h' }
     );
 
     return {

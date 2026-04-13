@@ -65,12 +65,10 @@ describe('Patient Context Builder Service', () => {
       const patient = factories.patient();
       const history = {
         appointments: [],
-        prescriptions: [],
         notes: [],
       };
 
       expect(history).toHaveProperty('appointments');
-      expect(history).toHaveProperty('prescriptions');
       expect(history).toHaveProperty('notes');
     });
 

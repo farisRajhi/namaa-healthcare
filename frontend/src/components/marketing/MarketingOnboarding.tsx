@@ -30,7 +30,7 @@ const steps = [
     descAr: 'أنشئ قوالب الرسائل النصية والواتساب للرسائل التلقائية',
     href: '/dashboard/sms-templates',
     icon: MessageSquare,
-    color: 'bg-teal-100 text-teal-600',
+    color: 'bg-primary-100 text-primary-600',
   },
   {
     key: 'reminders',

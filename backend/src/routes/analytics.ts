@@ -121,29 +121,29 @@ export default async function analyticsRoutes(app: FastifyInstance) {
 
   // ── Org-scoped routes: GET /api/analytics/:orgId/overview etc. ──────────
 
-  app.get<{ Params: { orgId: string } }>('/:orgId/overview', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/:orgId/overview', async (request, reply) => {
     const { orgId } = request.user;
-    if (request.params.orgId !== orgId) return { error: 'Forbidden' };
+    if (request.params.orgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
     return getOverviewData(app, orgId);
   });
 
-  app.get<{ Params: { orgId: string } }>('/:orgId/trends', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/:orgId/trends', async (request, reply) => {
     const { orgId } = request.user;
-    if (request.params.orgId !== orgId) return { error: 'Forbidden' };
+    if (request.params.orgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
     const query = z.object({ days: z.coerce.number().default(30) }).parse(request.query);
     return getTrendsData(app, orgId, query.days);
   });
 
-  app.get<{ Params: { orgId: string } }>('/:orgId/services', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/:orgId/services', async (request, reply) => {
     const { orgId } = request.user;
-    if (request.params.orgId !== orgId) return { error: 'Forbidden' };
+    if (request.params.orgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
     const query = z.object({ limit: z.coerce.number().default(5) }).parse(request.query);
     return getServicesData(app, orgId, query.limit);
   });
 
-  app.get<{ Params: { orgId: string } }>('/:orgId/channels', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/:orgId/channels', async (request, reply) => {
     const { orgId } = request.user;
-    if (request.params.orgId !== orgId) return { error: 'Forbidden' };
+    if (request.params.orgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
     return getChannelsData(app, orgId);
   });
 

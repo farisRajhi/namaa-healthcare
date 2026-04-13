@@ -127,6 +127,7 @@ export class WhatsAppHandler {
     messageSid: string,
     orgId: string,
     skipSend = false,
+    aiAutoReply = true,
   ): Promise<string> {
     const phone = normalizePhone(from);
 
@@ -176,6 +177,16 @@ export class WhatsAppHandler {
         payload: { source: 'whatsapp', twilioSid: messageSid },
       },
     });
+
+    // AI auto-reply check — message is stored, but skip AI processing if disabled
+    if (!aiAutoReply) {
+      this.log?.info({ phone: redactPII(phone).redactedText, orgId }, 'AI auto-reply disabled — message stored, no AI response');
+      await this.prisma.conversation.update({
+        where: { conversationId },
+        data: { lastActivityAt: new Date() },
+      });
+      return '';
+    }
 
     // 4b. Check pre-built WhatsApp templates (fast-path – no LLM needed)
     const templateResponse = await this.matchTemplate(body, orgId);
@@ -228,6 +239,16 @@ export class WhatsAppHandler {
       flowCtx.state = 'handoff';
       await this.flowManager.saveContext(conversationId, flowCtx);
       return budgetMsg;
+    }
+
+    // 6b. Server-side auto-booking: when anonymous patient gives their name in the booking flow,
+    // bypass the LLM and book directly — Gemini doesn't reliably call book_appointment_guest.
+    if (flowCtx.state === 'booking' && !flowCtx.patientIdentified &&
+        flowCtx.booking && ['time', 'guest_info'].includes(flowCtx.booking.step)) {
+      const autoResult = await this.tryAutoBookGuest(orgId, conversationId, phone, body, flowCtx, skipSend);
+      if (autoResult) {
+        return autoResult;
+      }
     }
 
     // 7. Build AI context (inject resume summary if session was restored)
@@ -341,7 +362,7 @@ export class WhatsAppHandler {
     }
 
     // Sub-flow isolation: start a new sub-flow when entering a task state
-    const TASK_STATES = ['booking', 'cancelling', 'rescheduling', 'prescription'] as const;
+    const TASK_STATES = ['booking', 'cancelling', 'rescheduling'] as const;
     if (previousState !== flowCtx.state) {
       if ((TASK_STATES as readonly string[]).includes(flowCtx.state) && !flowCtx.subFlowId) {
         flowCtx = this.flowManager.startSubFlow(flowCtx, flowCtx.state as typeof TASK_STATES[number]);
@@ -351,8 +372,7 @@ export class WhatsAppHandler {
         const outcome = previousState === 'booking'
           ? `حجز ${flowCtx.booking?.serviceName ?? 'موعد'} ${flowCtx.booking?.providerName ? 'مع ' + flowCtx.booking.providerName : ''} ${flowCtx.booking?.date ?? ''}`.trim()
           : previousState === 'cancelling' ? 'إلغاء موعد'
-          : previousState === 'rescheduling' ? 'إعادة جدولة موعد'
-          : 'استفسار عن أدوية';
+          : 'إعادة جدولة موعد';
         flowCtx = this.flowManager.sealSubFlow(flowCtx, outcome);
       }
     }
@@ -547,6 +567,207 @@ export class WhatsAppHandler {
         },
       },
     });
+  }
+
+  /**
+   * Server-side auto-booking for anonymous (guest) patients.
+   * When the user provides their name during the booking flow, bypass the LLM
+   * and call book_appointment_guest directly. Returns null to fall through to LLM.
+   */
+  private async tryAutoBookGuest(
+    orgId: string,
+    conversationId: string,
+    phone: string,
+    userMessage: string,
+    flowCtx: FlowContext,
+    skipSend: boolean,
+  ): Promise<string | null> {
+    const booking = flowCtx.booking;
+    if (!booking) return null;
+
+    // Guard: only auto-book if the AI's last message actually asked for the patient's name
+    const lastAiMsg = await this.prisma.conversationMessage.findFirst({
+      where: { conversationId, direction: 'out' },
+      orderBy: { createdAt: 'desc' },
+      select: { bodyText: true },
+    });
+    const lastText = lastAiMsg?.bodyText || '';
+    const askedForName = /اسم|الاسم|عميل جديد|نحتاج.*اسم|name/i.test(lastText);
+    if (!askedForName) return null;
+
+    // Guard: skip greetings and common phrases that aren't names
+    const trimmed = userMessage.trim();
+    const SKIP_PATTERNS = /^(السلام|سلام|مرحب|هلا|حياك|أهلا|شكر|الله|لا|نعم|ايه|أي |تمام|أوكي|ok|hi|hello|hey|thanks|bye|yes|no)/i;
+    if (SKIP_PATTERNS.test(trimmed)) return null;
+
+    // Heuristic: message looks like a name (2+ parts, short, no question marks/digits)
+    if (trimmed.length < 3 || trimmed.length > 60 || /[?؟\d@#!]/.test(trimmed)) return null;
+    const nameParts = trimmed.split(/\s+/);
+    if (nameParts.length < 2) return null;
+
+    const firstName = nameParts[0];
+    const lastName = nameParts.slice(1).join(' ');
+
+    // Gather booking data: try booking context first, then fall back to DB lookups
+    let { providerId, serviceId, date, time } = booking;
+
+    // Extract date/time from recent conversation if not in booking context
+    if (!date || !time) {
+      const recentMessages = await this.prisma.conversationMessage.findMany({
+        where: { conversationId },
+        orderBy: { createdAt: 'desc' },
+        take: 10,
+        select: { bodyText: true, direction: true },
+      });
+
+      for (const msg of recentMessages) {
+        const text = msg.bodyText || '';
+        // Extract date like 2026-04-13 from AI responses
+        if (!date) {
+          const dateMatch = text.match(/(\d{4}-\d{2}-\d{2})/);
+          if (dateMatch) date = dateMatch[1];
+        }
+        // Extract time like 07:00 from user messages or AI responses
+        if (!time) {
+          // Match Arabic time references
+          const timePatterns = [
+            /(\d{1,2}):(\d{2})\s*(?:صباحاً|مساءً|ص|م)?/,
+            /الساعة\s*(\d{1,2})(?::(\d{2}))?/,
+          ];
+          for (const pat of timePatterns) {
+            const timeMatch = text.match(pat);
+            if (timeMatch) {
+              const h = parseInt(timeMatch[1], 10);
+              const m = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+              time = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // Look up provider by name if ID is missing
+    if (!providerId && booking.providerName) {
+      const provider = await this.prisma.provider.findFirst({
+        where: {
+          orgId,
+          active: true,
+          displayName: { contains: booking.providerName.replace(/^د\.\s*/, ''), mode: 'insensitive' },
+        },
+        select: { providerId: true },
+      });
+      if (provider) providerId = provider.providerId;
+    }
+
+    // Look up service by name if ID is missing
+    if (!serviceId && booking.serviceName) {
+      const service = await this.prisma.service.findFirst({
+        where: {
+          orgId,
+          active: true,
+          name: { contains: booking.serviceName, mode: 'insensitive' },
+        },
+        select: { serviceId: true },
+      });
+      if (service) serviceId = service.serviceId;
+    }
+
+    // If still missing provider/service, try to find from conversation context
+    if (!providerId || !serviceId) {
+      const recentMessages = await this.prisma.conversationMessage.findMany({
+        where: { conversationId, direction: 'out' },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        select: { bodyText: true },
+      });
+
+      const allText = recentMessages.map(m => m.bodyText || '').join('\n');
+
+      if (!providerId) {
+        // Look for provider name in AI responses like "مع د. خالد"
+        const provNameMatch = allText.match(/(?:مع|د\.|دكتور)\s*([^\n:•٠-٩0-9]{2,20})/);
+        if (provNameMatch) {
+          const searchName = provNameMatch[1].trim().replace(/^د\.\s*/, '');
+          const provider = await this.prisma.provider.findFirst({
+            where: { orgId, active: true, displayName: { contains: searchName, mode: 'insensitive' } },
+            select: { providerId: true },
+          });
+          if (provider) providerId = provider.providerId;
+        }
+      }
+
+      if (!serviceId) {
+        // Look for service name in AI responses like "تنظيف أسنان"
+        const services = await this.prisma.service.findMany({
+          where: { orgId, active: true },
+          select: { serviceId: true, name: true },
+        });
+        for (const svc of services) {
+          if (allText.includes(svc.name)) {
+            serviceId = svc.serviceId;
+            break;
+          }
+        }
+      }
+    }
+
+    // If we still don't have all required data, fall through to LLM
+    if (!providerId || !serviceId || !date || !time) {
+      this.log?.warn(
+        { conversationId, providerId: !!providerId, serviceId: !!serviceId, date: !!date, time: !!time },
+        'Auto-book: missing booking data, falling through to LLM',
+      );
+      return null;
+    }
+
+    // Execute the booking directly via tool registry
+    this.log?.info({ conversationId, firstName, lastName, providerId, serviceId, date, time }, 'Auto-booking guest');
+    const toolRegistry = new ToolRegistry(this.prisma, orgId, null, conversationId);
+    toolRegistry.setPermissionLevel('anonymous');
+    toolRegistry.setChannel('whatsapp');
+
+    const result = await toolRegistry.executeTool('book_appointment_guest', {
+      firstName,
+      lastName,
+      phone,
+      providerId,
+      serviceId,
+      date,
+      time,
+    });
+
+    // Check if booking succeeded (contains ✅)
+    const isSuccess = result.includes('✅');
+    const response = isSuccess
+      ? result
+      : `تمام ${firstName}! ثواني وأحجز لك الموعد...\n\n${result}`;
+
+    // Save the user message
+    await this.prisma.conversationMessage.create({
+      data: { conversationId, direction: 'in', bodyText: userMessage, payload: { source: 'whatsapp' } },
+    });
+
+    // Send response
+    if (!skipSend) await this.sendMessage(phone, response);
+
+    // Save AI response
+    await this.saveOutgoingMessage(conversationId, response, {
+      source: 'whatsapp_auto_book',
+      toolCalls: [{ tool: 'book_appointment_guest', durationMs: 0 }],
+    });
+
+    // Update flow context — booking complete
+    flowCtx.state = 'active';
+    flowCtx.booking = undefined;
+    flowCtx.lastCompletedAction = 'booking';
+    await this.flowManager.saveContext(conversationId, flowCtx);
+    await this.prisma.conversation.update({
+      where: { conversationId },
+      data: { lastActivityAt: new Date() },
+    });
+
+    return response;
   }
 
   /**

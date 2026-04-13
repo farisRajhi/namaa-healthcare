@@ -17,13 +17,13 @@ const DEFAULT_WIDGET_CONFIGS: Record<string, {
     orgName: 'عيادة توافد التجريبية',
     theme: 'teal',
     greeting: 'مرحباً! كيف أقدر أساعدك اليوم؟',
-    services: ['حجز موعد', 'استفسار عام', 'إعادة صرف وصفة'],
+    services: ['حجز موعد', 'استفسار عام'],
   },
   default: {
     orgName: 'توافد',
     theme: 'teal',
     greeting: 'مرحباً! كيف أقدر أساعدك؟',
-    services: ['حجز موعد', 'استفسار عام', 'إعادة صرف وصفة'],
+    services: ['حجز موعد', 'استفسار عام'],
   },
 };
 

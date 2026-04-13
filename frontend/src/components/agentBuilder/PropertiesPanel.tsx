@@ -66,7 +66,7 @@ const typeColors: Record<string, string> = {
   message: 'bg-blue-500',
   question: 'bg-purple-500',
   condition: 'bg-orange-500',
-  aiResponse: 'bg-teal-500',
+  aiResponse: 'bg-primary-500',
   apiCall: 'bg-gray-500',
   setVariable: 'bg-stone-500',
   transfer: 'bg-red-500',
@@ -444,7 +444,6 @@ function ApiCallFields({ data, onChange }: { data: ApiCallNodeData; onChange: (p
           <option value="book_appointment">حجز موعد</option>
           <option value="check_availability">التحقق من التوفر</option>
           <option value="search_faq">بحث FAQ</option>
-          <option value="refill_prescription">إعادة صرف وصفة</option>
           <option value="get_patient_info">بيانات المريض</option>
           <option value="cancel_appointment">إلغاء موعد</option>
         </select>
@@ -493,7 +492,7 @@ function ApiCallFields({ data, onChange }: { data: ApiCallNodeData; onChange: (p
                   type="checkbox"
                   checked={param.isVariable}
                   onChange={(e) => updateParam(param.id, 'isVariable', e.target.checked)}
-                  className="rounded border-gray-300 text-teal-500 focus:ring-teal-500 w-3 h-3"
+                  className="rounded border-gray-300 text-primary-500 focus:ring-primary-500 w-3 h-3"
                 />
                 متغير
               </label>

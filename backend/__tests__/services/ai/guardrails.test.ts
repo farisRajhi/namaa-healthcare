@@ -200,7 +200,6 @@ describe('AI Guardrails Service', () => {
     it('should reject out-of-scope requests', () => {
       const outOfScopeRequests = [
         'Can you order my lab tests?',
-        'Refill my prescription',
         'Send my records to another hospital',
         'File an insurance claim',
       ];

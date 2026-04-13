@@ -117,7 +117,9 @@ export class GeminiLiveSession extends EventEmitter {
   private handleMessage(data: Buffer): void {
     try {
       const msg = JSON.parse(data.toString());
-      console.log('[Gemini] Received:', JSON.stringify(msg).substring(0, 300));
+      if (process.env.GEMINI_DEBUG === 'true') {
+        console.log('[Gemini] Received:', JSON.stringify(msg).substring(0, 300));
+      }
       
       if (msg.setupComplete) { console.log('[Gemini] Setup complete!'); this.setupComplete_ = true; this.emit('setupComplete'); return; }
       

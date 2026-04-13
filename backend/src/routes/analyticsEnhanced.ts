@@ -70,8 +70,16 @@ async function getSatisfactionData(app: FastifyInstance, orgId: string, from?: s
   if (from) dateFilter.gte = new Date(from);
   if (to) dateFilter.lte = new Date(to);
 
+  // Get org-scoped conversation IDs, then filter quality scores
+  const orgConversations = await app.prisma.conversation.findMany({
+    where: { orgId },
+    select: { conversationId: true },
+  });
+  const orgConvoIds = orgConversations.map((c) => c.conversationId);
+
   const scores = await app.prisma.callQualityScore.findMany({
     where: {
+      conversationId: { in: orgConvoIds },
       ...(Object.keys(dateFilter).length ? { analyzedAt: dateFilter } : {}),
     },
     select: { overallScore: true },
@@ -259,42 +267,42 @@ export default async function analyticsEnhancedRoutes(app: FastifyInstance) {
   // Org-scoped routes: GET /api/analytics-v2/:orgId/<endpoint>
   // ════════════════════════════════════════════════════════════════════════
 
-  app.get<{ Params: { orgId: string } }>('/:orgId/call-drivers', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/:orgId/call-drivers', async (request, reply) => {
     const { orgId } = request.user;
-    if (request.params.orgId !== orgId) return { error: 'Forbidden' };
+    if (request.params.orgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
     const { from, to } = dateRangeSchema.parse(request.query);
     return getCallDriversData(callDrivers, orgId, from, to);
   });
 
-  app.get<{ Params: { orgId: string } }>('/:orgId/containment', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/:orgId/containment', async (request, reply) => {
     const { orgId } = request.user;
-    if (request.params.orgId !== orgId) return { error: 'Forbidden' };
+    if (request.params.orgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
     const { from, to } = dateRangeSchema.parse(request.query);
     return getContainmentData(intelligence, orgId, from, to);
   });
 
-  app.get<{ Params: { orgId: string } }>('/:orgId/satisfaction', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/:orgId/satisfaction', async (request, reply) => {
     const { orgId } = request.user;
-    if (request.params.orgId !== orgId) return { error: 'Forbidden' };
+    if (request.params.orgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
     const { from, to } = dateRangeSchema.parse(request.query);
     return getSatisfactionData(app, orgId, from, to);
   });
 
-  app.get<{ Params: { orgId: string } }>('/:orgId/predictive', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/:orgId/predictive', async (request, reply) => {
     const { orgId } = request.user;
-    if (request.params.orgId !== orgId) return { error: 'Forbidden' };
+    if (request.params.orgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
     return getPredictiveData(app, orgId);
   });
 
-  app.get<{ Params: { orgId: string } }>('/:orgId/benchmarks', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/:orgId/benchmarks', async (request, reply) => {
     const { orgId } = request.user;
-    if (request.params.orgId !== orgId) return { error: 'Forbidden' };
+    if (request.params.orgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
     return getBenchmarksData(app, orgId);
   });
 
-  app.get<{ Params: { orgId: string } }>('/:orgId/quality', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/:orgId/quality', async (request, reply) => {
     const { orgId } = request.user;
-    if (request.params.orgId !== orgId) return { error: 'Forbidden' };
+    if (request.params.orgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
     const { from, to } = dateRangeSchema.parse(request.query);
     const [overview, trend] = await Promise.all([
       quality.getQualityOverview(orgId, from, to),
@@ -303,21 +311,21 @@ export default async function analyticsEnhancedRoutes(app: FastifyInstance) {
     return { overview, trend };
   });
 
-  app.get<{ Params: { orgId: string } }>('/:orgId/fleet', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/:orgId/fleet', async (request, reply) => {
     const { orgId } = request.user;
-    if (request.params.orgId !== orgId) return { error: 'Forbidden' };
+    if (request.params.orgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
     return getFleetData(app, orgId);
   });
 
-  app.get<{ Params: { orgId: string } }>('/:orgId/fleet/health', async (request) => {
+  app.get<{ Params: { orgId: string } }>('/:orgId/fleet/health', async (request, reply) => {
     const { orgId } = request.user;
-    if (request.params.orgId !== orgId) return { error: 'Forbidden' };
+    if (request.params.orgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
     return getFleetHealthData(app, orgId);
   });
 
-  app.post<{ Params: { orgId: string } }>('/:orgId/export', async (request) => {
+  app.post<{ Params: { orgId: string } }>('/:orgId/export', async (request, reply) => {
     const { orgId } = request.user;
-    if (request.params.orgId !== orgId) return { error: 'Forbidden' };
+    if (request.params.orgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
     const body = exportSchema.parse(request.body);
     const from = body.dateRange?.start || body.from;
     const to = body.dateRange?.end || body.to;
@@ -412,8 +420,9 @@ export default async function analyticsEnhancedRoutes(app: FastifyInstance) {
   app.get<{ Params: { callId: string } }>(
     '/quality/:callId',
     async (request) => {
+      const { orgId } = request.user;
       const { callId } = request.params;
-      const detail = await quality.getCallQualityDetail(callId);
+      const detail = await quality.getCallQualityDetail(callId, orgId);
       if (!detail) return { error: 'Quality score not found for this call/conversation' };
       return detail;
     },

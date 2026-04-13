@@ -23,45 +23,47 @@ interface ServiceDef {
   nameEn: string;      // English reference (for logs/comments)
   durationMin: number;
   category: 'dental' | 'cosmetic';
+  repeatCycleDays?: number;  // recommended interval between repeat visits
+  isRepeating?: boolean;     // false for one-time services (e.g. root canal, extraction)
 }
 
 const SERVICES: ServiceDef[] = [
   // ── Dental ──
   // Note: 'تنظيف أسنان' (Dental Cleaning) is also created by seed.ts — handled by findFirst
-  { name: 'تنظيف أسنان',          nameEn: 'Dental Cleaning',         durationMin: 30, category: 'dental' },
-  { name: 'تبييض أسنان',          nameEn: 'Teeth Whitening',         durationMin: 60, category: 'dental' },
-  { name: 'فينير',                nameEn: 'Veneers',                 durationMin: 60, category: 'dental' },
-  { name: 'تقويم أسنان',          nameEn: 'Orthodontics',            durationMin: 30, category: 'dental' },
-  { name: 'تقويم شفاف',           nameEn: 'Clear Aligners',          durationMin: 30, category: 'dental' },
-  { name: 'زراعة أسنان',          nameEn: 'Dental Implants',         durationMin: 60, category: 'dental' },
-  { name: 'علاج عصب',             nameEn: 'Root Canal',              durationMin: 45, category: 'dental' },
-  { name: 'حشوات أسنان',          nameEn: 'Dental Fillings',         durationMin: 30, category: 'dental' },
-  { name: 'خلع أسنان',            nameEn: 'Tooth Extraction',        durationMin: 30, category: 'dental' },
-  { name: 'علاج لثة',             nameEn: 'Gum Treatment',           durationMin: 45, category: 'dental' },
-  { name: 'أسنان أطفال',          nameEn: 'Kids Dentistry',          durationMin: 25, category: 'dental' },
-  { name: 'تيجان وجسور',          nameEn: 'Crowns & Bridges',        durationMin: 45, category: 'dental' },
-  { name: 'واقي أسنان ليلي',      nameEn: 'Night Guard',             durationMin: 30, category: 'dental' },
-  { name: 'فلورايد',              nameEn: 'Fluoride Treatment',      durationMin: 15, category: 'dental' },
+  { name: 'تنظيف أسنان',          nameEn: 'Dental Cleaning',         durationMin: 30, category: 'dental',   repeatCycleDays: 180, isRepeating: true },
+  { name: 'تبييض أسنان',          nameEn: 'Teeth Whitening',         durationMin: 60, category: 'dental',   repeatCycleDays: 180, isRepeating: true },
+  { name: 'فينير',                nameEn: 'Veneers',                 durationMin: 60, category: 'dental',   repeatCycleDays: 365, isRepeating: true },
+  { name: 'تقويم أسنان',          nameEn: 'Orthodontics',            durationMin: 30, category: 'dental',   isRepeating: false },
+  { name: 'تقويم شفاف',           nameEn: 'Clear Aligners',          durationMin: 30, category: 'dental',   isRepeating: false },
+  { name: 'زراعة أسنان',          nameEn: 'Dental Implants',         durationMin: 60, category: 'dental',   repeatCycleDays: 365, isRepeating: true },
+  { name: 'علاج عصب',             nameEn: 'Root Canal',              durationMin: 45, category: 'dental',   isRepeating: false },
+  { name: 'حشوات أسنان',          nameEn: 'Dental Fillings',         durationMin: 30, category: 'dental',   isRepeating: false },
+  { name: 'خلع أسنان',            nameEn: 'Tooth Extraction',        durationMin: 30, category: 'dental',   isRepeating: false },
+  { name: 'علاج لثة',             nameEn: 'Gum Treatment',           durationMin: 45, category: 'dental',   repeatCycleDays: 90,  isRepeating: true },
+  { name: 'أسنان أطفال',          nameEn: 'Kids Dentistry',          durationMin: 25, category: 'dental',   repeatCycleDays: 180, isRepeating: true },
+  { name: 'تيجان وجسور',          nameEn: 'Crowns & Bridges',        durationMin: 45, category: 'dental',   repeatCycleDays: 365, isRepeating: true },
+  { name: 'واقي أسنان ليلي',      nameEn: 'Night Guard',             durationMin: 30, category: 'dental',   repeatCycleDays: 365, isRepeating: true },
+  { name: 'فلورايد',              nameEn: 'Fluoride Treatment',      durationMin: 15, category: 'dental',   repeatCycleDays: 180, isRepeating: true },
   // ── Cosmetic ──
-  { name: 'بوتوكس',               nameEn: 'Botox',                   durationMin: 30, category: 'cosmetic' },
-  { name: 'فيلر شفايف',           nameEn: 'Lip Filler',              durationMin: 30, category: 'cosmetic' },
-  { name: 'فيلر خدود',            nameEn: 'Cheek Filler',            durationMin: 30, category: 'cosmetic' },
-  { name: 'فيلر فك',              nameEn: 'Jawline Filler',          durationMin: 30, category: 'cosmetic' },
-  { name: 'إزالة شعر بالليزر',    nameEn: 'Laser Hair Removal',      durationMin: 45, category: 'cosmetic' },
-  { name: 'تقشير كيميائي',        nameEn: 'Chemical Peel',           durationMin: 30, category: 'cosmetic' },
-  { name: 'هايدرا فيشل',          nameEn: 'HydraFacial',             durationMin: 45, category: 'cosmetic' },
-  { name: 'مايكرونيدلنج',         nameEn: 'Microneedling',           durationMin: 45, category: 'cosmetic' },
-  { name: 'بلازما وجه',           nameEn: 'PRP Face',                durationMin: 45, category: 'cosmetic' },
-  { name: 'بلازما شعر',           nameEn: 'PRP Hair',                durationMin: 45, category: 'cosmetic' },
-  { name: 'نحت جسم',              nameEn: 'Body Contouring',         durationMin: 60, category: 'cosmetic' },
-  { name: 'شد بشرة',              nameEn: 'Skin Tightening',         durationMin: 60, category: 'cosmetic' },
-  { name: 'خيوط شد',              nameEn: 'Thread Lift',             durationMin: 60, category: 'cosmetic' },
-  { name: 'علاج وريدي',           nameEn: 'IV Therapy',              durationMin: 30, category: 'cosmetic' },
-  { name: 'ميزوثيرابي',           nameEn: 'Mesotherapy',             durationMin: 30, category: 'cosmetic' },
-  { name: 'علاج حب شباب',         nameEn: 'Acne Treatment',          durationMin: 30, category: 'cosmetic' },
-  { name: 'علاج ندبات',           nameEn: 'Scar Treatment',          durationMin: 45, category: 'cosmetic' },
-  { name: 'علاج تصبغات',          nameEn: 'Pigmentation Treatment',  durationMin: 30, category: 'cosmetic' },
-  { name: 'علاج تساقط شعر',       nameEn: 'Hair Restoration',        durationMin: 45, category: 'cosmetic' },
+  { name: 'بوتوكس',               nameEn: 'Botox',                   durationMin: 30, category: 'cosmetic', repeatCycleDays: 90,  isRepeating: true },
+  { name: 'فيلر شفايف',           nameEn: 'Lip Filler',              durationMin: 30, category: 'cosmetic', repeatCycleDays: 180, isRepeating: true },
+  { name: 'فيلر خدود',            nameEn: 'Cheek Filler',            durationMin: 30, category: 'cosmetic', repeatCycleDays: 365, isRepeating: true },
+  { name: 'فيلر فك',              nameEn: 'Jawline Filler',          durationMin: 30, category: 'cosmetic', repeatCycleDays: 365, isRepeating: true },
+  { name: 'إزالة شعر بالليزر',    nameEn: 'Laser Hair Removal',      durationMin: 45, category: 'cosmetic', repeatCycleDays: 42,  isRepeating: true },
+  { name: 'تقشير كيميائي',        nameEn: 'Chemical Peel',           durationMin: 30, category: 'cosmetic', repeatCycleDays: 30,  isRepeating: true },
+  { name: 'هايدرا فيشل',          nameEn: 'HydraFacial',             durationMin: 45, category: 'cosmetic', repeatCycleDays: 30,  isRepeating: true },
+  { name: 'مايكرونيدلنج',         nameEn: 'Microneedling',           durationMin: 45, category: 'cosmetic', repeatCycleDays: 35,  isRepeating: true },
+  { name: 'بلازما وجه',           nameEn: 'PRP Face',                durationMin: 45, category: 'cosmetic', repeatCycleDays: 90,  isRepeating: true },
+  { name: 'بلازما شعر',           nameEn: 'PRP Hair',                durationMin: 45, category: 'cosmetic', repeatCycleDays: 90,  isRepeating: true },
+  { name: 'نحت جسم',              nameEn: 'Body Contouring',         durationMin: 60, category: 'cosmetic', repeatCycleDays: 42,  isRepeating: true },
+  { name: 'شد بشرة',              nameEn: 'Skin Tightening',         durationMin: 60, category: 'cosmetic', repeatCycleDays: 365, isRepeating: true },
+  { name: 'خيوط شد',              nameEn: 'Thread Lift',             durationMin: 60, category: 'cosmetic', repeatCycleDays: 365, isRepeating: true },
+  { name: 'علاج وريدي',           nameEn: 'IV Therapy',              durationMin: 30, category: 'cosmetic', repeatCycleDays: 21,  isRepeating: true },
+  { name: 'ميزوثيرابي',           nameEn: 'Mesotherapy',             durationMin: 30, category: 'cosmetic', repeatCycleDays: 30,  isRepeating: true },
+  { name: 'علاج حب شباب',         nameEn: 'Acne Treatment',          durationMin: 30, category: 'cosmetic', repeatCycleDays: 35,  isRepeating: true },
+  { name: 'علاج ندبات',           nameEn: 'Scar Treatment',          durationMin: 45, category: 'cosmetic', repeatCycleDays: 60,  isRepeating: true },
+  { name: 'علاج تصبغات',          nameEn: 'Pigmentation Treatment',  durationMin: 30, category: 'cosmetic', repeatCycleDays: 30,  isRepeating: true },
+  { name: 'علاج تساقط شعر',       nameEn: 'Hair Restoration',        durationMin: 45, category: 'cosmetic', repeatCycleDays: 180, isRepeating: true },
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -899,6 +901,26 @@ export async function seedPatientHabits(prisma: PrismaClient, orgId: string) {
   if (existingServices.length === 0) {
     console.log('  ⚠️  No services found — skipping patient habits seed. Add services first.');
     return;
+  }
+
+  // ── 1b. Populate service cycle fields (nameEn, category, repeatCycleDays, isRepeating)
+  let servicesUpdated = 0;
+  for (const def of SERVICES) {
+    const serviceId = serviceMap.get(def.name);
+    if (!serviceId) continue;
+    await prisma.service.update({
+      where: { serviceId },
+      data: {
+        nameEn: def.nameEn,
+        category: def.category,
+        repeatCycleDays: def.repeatCycleDays ?? null,
+        isRepeating: def.isRepeating ?? false,
+      },
+    });
+    servicesUpdated++;
+  }
+  if (servicesUpdated > 0) {
+    console.log(`  🔄 ${servicesUpdated} services updated with cycle data (nameEn, category, repeatCycleDays)`);
   }
 
   // ── 2. Create Care Gap Rules (only for services the clinic offers) ─────

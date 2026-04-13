@@ -14,7 +14,6 @@ export type ConversationState =
   | 'booking'
   | 'cancelling'
   | 'rescheduling'
-  | 'prescription'
   | 'confirming'
   | 'handoff'
   | 'closed';
@@ -32,7 +31,7 @@ export interface BookingContext {
 
 export interface SubFlowRecord {
   id: string;
-  type: 'booking' | 'cancelling' | 'rescheduling' | 'prescription';
+  type: 'booking' | 'cancelling' | 'rescheduling';
   outcome: string;
   completedAt: string;
 }
@@ -54,7 +53,7 @@ export interface FlowContext {
   orgName?: string;
   patientName?: string;
   /** Track last completed action for post-action follow-up prompts */
-  lastCompletedAction?: 'booking' | 'cancellation' | 'prescription_check' | 'reschedule';
+  lastCompletedAction?: 'booking' | 'cancellation' | 'reschedule';
 }
 
 // ── Default turn budget ──────────────────────────────────
@@ -85,11 +84,6 @@ const RESCHEDULE_INTENTS = [
   'تغيير', 'أغير', 'أبغى أغير', 'تعديل', 'إعادة جدولة', 'نقل الموعد',
   'أبغى أغير موعدي', 'ممكن أغير الموعد', 'أبي أأجل', 'أبغى أأجل',
   'reschedule', 'change appointment', 'move appointment',
-];
-
-const PRESCRIPTION_INTENTS = [
-  'وصفة', 'دواء', 'أدوية', 'علاج', 'إعادة صرف', 'ريفيل',
-  'prescription', 'refill', 'medication', 'medicine',
 ];
 
 const FAREWELL_INTENTS = [
@@ -223,10 +217,6 @@ export class ConversationFlowManager {
       return setActive('rescheduling');
     }
 
-    if (PRESCRIPTION_INTENTS.some(kw => msg.includes(kw))) {
-      return setActive('prescription');
-    }
-
     if (currentState === 'start' && GREETING_INTENTS.some(kw => msg.includes(kw))) {
       return setActive('greeting');
     }
@@ -272,6 +262,15 @@ export class ConversationFlowManager {
           if (toolName === 'search_providers' && args.departmentId) {
             // Provider search was narrowed by department
           }
+          if (toolName === 'browse_available_dates') {
+            // Extract service/provider filters from browse args
+            if (args.serviceId && typeof args.serviceId === 'string') {
+              newBooking.serviceId = args.serviceId;
+            }
+            if (args.providerId && typeof args.providerId === 'string') {
+              newBooking.providerId = args.providerId;
+            }
+          }
           if (toolName === 'check_availability') {
             // Extract selected provider/service/date from availability check
             if (args.providerId && typeof args.providerId === 'string') {
@@ -293,7 +292,7 @@ export class ConversationFlowManager {
             if (args.time) newBooking.time = args.time as string;
             newBooking.step = 'confirm';
           }
-          if (toolName === 'book_appointment') {
+          if (toolName === 'book_appointment' || toolName === 'book_appointment_guest') {
             // Extract all booking details
             if (args.providerId) newBooking.providerId = args.providerId as string;
             if (args.serviceId) newBooking.serviceId = args.serviceId as string;
@@ -306,6 +305,20 @@ export class ConversationFlowManager {
 
     // Extract names and IDs from tool results for display in prompts
     for (const result of toolResults) {
+      // Extract providerId from tool result if not yet set
+      if (!newBooking.providerId) {
+        const providerIdMatch = result.match(/providerId:\s*([0-9a-f-]{36})/i);
+        if (providerIdMatch) {
+          newBooking.providerId = providerIdMatch[1];
+        }
+      }
+      // Extract serviceId from tool result if not yet set
+      if (!newBooking.serviceId) {
+        const serviceIdMatch = result.match(/serviceId:\s*([0-9a-f-]{36})/i);
+        if (serviceIdMatch) {
+          newBooking.serviceId = serviceIdMatch[1];
+        }
+      }
       // Extract provider name if we have a providerId but no name
       if (newBooking.providerId && !newBooking.providerName) {
         const nameMatch = result.match(/🩺\s*(?:\[طبيب \d+\]\s*)?([^\n(]+)/);
@@ -347,8 +360,12 @@ export class ConversationFlowManager {
       newBooking.step = 'confirm';
     }
 
-    // For anonymous patients: after time is selected, go to guest_info step
-    if (!ctx.patientIdentified && newBooking.step === 'time' && newBooking.time) {
+    // For anonymous patients: advance to guest_info after the time step.
+    // Note: booking.time is only set by hold_appointment (which anonymous patients don't use),
+    // so we advance as soon as the AI has shown available times (step is 'time')
+    // and no time-selection tool was called in this turn (user is picking from the list).
+    if (!ctx.patientIdentified && newBooking.step === 'time' &&
+        !toolCallsMade.includes('check_availability') && !toolCallsMade.includes('browse_available_dates')) {
       newBooking.step = 'guest_info';
     }
 
@@ -376,10 +393,11 @@ export class ConversationFlowManager {
       case 'start':
         prompt += `
 ## حالة المحادثة: بداية جديدة
-- عرّفي نفسك واذكري اسم العيادة: "${ctx.orgName || 'العيادة'}"
+- عرّفي نفسك باختصار واذكري اسم العيادة: "${ctx.orgName || 'العيادة'}"
 - إذا كان المريض معروف، خاطبيه باسمه${ctx.patientName ? `: "${ctx.patientName}"` : ''}
-- اذكري باختصار وش تقدرين تساعدين فيه:
-  مثال: "حياك الله في ${ctx.orgName || 'العيادة'}! 😊 أقدر أساعدك بحجز مواعيد، استفسارات، أو إعادة صرف أدوية. وش تحتاج؟"
+- اسألي المريض كيف تقدرين تساعدينه — بدون سرد خدمات أو قدرات
+  مثال: "حياك الله في ${ctx.orgName || 'العيادة'}! 😊 كيف أقدر أساعدك؟"
+- ⛔ لا تذكري قائمة بما تقدرين تسوينه (حجز، استفسارات، إلخ) — خلي الرد قصير وطبيعي
 `;
         break;
 
@@ -387,7 +405,10 @@ export class ConversationFlowManager {
         prompt += `
 ## حالة المحادثة: ترحيب
 - ردّي بترحيب دافئ واذكري اسم العيادة "${ctx.orgName || 'العيادة'}"
-- اسأليه وش يحتاج مع ذكر أنك تقدرين تساعدين بالحجز والاستفسارات
+- اسألي المريض كيف تقدرين تساعدينه بسؤال مفتوح وقصير
+  مثال: "وعليكم السلام! حياك الله في ${ctx.orgName || 'العيادة'} 😊 كيف أقدر أساعدك؟"
+- ⛔ لا تعرضي قائمة خدمات أو قدرات — انتظري المريض يوضح طلبه أولاً
+- ⛔ لا تقولي "أقدر أساعدك بالحجز والاستفسارات و..." — هذا أسلوب آلي
 `;
         break;
 
@@ -441,15 +462,6 @@ ${ctx.patientIdentified
 ٣. اسألي عن التاريخ/الوقت الجديد المرغوب
 ٤. استخدمي check_availability للتحقق من التوفر
 ٥. استخدمي reschedule_appointment لتنفيذ التغيير
-`;
-        break;
-
-      case 'prescription':
-        prompt += `
-## حالة المحادثة: استفسار عن الأدوية 💊
-- استخدمي check_prescriptions لعرض وصفات المريض
-- إذا طلب إعادة صرف: استخدمي request_prescription_refill
-- لا تقدمي أي نصيحة طبية عن الأدوية — هذا دور الطبيب
 `;
         break;
 
@@ -532,9 +544,10 @@ ${ctx.patientIdentified
       case 'service':
         return (
           '1. ✅ حددي الخدمة المطلوبة\n' +
-          '   **مهم**: استخدمي list_services فوراً واعرضي الخدمات المتاحة للمريض مع السؤال\n' +
-          '   مثال: "عندنا الخدمات التالية: ١. كشف عام 🩺 ٢. أسنان 🦷 ٣. جلدية... وش يناسبك؟"\n' +
-          '   لا تسألي "وش تبي" بدون عرض الخيارات — دائماً اعرضي الخدمات مع السؤال\n' +
+          '   اسألي المريض عن نوع الموعد أو شكواه، مع ذكر ٣-٤ أمثلة شائعة بشكل طبيعي\n' +
+          '   مثال: "وش نوع الموعد اللي تحتاجه؟ عندنا مثلاً كشف عام 🩺، أسنان 🦷، جلدية... أو قولي وش عندك وأساعدك أختار 😊"\n' +
+          '   ⛔ لا تعرضي كل الخدمات كقائمة مرقمة — اذكري أمثلة فقط\n' +
+          '   إذا المريض طلب القائمة الكاملة: استخدمي list_services مع تقسيمها حسب القسم إذا ممكن\n' +
           '\n' +
           '   إذا المريض ذكر شكوى صحية بدلاً من خدمة:\n' +
           '   - اقترحي الخدمة المناسبة بناءً على شكواه\n' +
@@ -563,30 +576,55 @@ ${ctx.patientIdentified
           '   - إذا المريض حدد تاريخ: استخدمي check_availability لعرض الأوقات'
         );
       case 'time':
+        if (patientIdentified) {
+          return (
+            `1. ✅ الخدمة: ${booking.serviceName ?? 'تم'}${booking.serviceId ? ` [serviceId: ${booking.serviceId}]` : ''}\n` +
+            `2. ✅ الطبيب: ${booking.providerName ?? 'تم'}${booking.providerId ? ` [providerId: ${booking.providerId}]` : ''}\n` +
+            `3. ✅ التاريخ: ${booking.date ?? 'تم'}\n` +
+            '4. ✅ اختاري الوقت من المواعيد المتاحة\n' +
+            '   بعد اختيار الوقت: استخدمي hold_appointment لحجز الموعد مؤقتاً ثم اعرضي الملخص للتأكيد'
+          );
+        }
+        // Anonymous patient: combined time + guest_info instructions
         return (
-          `1. ✅ الخدمة: ${booking.serviceName ?? 'تم'}\n` +
-          `2. ✅ الطبيب: ${booking.providerName ?? 'تم'}\n` +
-          `3. ✅ التاريخ: ${booking.date ?? 'تم'}\n` +
-          '4. ✅ اختاري الوقت من المواعيد المتاحة\n' +
-          (patientIdentified
-            ? '   بعد اختيار الوقت: استخدمي hold_appointment لحجز الموعد مؤقتاً ثم اعرضي الملخص للتأكيد'
-            : '   بعد اختيار الوقت: اطلبي الاسم الأول والأخير فقط (رقم الجوال من الواتساب)')
+          `المريض غير مسجل — مسار الحجز السريع:\n` +
+          `الخدمة المختارة: ${booking.serviceName ?? '(ارجعي لسياق المحادثة)'}${booking.serviceId ? ` — serviceId: ${booking.serviceId}` : ''}\n` +
+          `الطبيب المختار: ${booking.providerName ?? '(ارجعي لسياق المحادثة)'}${booking.providerId ? ` — providerId: ${booking.providerId}` : ''}\n` +
+          `التاريخ: ${booking.date ?? '(ارجعي لسياق المحادثة)'}\n\n` +
+          '**الخطوات:**\n' +
+          '1. إذا المريض لم يحدد الوقت بعد → اعرضي الأوقات واطلبي منه يختار\n' +
+          '2. بعد اختيار الوقت → اطلبي الاسم الأول والأخير فقط (رقم الجوال عندك من الواتساب)\n' +
+          '3. **فوراً بعد الحصول على الاسم** → استدعي book_appointment_guest مع:\n' +
+          '   - firstName و lastName من رد المريض\n' +
+          '   - phone: رقم الواتساب الموجود في قسم "رقم جوال المريض" أعلاه\n' +
+          '   - providerId: UUID الطبيب المختار (ابحثي في قسم "الأطباء" أعلاه بالاسم)\n' +
+          '   - serviceId: UUID الخدمة المختارة (ابحثي في قسم "الخدمات المتاحة" أعلاه بالاسم)\n' +
+          '   - date: التاريخ بصيغة YYYY-MM-DD\n' +
+          '   - time: الوقت بصيغة HH:MM (24 ساعة)\n\n' +
+          '⚠️ لا تسألي عن رقم الجوال — عندك من الواتساب\n' +
+          '⚠️ لا تستخدمي hold_appointment — المريض غير مسجل\n' +
+          '⚠️ لا تسألي أسئلة إضافية بعد الحصول على الاسم — احجزي فوراً'
         );
       case 'guest_info':
         return (
-          `1. ✅ الخدمة: ${booking.serviceName ?? 'تم'}\n` +
-          `2. ✅ الطبيب: ${booking.providerName ?? 'تم'}\n` +
-          `3. ✅ التاريخ: ${booking.date ?? 'تم'}\n` +
-          `4. ✅ الوقت: ${booking.time ?? 'تم'}\n` +
-          '5. 📝 اجمعي بيانات المريض:\n' +
-          '   اطلبي الاسم الأول والأخير فقط — **رقم الجوال عندك من الواتساب، لا تسأليه**\n' +
-          '   بعد الحصول على الاسم: استخدمي book_appointment_guest مباشرة مع رقم الواتساب\n' +
-          '   ⚠️ لا تستخدمي hold_appointment — المريض غير مسجل'
+          `**⚡ المريض أعطى اسمه — احجزي الموعد الآن فوراً!**\n\n` +
+          `الخدمة: ${booking.serviceName ?? '(ارجعي لسياق المحادثة)'}${booking.serviceId ? ` — serviceId: ${booking.serviceId}` : ''}\n` +
+          `الطبيب: ${booking.providerName ?? '(ارجعي لسياق المحادثة)'}${booking.providerId ? ` — providerId: ${booking.providerId}` : ''}\n` +
+          `التاريخ: ${booking.date ?? '(ارجعي لسياق المحادثة)'}\n` +
+          `الوقت: ${booking.time ?? '(ارجعي لسياق المحادثة)'}\n\n` +
+          '**استدعي book_appointment_guest الآن** مع:\n' +
+          '- firstName و lastName: من آخر رسالة للمريض\n' +
+          '- phone: رقم الواتساب من قسم "رقم جوال المريض" أعلاه\n' +
+          '- providerId: UUID الطبيب (ابحثي في قسم "الأطباء" أعلاه بالاسم)\n' +
+          '- serviceId: UUID الخدمة (ابحثي في قسم "الخدمات المتاحة" أعلاه بالاسم)\n' +
+          '- date: التاريخ بصيغة YYYY-MM-DD\n' +
+          '- time: الوقت بصيغة HH:MM\n\n' +
+          '⚠️ لا تسألي أي سؤال — كل البيانات متوفرة. استدعي الأداة فوراً!'
         );
       case 'hold':
         return (
-          `1. ✅ الخدمة: ${booking.serviceName ?? 'تم'}\n` +
-          `2. ✅ الطبيب: ${booking.providerName ?? 'تم'}\n` +
+          `1. ✅ الخدمة: ${booking.serviceName ?? 'تم'}${booking.serviceId ? ` [serviceId: ${booking.serviceId}]` : ''}\n` +
+          `2. ✅ الطبيب: ${booking.providerName ?? 'تم'}${booking.providerId ? ` [providerId: ${booking.providerId}]` : ''}\n` +
           `3. ✅ التاريخ: ${booking.date ?? 'تم'}\n` +
           `4. ✅ الوقت: ${booking.time ?? 'تم'}\n` +
           '5. ⏳ استخدمي hold_appointment لحجز الموعد مؤقتاً ثم اعرضي ملخص للتأكيد'
@@ -594,7 +632,7 @@ ${ctx.patientIdentified
       case 'confirm':
         return (
           `⏳ الموعد محجوز مؤقتاً (10 دقائق — ينتهي تلقائياً)${booking.holdAppointmentId ? ` — appointmentId: ${booking.holdAppointmentId}` : ''}\n` +
-          `${booking.serviceName ?? ''} مع ${booking.providerName ?? ''} — ${booking.date ?? ''} ${booking.time ?? ''}\n` +
+          `${booking.serviceName ?? ''}${booking.serviceId ? ` [serviceId: ${booking.serviceId}]` : ''} مع ${booking.providerName ?? ''}${booking.providerId ? ` [providerId: ${booking.providerId}]` : ''} — ${booking.date ?? ''} ${booking.time ?? ''}\n` +
           '   اعرضي ملخص مختصر (3 أسطر كحد أقصى) واسألي "أأكد الحجز؟"\n' +
           '   إذا قال نعم: استخدمي book_appointment مع holdAppointmentId\n' +
           '   إذا قال لا: أخبريه أن الحجز المؤقت سينتهي تلقائياً\n' +
@@ -680,7 +718,7 @@ ${ctx.patientIdentified
    * Start a new sub-flow (booking, cancelling).
    * Isolates context from previous completed sub-flows.
    */
-  startSubFlow(ctx: FlowContext, type: 'booking' | 'cancelling' | 'rescheduling' | 'prescription'): FlowContext {
+  startSubFlow(ctx: FlowContext, type: 'booking' | 'cancelling' | 'rescheduling'): FlowContext {
     const subFlowId = `sf-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     return {
       ...ctx,

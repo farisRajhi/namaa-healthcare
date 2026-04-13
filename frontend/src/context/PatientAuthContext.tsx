@@ -40,7 +40,7 @@ export function PatientAuthProvider({ children }: { children: ReactNode }) {
 
   const fetchPatient = useCallback(async () => {
     try {
-      const token = localStorage.getItem(PATIENT_TOKEN_KEY)
+      const token = sessionStorage.getItem(PATIENT_TOKEN_KEY)
       if (!token) {
         setIsLoading(false)
         return
@@ -50,7 +50,7 @@ export function PatientAuthProvider({ children }: { children: ReactNode }) {
       })
       setPatient(response.data)
     } catch {
-      localStorage.removeItem(PATIENT_TOKEN_KEY)
+      sessionStorage.removeItem(PATIENT_TOKEN_KEY)
       setPatient(null)
     } finally {
       setIsLoading(false)
@@ -64,12 +64,12 @@ export function PatientAuthProvider({ children }: { children: ReactNode }) {
   const login = async (phone: string, dateOfBirth: string) => {
     const response = await api.post('/api/patient-portal/login', { phone, dateOfBirth })
     const { token } = response.data
-    localStorage.setItem(PATIENT_TOKEN_KEY, token)
+    sessionStorage.setItem(PATIENT_TOKEN_KEY, token)
     await fetchPatient()
   }
 
   const logout = () => {
-    localStorage.removeItem(PATIENT_TOKEN_KEY)
+    sessionStorage.removeItem(PATIENT_TOKEN_KEY)
     setPatient(null)
   }
 
@@ -103,7 +103,7 @@ export function usePatientAuth() {
 
 /** Helper: get the patient bearer token for API calls */
 export function getPatientToken(): string | null {
-  return localStorage.getItem(PATIENT_TOKEN_KEY)
+  return sessionStorage.getItem(PATIENT_TOKEN_KEY)
 }
 
 /** Axios instance pre-configured for patient portal API calls */

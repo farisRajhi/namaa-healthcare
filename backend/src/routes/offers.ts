@@ -106,20 +106,20 @@ export default async function offerRoutes(app: FastifyInstance) {
     });
 
     // GET /api/offers/:orgId/presets — List targeting presets
-    protectedApp.get<{ Params: { orgId: string } }>('/:orgId/presets', async (request) => {
+    protectedApp.get<{ Params: { orgId: string } }>('/:orgId/presets', async (request, reply) => {
       const { orgId: userOrgId } = request.user;
       const { orgId } = request.params;
-      if (userOrgId !== orgId) return { error: 'Forbidden' };
+      if (userOrgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
       const manager = getManager();
       return manager.getPresets();
     });
 
     // POST /api/offers/:orgId/preview-audience — Preview audience size
-    protectedApp.post<{ Params: { orgId: string } }>('/:orgId/preview-audience', async (request) => {
+    protectedApp.post<{ Params: { orgId: string } }>('/:orgId/preview-audience', async (request, reply) => {
       const { orgId: userOrgId } = request.user;
       const { orgId } = request.params;
-      if (userOrgId !== orgId) return { error: 'Forbidden' };
+      if (userOrgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
       const body = z.object({ targetFilter: targetFilterSchema }).parse(request.body);
       const manager = getManager();
@@ -127,10 +127,10 @@ export default async function offerRoutes(app: FastifyInstance) {
     });
 
     // POST /api/offers/:orgId — Create offer
-    protectedApp.post<{ Params: { orgId: string } }>('/:orgId', async (request) => {
+    protectedApp.post<{ Params: { orgId: string } }>('/:orgId', async (request, reply) => {
       const { orgId: userOrgId } = request.user;
       const { orgId } = request.params;
-      if (userOrgId !== orgId) return { error: 'Forbidden' };
+      if (userOrgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
       const body = createOfferSchema.parse(request.body);
       const manager = getManager();
@@ -138,10 +138,10 @@ export default async function offerRoutes(app: FastifyInstance) {
     });
 
     // GET /api/offers/:orgId/:offerId — Get offer details
-    protectedApp.get<{ Params: { orgId: string; offerId: string } }>('/:orgId/:offerId', async (request) => {
+    protectedApp.get<{ Params: { orgId: string; offerId: string } }>('/:orgId/:offerId', async (request, reply) => {
       const { orgId: userOrgId } = request.user;
       const { orgId, offerId } = request.params;
-      if (userOrgId !== orgId) return { error: 'Forbidden' };
+      if (userOrgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
       const manager = getManager();
       const offer = await manager.getOffer(offerId);
@@ -150,10 +150,10 @@ export default async function offerRoutes(app: FastifyInstance) {
     });
 
     // PUT /api/offers/:orgId/:offerId — Update offer
-    protectedApp.put<{ Params: { orgId: string; offerId: string } }>('/:orgId/:offerId', async (request) => {
+    protectedApp.put<{ Params: { orgId: string; offerId: string } }>('/:orgId/:offerId', async (request, reply) => {
       const { orgId: userOrgId } = request.user;
       const { orgId, offerId } = request.params;
-      if (userOrgId !== orgId) return { error: 'Forbidden' };
+      if (userOrgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
       const body = updateOfferSchema.parse(request.body);
       const manager = getManager();
@@ -161,50 +161,50 @@ export default async function offerRoutes(app: FastifyInstance) {
     });
 
     // POST /api/offers/:orgId/:offerId/activate — Activate offer
-    protectedApp.post<{ Params: { orgId: string; offerId: string } }>('/:orgId/:offerId/activate', async (request) => {
+    protectedApp.post<{ Params: { orgId: string; offerId: string } }>('/:orgId/:offerId/activate', async (request, reply) => {
       const { orgId: userOrgId } = request.user;
       const { orgId, offerId } = request.params;
-      if (userOrgId !== orgId) return { error: 'Forbidden' };
+      if (userOrgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
       const manager = getManager();
       return manager.activateOffer(offerId);
     });
 
     // POST /api/offers/:orgId/:offerId/pause — Pause offer
-    protectedApp.post<{ Params: { orgId: string; offerId: string } }>('/:orgId/:offerId/pause', async (request) => {
+    protectedApp.post<{ Params: { orgId: string; offerId: string } }>('/:orgId/:offerId/pause', async (request, reply) => {
       const { orgId: userOrgId } = request.user;
       const { orgId, offerId } = request.params;
-      if (userOrgId !== orgId) return { error: 'Forbidden' };
+      if (userOrgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
       const manager = getManager();
       return manager.pauseOffer(offerId);
     });
 
     // POST /api/offers/:orgId/:offerId/expire — Force expire
-    protectedApp.post<{ Params: { orgId: string; offerId: string } }>('/:orgId/:offerId/expire', async (request) => {
+    protectedApp.post<{ Params: { orgId: string; offerId: string } }>('/:orgId/:offerId/expire', async (request, reply) => {
       const { orgId: userOrgId } = request.user;
       const { orgId, offerId } = request.params;
-      if (userOrgId !== orgId) return { error: 'Forbidden' };
+      if (userOrgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
       const manager = getManager();
       return manager.expireOffer(offerId);
     });
 
     // GET /api/offers/:orgId/:offerId/analytics — Offer analytics
-    protectedApp.get<{ Params: { orgId: string; offerId: string } }>('/:orgId/:offerId/analytics', async (request) => {
+    protectedApp.get<{ Params: { orgId: string; offerId: string } }>('/:orgId/:offerId/analytics', async (request, reply) => {
       const { orgId: userOrgId } = request.user;
       const { orgId, offerId } = request.params;
-      if (userOrgId !== orgId) return { error: 'Forbidden' };
+      if (userOrgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
       const manager = getManager();
       return manager.getOfferAnalytics(offerId);
     });
 
     // GET /api/offers/:orgId/:offerId/redemptions — List redemptions
-    protectedApp.get<{ Params: { orgId: string; offerId: string } }>('/:orgId/:offerId/redemptions', async (request) => {
+    protectedApp.get<{ Params: { orgId: string; offerId: string } }>('/:orgId/:offerId/redemptions', async (request, reply) => {
       const { orgId: userOrgId } = request.user;
       const { orgId, offerId } = request.params;
-      if (userOrgId !== orgId) return { error: 'Forbidden' };
+      if (userOrgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
 
       const query = z.object({
         page: z.coerce.number().default(1),

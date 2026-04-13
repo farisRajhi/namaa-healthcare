@@ -25,6 +25,17 @@ interface ExtractedMemory {
   memoryValue: string;
 }
 
+// ─── Memory value sanitization (prompt injection defense) ─────────────────────
+
+function sanitizeMemoryValue(value: string): string {
+  return value
+    .replace(/ignore\s+(previous|all|above)\s+(instructions?|prompts?)/gi, '[filtered]')
+    .replace(/system\s*:/gi, '[filtered]')
+    .replace(/###/g, '')
+    .replace(/```/g, '')
+    .slice(0, 500);
+}
+
 // ─── Keyword patterns for memory extraction ────────────────────────────────────
 
 const ALLERGY_PATTERNS = [
@@ -202,7 +213,10 @@ export class ContextBuilder {
       context += `- تاريخ الميلاد: ${formatDateAr(patient.dateOfBirth)}\n`;
     }
     if (patient.mrn) {
-      context += `- رقم الملف الطبي: ${patient.mrn}\n`;
+      const maskedMrn = patient.mrn.length > 4
+        ? '*'.repeat(patient.mrn.length - 4) + patient.mrn.slice(-4)
+        : '****';
+      context += `- رقم الملف الطبي: ${maskedMrn}\n`;
     }
     if (patient.sex) {
       const sexAr = patient.sex === 'male' ? 'ذكر' : patient.sex === 'female' ? 'أنثى' : patient.sex;
@@ -213,10 +227,11 @@ export class ContextBuilder {
     const primaryPhone = patient.contacts.find(c => c.contactType === 'phone' && c.isPrimary);
     const primaryEmail = patient.contacts.find(c => c.contactType === 'email' && c.isPrimary);
     if (primaryPhone) {
-      context += `- الهاتف: ${primaryPhone.contactValue}\n`;
+      const masked = primaryPhone.contactValue.replace(/.(?=.{4})/g, '*');
+      context += `- الهاتف: ${masked}\n`;
     }
     if (primaryEmail) {
-      context += `- البريد: ${primaryEmail.contactValue}\n`;
+      context += `- البريد: [محجوب]\n`;
     }
 
     // الحساسيات
@@ -634,23 +649,26 @@ export class ContextBuilder {
   ): Promise<void> {
     for (const memory of memories) {
       try {
+        const sanitizedValue = sanitizeMemoryValue(memory.memoryValue);
+        const sanitizedKey = sanitizeMemoryValue(memory.memoryKey);
+
         await this.prisma.patientMemory.upsert({
           where: {
             patientId_memoryType_memoryKey: {
               patientId,
               memoryType: memory.memoryType,
-              memoryKey: memory.memoryKey,
+              memoryKey: sanitizedKey,
             },
           },
           update: {
-            memoryValue: memory.memoryValue,
+            memoryValue: sanitizedValue,
             updatedAt: new Date(),
           },
           create: {
             patientId,
             memoryType: memory.memoryType,
-            memoryKey: memory.memoryKey,
-            memoryValue: memory.memoryValue,
+            memoryKey: sanitizedKey,
+            memoryValue: sanitizedValue,
             confidence: defaultConfidence,
             sourceConversationId: conversationId || null,
             isActive: true,

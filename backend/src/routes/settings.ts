@@ -18,6 +18,10 @@ const updateNotificationsSchema = z.object({
   weeklyReport: z.boolean().optional(),
 });
 
+const updateAiAutoReplySchema = z.object({
+  aiAutoReply: z.boolean(),
+});
+
 export default async function settingsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
 
@@ -34,6 +38,7 @@ export default async function settingsRoutes(app: FastifyInstance) {
         orgId: org.orgId,
         name: org.name,
         defaultTimezone: org.defaultTimezone,
+        aiAutoReply: org.aiAutoReply,
       },
     };
   });
@@ -53,8 +58,33 @@ export default async function settingsRoutes(app: FastifyInstance) {
         orgId: org.orgId,
         name: org.name,
         defaultTimezone: org.defaultTimezone,
+        aiAutoReply: org.aiAutoReply,
       },
     };
+  });
+
+  // Get AI auto-reply status
+  app.get('/ai-auto-reply', async (request: FastifyRequest) => {
+    const { orgId } = request.user;
+    const org = await app.prisma.org.findUnique({
+      where: { orgId },
+      select: { aiAutoReply: true },
+    });
+    return { data: { aiAutoReply: org?.aiAutoReply ?? true } };
+  });
+
+  // Toggle AI auto-reply
+  app.put('/ai-auto-reply', async (request: FastifyRequest) => {
+    const { orgId } = request.user;
+    const body = updateAiAutoReplySchema.parse(request.body);
+
+    const org = await app.prisma.org.update({
+      where: { orgId },
+      data: { aiAutoReply: body.aiAutoReply },
+      select: { aiAutoReply: true },
+    });
+
+    return { data: { aiAutoReply: org.aiAutoReply } };
   });
 
   // Get user profile
@@ -176,7 +206,7 @@ export default async function settingsRoutes(app: FastifyInstance) {
 
     return {
       data: {
-        org: org ? { orgId: org.orgId, name: org.name, defaultTimezone: org.defaultTimezone } : null,
+        org: org ? { orgId: org.orgId, name: org.name, defaultTimezone: org.defaultTimezone, aiAutoReply: org.aiAutoReply } : null,
         user,
       },
     };

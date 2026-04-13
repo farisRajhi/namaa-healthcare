@@ -315,7 +315,7 @@ export default function Offers() {
             label: isAr ? 'إجمالي الإيرادات' : 'Total Revenue',
             value: `${(offers.reduce((s, o) => s + o.totalRevenue, 0) / 100).toFixed(0)} ${isAr ? 'ريال' : 'SAR'}`,
             icon: TrendingUp,
-            color: 'text-teal-600 bg-teal-50',
+            color: 'text-primary-600 bg-primary-50',
           },
         ].map((stat) => (
           <div key={stat.label} className="bg-white rounded-xl border p-4">
@@ -419,9 +419,9 @@ export default function Offers() {
                     <p className="font-bold text-green-700">{offer.totalRedeemed}</p>
                     <p className="text-green-600">{isAr ? 'مستخدم' : 'Redeemed'}</p>
                   </div>
-                  <div className="bg-teal-50 rounded-lg p-2">
-                    <p className="font-bold text-teal-700">{(offer.totalRevenue / 100).toFixed(0)}</p>
-                    <p className="text-teal-600">{isAr ? 'ريال' : 'SAR'}</p>
+                  <div className="bg-primary-50 rounded-lg p-2">
+                    <p className="font-bold text-primary-700">{(offer.totalRevenue / 100).toFixed(0)}</p>
+                    <p className="text-primary-600">{isAr ? 'ريال' : 'SAR'}</p>
                   </div>
                 </div>
 
@@ -958,9 +958,9 @@ function OfferDetailModal({
               <p className="text-xl font-bold text-green-700">{offer.totalRedeemed}</p>
               <p className="text-xs text-green-600">{isAr ? 'مستخدم' : 'Redeemed'}</p>
             </div>
-            <div className="text-center bg-teal-50 rounded-lg p-3">
-              <p className="text-xl font-bold text-teal-700">{(offer.totalRevenue / 100).toFixed(0)}</p>
-              <p className="text-xs text-teal-600">{isAr ? 'إيرادات (ريال)' : 'Revenue (SAR)'}</p>
+            <div className="text-center bg-primary-50 rounded-lg p-3">
+              <p className="text-xl font-bold text-primary-700">{(offer.totalRevenue / 100).toFixed(0)}</p>
+              <p className="text-xs text-primary-600">{isAr ? 'إيرادات (ريال)' : 'Revenue (SAR)'}</p>
             </div>
             <div className="text-center bg-purple-50 rounded-lg p-3">
               <p className="text-xl font-bold text-purple-700">{redemptionRate}%</p>

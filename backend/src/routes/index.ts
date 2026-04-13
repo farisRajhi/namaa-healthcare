@@ -48,6 +48,8 @@ import usageRoutes from './usage.js';
 import offerRoutes from './offers.js';
 import marketingConsentRoutes from './marketingConsent.js';
 import audienceAnalyticsRoutes from './audienceAnalytics.js';
+import suggestionsRoutes from './suggestions.js';
+import patientIntelligenceRoutes from './patientIntelligence.js';
 
 export async function registerRoutes(app: FastifyInstance) {
   // Register auth plugin
@@ -142,6 +144,9 @@ export async function registerRoutes(app: FastifyInstance) {
   // Campaign routes (org-scoped: /api/campaigns/:orgId)
   await app.register(campaignRoutes, { prefix: '/api/campaigns' });
 
+  // Service Cycle Suggestions (patient re-engagement predictions)
+  await app.register(suggestionsRoutes, { prefix: '/api/suggestions' });
+
   // Agent Builder (No-Code Flow Builder)
   await app.register(agentBuilderRoutes, { prefix: '/api/agent-builder' });
 
@@ -181,6 +186,9 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // Audience Analytics (segments, behavior patterns, targeting preview)
   await app.register(audienceAnalyticsRoutes, { prefix: '/api/audience' });
+
+  // Patient Intelligence (external DB AI analysis)
+  await app.register(patientIntelligenceRoutes, { prefix: '/api/patient-intelligence' });
 
   // Register audit trail middleware (auto-logs sensitive route access)
   registerAuditMiddleware(app);

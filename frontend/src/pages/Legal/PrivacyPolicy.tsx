@@ -29,8 +29,8 @@ export default function PrivacyPolicy() {
             <ArrowLeft size={20} />
           </button>
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-teal-100 rounded-lg">
-              <Shield size={20} className="text-teal-600" />
+            <div className="p-2 bg-primary-100 rounded-lg">
+              <Shield size={20} className="text-primary-600" />
             </div>
             <div>
               <h1 className="text-lg font-bold text-gray-900">سياسة الخصوصية</h1>
@@ -46,8 +46,8 @@ export default function PrivacyPolicy() {
 
           {/* Title */}
           <div className="text-center mb-10 pb-8 border-b border-gray-100">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-teal-50 rounded-2xl mb-4">
-              <Shield size={32} className="text-teal-600" />
+            <div className="inline-flex items-center justify-center w-16 h-16 bg-primary-50 rounded-2xl mb-4">
+              <Shield size={32} className="text-primary-600" />
             </div>
             <h2 className="text-3xl font-bold text-gray-900 mb-2">سياسة الخصوصية</h2>
             <p className="text-gray-500">آخر تحديث: فبراير 2026</p>
@@ -61,11 +61,11 @@ export default function PrivacyPolicy() {
             {/* 1 */}
             <section>
               <h3 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-teal-600">١.</span> المقدمة
+                <span className="text-primary-600">١.</span> المقدمة
               </h3>
               <p>
                 تُعدّ منصة <strong>توافد (Tawafud)</strong> مساعداً طبياً ذكياً مخصصاً لتيسير خدمات الرعاية الصحية،
-                تشمل حجز المواعيد، والاستفسارات الطبية، وإدارة الوصفات الطبية، والتواصل مع مرافق الرعاية الصحية.
+                تشمل حجز المواعيد، والاستفسارات الطبية، والتواصل مع مرافق الرعاية الصحية.
                 نحن نُولي حماية بياناتك الشخصية أهمية قصوى، ونلتزم بأحكام <strong>نظام حماية البيانات الشخصية السعودي (PDPL)</strong>
                 الصادر بالمرسوم الملكي رقم م/19 لعام 1443هـ ولوائحه التنفيذية.
               </p>
@@ -74,7 +74,7 @@ export default function PrivacyPolicy() {
             {/* 2 */}
             <section>
               <h3 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-teal-600">٢.</span> البيانات التي نجمعها
+                <span className="text-primary-600">٢.</span> البيانات التي نجمعها
               </h3>
               <p className="mb-3">نجمع الأنواع التالية من البيانات الشخصية:</p>
               <div className="space-y-3">
@@ -91,7 +91,6 @@ export default function PrivacyPolicy() {
                     title: '٢.٣ البيانات الصحية',
                     items: [
                       'المواعيد الطبية وسجل الحجوزات',
-                      'الوصفات الطبية وسجل الأدوية',
                       'الحساسيات والحالات المزمنة (بموافقة صريحة)',
                       'نصوص وتسجيلات المكالمات الصوتية (مشفرة)',
                     ],
@@ -120,15 +119,15 @@ export default function PrivacyPolicy() {
             {/* 3 */}
             <section>
               <h3 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-teal-600">٣.</span> الأساس القانوني للمعالجة
+                <span className="text-primary-600">٣.</span> الأساس القانوني للمعالجة
               </h3>
               <p className="mb-3">نعالج بياناتك استناداً إلى الأسس القانونية التالية وفق نظام PDPL:</p>
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-sm">
                   <thead>
-                    <tr className="bg-teal-50">
-                      <th className="border border-teal-100 px-4 py-2 text-right">الغرض</th>
-                      <th className="border border-teal-100 px-4 py-2 text-right">الأساس القانوني</th>
+                    <tr className="bg-primary-50">
+                      <th className="border border-primary-100 px-4 py-2 text-right">الغرض</th>
+                      <th className="border border-primary-100 px-4 py-2 text-right">الأساس القانوني</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -141,7 +140,7 @@ export default function PrivacyPolicy() {
                     ].map(([purpose, basis], i) => (
                       <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                         <td className="border border-gray-200 px-4 py-2">{purpose}</td>
-                        <td className="border border-gray-200 px-4 py-2 text-teal-700 font-medium">{basis}</td>
+                        <td className="border border-gray-200 px-4 py-2 text-primary-700 font-medium">{basis}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -152,19 +151,18 @@ export default function PrivacyPolicy() {
             {/* 4 */}
             <section>
               <h3 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-teal-600">٤.</span> كيفية استخدام بياناتك
+                <span className="text-primary-600">٤.</span> كيفية استخدام بياناتك
               </h3>
               <ul className="space-y-2">
                 {[
                   'حجز وإدارة مواعيدك الطبية مع مزودي الرعاية الصحية',
                   'إرسال تذكيرات المواعيد عبر الرسائل النصية أو واتساب',
                   'تشغيل المساعد الذكي للرد على استفساراتك الطبية',
-                  'معالجة طلبات إعادة الصرف للوصفات الطبية',
                   'تحسين جودة خدماتنا عبر تحليل أنماط الاستخدام (مجهولة الهوية)',
                   'الامتثال للمتطلبات التنظيمية الصحية في المملكة العربية السعودية',
                 ].map((item, i) => (
                   <li key={i} className="flex items-start gap-2">
-                    <span className="text-teal-500 mt-1">✓</span>
+                    <span className="text-primary-500 mt-1">✓</span>
                     <span>{item}</span>
                   </li>
                 ))}
@@ -174,7 +172,7 @@ export default function PrivacyPolicy() {
             {/* 5 */}
             <section>
               <h3 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-teal-600">٥.</span> مشاركة البيانات مع أطراف ثالثة
+                <span className="text-primary-600">٥.</span> مشاركة البيانات مع أطراف ثالثة
               </h3>
               <p className="mb-3">
                 لا نبيع بياناتك الشخصية لأي طرف ثالث. قد نشارك بياناتك في الحالات التالية فقط:
@@ -209,7 +207,7 @@ export default function PrivacyPolicy() {
             {/* 6 */}
             <section>
               <h3 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-teal-600">٦.</span> أمن البيانات
+                <span className="text-primary-600">٦.</span> أمن البيانات
               </h3>
               <p className="mb-3">نطبق معايير أمنية متقدمة لحماية بياناتك:</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -235,7 +233,7 @@ export default function PrivacyPolicy() {
             {/* 7 */}
             <section>
               <h3 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-teal-600">٧.</span> حقوقك وفق نظام PDPL
+                <span className="text-primary-600">٧.</span> حقوقك وفق نظام PDPL
               </h3>
               <p className="mb-3">يمنحك نظام حماية البيانات الشخصية الحقوق التالية:</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -247,15 +245,15 @@ export default function PrivacyPolicy() {
                   { right: 'الحق في نقل البيانات', desc: 'الحصول على بياناتك بصيغة قابلة للنقل' },
                   { right: 'الحق في تقديم شكوى', desc: 'التقدم بشكوى للهيئة السعودية للبيانات والذكاء الاصطناعي (SDAIA)' },
                 ].map((item) => (
-                  <div key={item.right} className="border border-teal-100 rounded-xl p-3 bg-teal-50/30">
-                    <div className="font-semibold text-teal-800 text-sm mb-1">{item.right}</div>
+                  <div key={item.right} className="border border-primary-100 rounded-xl p-3 bg-primary-50/30">
+                    <div className="font-semibold text-primary-800 text-sm mb-1">{item.right}</div>
                     <div className="text-gray-600 text-xs">{item.desc}</div>
                   </div>
                 ))}
               </div>
               <p className="mt-4 text-sm text-gray-600">
                 لممارسة أي من هذه الحقوق، تواصل معنا على:{' '}
-                <a href="mailto:privacy@tawafud.raskh.app" className="text-teal-600 hover:underline font-medium">
+                <a href="mailto:privacy@tawafud.raskh.app" className="text-primary-600 hover:underline font-medium">
                   privacy@tawafud.raskh.app
                 </a>
               </p>
@@ -264,7 +262,7 @@ export default function PrivacyPolicy() {
             {/* 8 */}
             <section>
               <h3 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-teal-600">٨.</span> الاحتفاظ بالبيانات
+                <span className="text-primary-600">٨.</span> الاحتفاظ بالبيانات
               </h3>
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse text-sm">
@@ -284,7 +282,7 @@ export default function PrivacyPolicy() {
                     ].map(([type, period], i) => (
                       <tr key={i} className={i % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
                         <td className="border border-gray-200 px-4 py-2">{type}</td>
-                        <td className="border border-gray-200 px-4 py-2 text-teal-700">{period}</td>
+                        <td className="border border-gray-200 px-4 py-2 text-primary-700">{period}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -295,7 +293,7 @@ export default function PrivacyPolicy() {
             {/* 9 */}
             <section>
               <h3 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-teal-600">٩.</span> نقل البيانات عبر الحدود
+                <span className="text-primary-600">٩.</span> نقل البيانات عبر الحدود
               </h3>
               <p>
                 تُعالج بياناتك بصفة أساسية داخل المملكة العربية السعودية. في حالة نقل بيانات لمزودي خدمات خارج المملكة
@@ -307,7 +305,7 @@ export default function PrivacyPolicy() {
             {/* 10 */}
             <section>
               <h3 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-teal-600">١٠.</span> ملفات تعريف الارتباط (Cookies)
+                <span className="text-primary-600">١٠.</span> ملفات تعريف الارتباط (Cookies)
               </h3>
               <p>
                 نستخدم ملفات تعريف ارتباط ضرورية للتشغيل (مثل جلسة المستخدم) وملفات تحليلية مجهولة الهوية.
@@ -319,7 +317,7 @@ export default function PrivacyPolicy() {
             {/* 11 */}
             <section>
               <h3 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-teal-600">١١.</span> التغييرات على هذه السياسة
+                <span className="text-primary-600">١١.</span> التغييرات على هذه السياسة
               </h3>
               <p>
                 قد نُحدِّث هذه السياسة دورياً. سنُخطرك بأي تغييرات جوهرية عبر البريد الإلكتروني أو إشعار
@@ -331,11 +329,11 @@ export default function PrivacyPolicy() {
             {/* 12 */}
             <section>
               <h3 className="text-xl font-bold text-gray-900 mb-3 flex items-center gap-2">
-                <span className="text-teal-600">١٢.</span> التواصل معنا
+                <span className="text-primary-600">١٢.</span> التواصل معنا
               </h3>
-              <div className="bg-teal-50 rounded-xl p-6 border border-teal-100">
-                <p className="font-semibold text-teal-900 mb-4">مسؤول حماية البيانات – منصة توافد</p>
-                <div className="space-y-2 text-sm text-teal-800">
+              <div className="bg-primary-50 rounded-xl p-6 border border-primary-100">
+                <p className="font-semibold text-primary-900 mb-4">مسؤول حماية البيانات – منصة توافد</p>
+                <div className="space-y-2 text-sm text-primary-800">
                   <p>📧 البريد الإلكتروني: <a href="mailto:privacy@tawafud.raskh.app" className="font-medium hover:underline">privacy@tawafud.raskh.app</a></p>
                   <p>📞 الهاتف: <a href="tel:+966920000000" className="font-medium hover:underline">+966 920 000 000</a></p>
                   <p>📍 العنوان: الرياض، المملكة العربية السعودية</p>
@@ -350,7 +348,7 @@ export default function PrivacyPolicy() {
           <div className="mt-10 pt-8 border-t border-gray-100 text-center">
             <p className="text-sm text-gray-400">
               © {new Date().getFullYear()} توافد – جميع الحقوق محفوظة |{' '}
-              <a href="/terms" className="text-teal-600 hover:underline">شروط الاستخدام</a>
+              <a href="/terms" className="text-primary-600 hover:underline">شروط الاستخدام</a>
             </p>
             <p className="text-xs text-gray-400 mt-1">
               متوافقة مع نظام حماية البيانات الشخصية (PDPL) – مرسوم ملكي م/19 لعام 1443هـ

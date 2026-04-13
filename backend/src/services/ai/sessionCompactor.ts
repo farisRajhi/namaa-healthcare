@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@prisma/client';
 import type { ChatMessage } from '../llm.js';
 import { getLLMService } from '../llm.js';
+import { redactPII } from '../security/piiRedactor.js';
 
 // ─────────────────────────────────────────────────────────
 // Session Compactor — Entity-Aware Conversation Compaction
@@ -328,10 +329,12 @@ Keep under ${SUMMARY_MAX_TOKENS} tokens. Write in Arabic primarily, with English
     if (summary.includes('إلغاء') || summary.includes('cancel')) keyTopics.push('appointment_cancellation');
     if (summary.includes('تحويل') || summary.includes('transfer')) keyTopics.push('handoff');
 
+    const { redactedText: redactedSummary } = redactPII(summary);
+
     await prisma.conversationSummary.create({
       data: {
         conversationId,
-        summary,
+        summary: redactedSummary,
         keyTopics,
         messageCount,
       },

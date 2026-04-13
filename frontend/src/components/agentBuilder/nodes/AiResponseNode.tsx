@@ -12,23 +12,23 @@ function AiResponseNode({ data, selected }: NodeProps<AiResponseNodeType>) {
     <div
       className={`
         bg-white rounded-xl shadow-md border-2 min-w-[200px] max-w-[260px]
-        ${selected ? 'border-teal-500 shadow-teal-100 shadow-lg' : 'border-teal-200'}
+        ${selected ? 'border-primary-500 shadow-primary-100 shadow-lg' : 'border-primary-200'}
         transition-all duration-150
       `}
     >
       <Handle
         type="target"
         position={Position.Top}
-        className="!w-3 !h-3 !bg-teal-500 !border-2 !border-white"
+        className="!w-3 !h-3 !bg-primary-500 !border-2 !border-white"
       />
 
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-teal-50 rounded-t-[10px] border-b border-teal-100">
-        <div className="w-6 h-6 rounded-md bg-teal-500 flex items-center justify-center flex-shrink-0">
+      <div className="flex items-center gap-2 px-3 py-2 bg-primary-50 rounded-t-[10px] border-b border-primary-100">
+        <div className="w-6 h-6 rounded-md bg-primary-500 flex items-center justify-center flex-shrink-0">
           <Sparkles className="w-3.5 h-3.5 text-white" />
         </div>
-        <span className="text-xs font-semibold text-teal-700">رد ذكي</span>
-        <span className="text-[10px] px-1.5 py-0.5 bg-teal-100 text-teal-600 rounded-full ms-auto">
+        <span className="text-xs font-semibold text-primary-700">رد ذكي</span>
+        <span className="text-[10px] px-1.5 py-0.5 bg-primary-100 text-primary-600 rounded-full ms-auto">
           AI
         </span>
       </div>
@@ -47,7 +47,7 @@ function AiResponseNode({ data, selected }: NodeProps<AiResponseNodeType>) {
       <Handle
         type="source"
         position={Position.Bottom}
-        className="!w-3 !h-3 !bg-teal-500 !border-2 !border-white"
+        className="!w-3 !h-3 !bg-primary-500 !border-2 !border-white"
       />
     </div>
   )
