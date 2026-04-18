@@ -26,213 +26,239 @@
     ]
   },
   "segmentStats": {
-    "overdue_routine": {
-      "count": 242,
-      "avgScore": 54.1,
-      "minScore": 0,
-      "maxScore": 99,
+    "lapsed_long": {
+      "count": 53,
+      "avgScore": 91,
+      "minScore": 5,
+      "maxScore": 100,
       "topActions": {
-        "recall": 147,
-        "reminder": 95
+        "recall": 47,
+        "offer": 6
       }
     },
     "upsell_candidate": {
-      "count": 54,
-      "avgScore": 48.4,
-      "minScore": 9,
+      "count": 51,
+      "avgScore": 50.8,
+      "minScore": 10,
       "maxScore": 60,
       "topActions": {
-        "upsell": 49,
-        "reminder": 5
+        "upsell": 45,
+        "reminder": 6
+      }
+    },
+    "overdue_routine": {
+      "count": 227,
+      "avgScore": 55.2,
+      "minScore": 0,
+      "maxScore": 90,
+      "topActions": {
+        "reminder": 67,
+        "recall": 160
       }
     },
     "needs_followup": {
-      "count": 27,
-      "avgScore": 85,
+      "count": 29,
+      "avgScore": 87.9,
       "minScore": 75,
-      "maxScore": 98,
+      "maxScore": 95,
       "topActions": {
-        "recall": 27
+        "recall": 29
       }
     },
-    "lapsed_long": {
-      "count": 39,
-      "avgScore": 96.2,
-      "minScore": 85,
-      "maxScore": 100,
+    "seasonal_candidate": {
+      "count": 7,
+      "avgScore": 62.1,
+      "minScore": 23,
+      "maxScore": 73,
       "topActions": {
-        "recall": 31,
-        "offer": 8
+        "offer": 4,
+        "reminder": 3
       }
     },
     "do_not_contact": {
-      "count": 63,
+      "count": 49,
       "avgScore": 0,
       "minScore": 0,
       "maxScore": 0,
       "topActions": {
-        "do_not_contact": 56,
-        "reminder": 7
+        "do_not_contact": 44,
+        "reminder": 5
       }
     },
     "high_value_inactive": {
-      "count": 42,
-      "avgScore": 81.9,
-      "minScore": 51,
-      "maxScore": 100,
+      "count": 50,
+      "avgScore": 79.1,
+      "minScore": 6,
+      "maxScore": 95,
       "topActions": {
-        "recall": 34,
-        "upsell": 1,
-        "reminder": 4,
-        "offer": 3
+        "recall": 44,
+        "reminder": 6
       }
     },
     "new_patient_dropout": {
-      "count": 25,
-      "avgScore": 7.2,
+      "count": 34,
+      "avgScore": 14.9,
       "minScore": 0,
-      "maxScore": 68,
+      "maxScore": 70,
       "topActions": {
-        "recall": 13,
-        "reminder": 3,
-        "offer": 9
-      }
-    },
-    "seasonal_candidate": {
-      "count": 8,
-      "avgScore": 66.6,
-      "minScore": 50,
-      "maxScore": 78,
-      "topActions": {
-        "reminder": 2,
-        "offer": 5,
-        "recall": 1
+        "recall": 22,
+        "reminder": 6,
+        "offer": 6
       }
     }
   },
   "scoreDistribution": {
-    "0": 103,
-    "1-20": 52,
-    "21-40": 11,
-    "41-60": 71,
-    "61-80": 162,
-    "81-100": 101
+    "0": 89,
+    "1-20": 49,
+    "21-40": 15,
+    "41-60": 64,
+    "61-80": 169,
+    "81-100": 114
   },
   "samplesBySegment": {
-    "overdue_routine": [
-      {
-        "index": 164,
-        "name": "وجدان الثبيتي",
-        "score": 99,
-        "lastService": "تنظيف الاسنان",
-        "daysSinceLastVisit": 501,
-        "totalVisits": 3,
-        "reasoning": "المريضة متأخرة جدًا عن تنظيف الأسنان. يجب التواصل مع والدتها لتحديد موعد."
-      },
-      {
-        "index": 170,
-        "name": "شيماء المطيري",
-        "score": 98,
-        "lastService": "تنظيف الاسنان",
-        "daysSinceLastVisit": 476,
-        "totalVisits": 4,
-        "reasoning": "المريضة متأخرة جدًا عن تنظيف الأسنان. يجب التواصل معها لتحديد موعد."
-      },
-      {
-        "index": 471,
-        "name": "مريم الخالدي",
-        "score": 93,
-        "lastService": "علاج لثة",
-        "daysSinceLastVisit": 313,
-        "totalVisits": 4,
-        "reasoning": "المريضة متأخرة عن علاج اللثة ب 223 يومًا. يجب التواصل معها."
-      }
-    ],
-    "upsell_candidate": [
-      {
-        "index": 62,
-        "name": "فيصل الشريف",
-        "score": 60,
-        "lastService": "تنظيف الاسنان",
-        "daysSinceLastVisit": 170,
-        "totalVisits": 2,
-        "reasoning": "المريض لديه موعد قريب لتنظيف الأسنان. يمكن تقديم خدمات تجميلية إضافية."
-      },
-      {
-        "index": 79,
-        "name": "أنس الدوسري",
-        "score": 60,
-        "lastService": "تنظيف الاسنان",
-        "daysSinceLastVisit": 175,
-        "totalVisits": 10,
-        "reasoning": "المريض لديه موعد قريب لتنظيف الأسنان. يمكننا أن نعرض عليه خدمات تبييض الأسنان."
-      },
-      {
-        "index": 152,
-        "name": "منيرة المغربي",
-        "score": 60,
-        "lastService": "تنظيف الاسنان",
-        "daysSinceLastVisit": 167,
-        "totalVisits": 6,
-        "reasoning": "المريضة لديها خدمات أساسية فقط وتقترب من موعد تنظيف الأسنان. يمكننا اقتراح خدمات تجميلية."
-      }
-    ],
-    "needs_followup": [
-      {
-        "index": 487,
-        "name": "رياض العنزي",
-        "score": 98,
-        "lastService": "علاج عصب",
-        "daysSinceLastVisit": 45,
-        "totalVisits": 4,
-        "reasoning": "المريض يحتاج إلى تاج بعد علاج العصب. هذا أمر بالغ الأهمية."
-      },
-      {
-        "index": 50,
-        "name": "بدور الغامدي",
-        "score": 95,
-        "lastService": "علاج عصب",
-        "daysSinceLastVisit": 55,
-        "totalVisits": 5,
-        "reasoning": "المريضة تحتاج إلى تركيب تاج بعد علاج العصب الذي تم قبل 41 يومًا. هذا يعتبر أمرًا عاجلاً لحماية السن."
-      },
-      {
-        "index": 158,
-        "name": "ندى الخثعمي",
-        "score": 95,
-        "lastService": "علاج عصب",
-        "daysSinceLastVisit": 53,
-        "totalVisits": 2,
-        "reasoning": "المريضة بحاجة إلى تاج بعد علاج العصب. هذا أمر بالغ الأهمية."
-      }
-    ],
     "lapsed_long": [
       {
         "index": 9,
         "name": "عائشة المغربي",
         "score": 100,
         "lastService": "تنظيف الاسنان",
-        "daysSinceLastVisit": 797,
+        "daysSinceLastVisit": 805,
         "totalVisits": 3,
-        "reasoning": "المريضة متأخرة عن تنظيف الأسنان ب 617 يومًا. يجب التواصل معها لجدولة موعد."
-      },
-      {
-        "index": 35,
-        "name": "شيماء الزهراني",
-        "score": 100,
-        "lastService": "تنظيف الاسنان",
-        "daysSinceLastVisit": 573,
-        "totalVisits": 2,
-        "reasoning": "المريضة متأخرة عن تنظيف الأسنان بأكثر من سنة. يجب التواصل معها بشكل عاجل."
+        "reasoning": "المريضة متأخرة جدًا عن تنظيف الأسنان ب 625 يومًا. هذا متأخر جداً ويحتاج إلى متابعة عاجلة."
       },
       {
         "index": 56,
         "name": "سمية الحربي",
         "score": 100,
         "lastService": "تنظيف الاسنان",
-        "daysSinceLastVisit": 769,
+        "daysSinceLastVisit": 777,
         "totalVisits": 4,
-        "reasoning": "المريضة متأخرة عن تنظيف الأسنان بـ 589 يومًا. هذا يعتبر أمرًا عاجلاً."
+        "reasoning": "المريضة متأخرة عن تنظيف الأسنان بـ 597 يومًا. يجب التواصل معها."
+      },
+      {
+        "index": 93,
+        "name": "حصة الشمري",
+        "score": 100,
+        "lastService": "تنظيف الاسنان",
+        "daysSinceLastVisit": 555,
+        "totalVisits": 2,
+        "reasoning": "المريضة متأخرة عن تنظيف الأسنان ب 375 يومًا. هذا تأخير كبير ويتطلب تذكيرًا عاجلاً."
+      }
+    ],
+    "upsell_candidate": [
+      {
+        "index": 1,
+        "name": "ريم الخثعمي",
+        "score": 60,
+        "lastService": "تنظيف الاسنان",
+        "daysSinceLastVisit": 165,
+        "totalVisits": 2,
+        "reasoning": "المريضة تستحق تذكيرًا بتنظيف الأسنان وفلورايد. يمكن تقديم خدمات تبييض الأسنان كترقية."
+      },
+      {
+        "index": 13,
+        "name": "حسن الشمراني",
+        "score": 60,
+        "lastService": "فحص دوري",
+        "daysSinceLastVisit": 167,
+        "totalVisits": 8,
+        "reasoning": "المريض يستحق تذكيرًا بتنظيف الأسنان. يمكن تقديم خدمات تبييض الأسنان كترقية."
+      },
+      {
+        "index": 62,
+        "name": "فيصل الشريف",
+        "score": 60,
+        "lastService": "تنظيف الاسنان",
+        "daysSinceLastVisit": 178,
+        "totalVisits": 2,
+        "reasoning": "المريض قريب من موعد تنظيف الأسنان. يمكن عرض خدمات تجميلية إضافية."
+      }
+    ],
+    "overdue_routine": [
+      {
+        "index": 142,
+        "name": "غادة الأحمدي",
+        "score": 90,
+        "lastService": "علاج لثة",
+        "daysSinceLastVisit": 431,
+        "totalVisits": 4,
+        "reasoning": "المريضة متأخرة عن علاج اللثة ب 341 يومًا. هذا تأخير كبير ويتطلب تذكيرًا عاجلاً."
+      },
+      {
+        "index": 161,
+        "name": "سمية المغربي",
+        "score": 85,
+        "lastService": "تنظيف الاسنان",
+        "daysSinceLastVisit": 284,
+        "totalVisits": 5,
+        "reasoning": "المريضة متأخرة عن تنظيف الأسنان بثلاثة أشهر. هذا تذكير."
+      },
+      {
+        "index": 168,
+        "name": "عمر الدوسري",
+        "score": 85,
+        "lastService": "تبييض الاسنان",
+        "daysSinceLastVisit": 273,
+        "totalVisits": 2,
+        "reasoning": "المريض متأخر عن تنظيف وتبييض الأسنان بثلاثة أشهر. هذا تذكير."
+      }
+    ],
+    "needs_followup": [
+      {
+        "index": 50,
+        "name": "بدور الغامدي",
+        "score": 95,
+        "lastService": "علاج عصب",
+        "daysSinceLastVisit": 63,
+        "totalVisits": 5,
+        "reasoning": "المريض يحتاج إلى تاج بعد علاج العصب الذي تم إجراؤه منذ 49 يومًا. هذا يعتبر حالة طارئة."
+      },
+      {
+        "index": 158,
+        "name": "ندى الخثعمي",
+        "score": 95,
+        "lastService": "علاج عصب",
+        "daysSinceLastVisit": 61,
+        "totalVisits": 2,
+        "reasoning": "المريضة بحاجة إلى تاج بعد علاج العصب. هذا أمر بالغ الأهمية."
+      },
+      {
+        "index": 257,
+        "name": "هيا الجهني",
+        "score": 95,
+        "lastService": "علاج عصب",
+        "daysSinceLastVisit": 63,
+        "totalVisits": 6,
+        "reasoning": "المريضة تحتاج تاج بعد علاج العصب ب 49 يومًا. هذا أمر بالغ الأهمية."
+      }
+    ],
+    "seasonal_candidate": [
+      {
+        "index": 11,
+        "name": "مها العمري",
+        "score": 73,
+        "lastService": "تبييض الاسنان",
+        "daysSinceLastVisit": 218,
+        "totalVisits": 2,
+        "reasoning": "المريضة متأخرة عن تنظيف وتبييض الأسنان ب 38 يومًا. يمكن استغلال قرب العيد لتقديم عرض على التبييض."
+      },
+      {
+        "index": 14,
+        "name": "بدور الخالدي",
+        "score": 73,
+        "lastService": "تبييض الاسنان",
+        "daysSinceLastVisit": 233,
+        "totalVisits": 2,
+        "reasoning": "المريضة متأخرة عن تنظيف وتبييض الأسنان ب 53 يومًا. يمكن استغلال قرب العيد لتقديم عرض على التبييض."
+      },
+      {
+        "index": 433,
+        "name": "لطيفة الغامدي",
+        "score": 73,
+        "lastService": "تبييض الاسنان",
+        "daysSinceLastVisit": 226,
+        "totalVisits": 2,
+        "reasoning": "المريضة متأخرة عن تبييض الأسنان ب 46 يومًا. يمكن تذكيرها بتبييض الأسنان قبل العيد."
       }
     ],
     "do_not_contact": [
@@ -241,262 +267,233 @@
         "name": "نوف الشهري",
         "score": 0,
         "lastService": "فحص",
-        "daysSinceLastVisit": 489,
+        "daysSinceLastVisit": 497,
         "totalVisits": 3,
-        "reasoning": "المريضة في قائمة عدم الاتصال. لا يجب التواصل معها."
+        "reasoning": "المريضة في قائمة عدم الاتصال."
       },
       {
         "index": 18,
         "name": "ياسر المطيري",
         "score": 0,
         "lastService": "تنظيف الاسنان",
-        "daysSinceLastVisit": 414,
+        "daysSinceLastVisit": 422,
         "totalVisits": 8,
-        "reasoning": "المريض في قائمة عدم الاتصال. لا يجب التواصل معه."
+        "reasoning": "المريض في قائمة عدم الاتصال."
       },
       {
         "index": 19,
         "name": "هاني السلمي",
         "score": 0,
         "lastService": "تنظيف الاسنان",
-        "daysSinceLastVisit": 127,
+        "daysSinceLastVisit": 135,
         "totalVisits": 9,
-        "reasoning": "المريض في قائمة عدم الاتصال. لا يجب التواصل معه."
+        "reasoning": "المريض في قائمة عدم الاتصال."
       }
     ],
     "high_value_inactive": [
-      {
-        "index": 458,
-        "name": "سعد الأسمري",
-        "score": 100,
-        "lastService": "تبييض الاسنان",
-        "daysSinceLastVisit": 313,
-        "totalVisits": 17,
-        "reasoning": "المريض ذو قيمة عالية ومتأخر عن تنظيف الأسنان ب 133 يومًا. يجب التواصل معه."
-      },
-      {
-        "index": 300,
-        "name": "نورة المالكي",
-        "score": 98,
-        "lastService": "تنظيف الاسنان",
-        "daysSinceLastVisit": 236,
-        "totalVisits": 16,
-        "reasoning": "المريضة ذات قيمة عالية ومتأخرة عن علاج اللثة بـ 146 يومًا. هذا يتطلب تذكيرًا فوريًا."
-      },
       {
         "index": 20,
         "name": "خلود الزهراني",
         "score": 95,
         "lastService": "تنظيف الاسنان",
-        "daysSinceLastVisit": 285,
+        "daysSinceLastVisit": 293,
         "totalVisits": 18,
-        "reasoning": "المريضة ذات قيمة عالية ومتأخرة عن علاج اللثة ب 195 يومًا. يجب التواصل معها لجدولة موعد."
+        "reasoning": "المريضة ذات قيمة عالية ومتأخرة عن علاج اللثة ب 203 يومًا. يجب تذكيرها بأهمية المتابعة."
+      },
+      {
+        "index": 82,
+        "name": "صالح الأحمدي",
+        "score": 95,
+        "lastService": "زراعة الاسنان",
+        "daysSinceLastVisit": 291,
+        "totalVisits": 13,
+        "reasoning": "المريض ذو قيمة عالية ومتأخر عن علاج اللثة ب 201 يومًا. هذا يتطلب تذكيرًا عاجلاً."
+      },
+      {
+        "index": 228,
+        "name": "سمية الرشيدي",
+        "score": 95,
+        "lastService": "زراعة الاسنان",
+        "daysSinceLastVisit": 253,
+        "totalVisits": 6,
+        "reasoning": "المريضة ذات قيمة عالية ومتأخرة عن علاج اللثة بأكثر من خمسة أشهر. يجب التواصل معها."
       }
     ],
     "new_patient_dropout": [
       {
         "index": 106,
         "name": "جواهر العنزي",
-        "score": 68,
+        "score": 70,
         "lastService": "تنظيف الاسنان",
-        "daysSinceLastVisit": 204,
+        "daysSinceLastVisit": 212,
         "totalVisits": 1,
-        "reasoning": "المريضة متأخرة عن تنظيف الأسنان بـ 24 يومًا. حان وقت التذكير."
+        "reasoning": "المريضة متأخرة عن تنظيف الأسنان ب 32 يوم. حان وقت التذكير."
+      },
+      {
+        "index": 406,
+        "name": "رائد الخثعمي",
+        "score": 50,
+        "lastService": "تنظيف الاسنان",
+        "daysSinceLastVisit": 159,
+        "totalVisits": 1,
+        "reasoning": "المريض على وشك الموعد القادم لتنظيف الأسنان خلال 21 يوم. حان وقت التذكير."
       },
       {
         "index": 234,
         "name": "رزان اليامي",
-        "score": 35,
+        "score": 40,
         "lastService": "فحص",
-        "daysSinceLastVisit": 49,
+        "daysSinceLastVisit": 57,
         "totalVisits": 1,
-        "reasoning": "المريضة زارت العيادة مرة واحدة فقط. يجب التواصل معها لتشجيعها على العودة."
-      },
-      {
-        "index": 404,
-        "name": "العنود الغامدي",
-        "score": 18,
-        "lastService": "تبييض الاسنان",
-        "daysSinceLastVisit": 135,
-        "totalVisits": 2,
-        "reasoning": "المريضة ليست متأخرة عن أي خدمة حاليًا. لا يوجد حاجة للتواصل في الوقت الحالي."
-      }
-    ],
-    "seasonal_candidate": [
-      {
-        "index": 457,
-        "name": "ريم العنزي",
-        "score": 78,
-        "lastService": "تبييض الاسنان",
-        "daysSinceLastVisit": 278,
-        "totalVisits": 2,
-        "reasoning": "المريضة متأخرة عن تبييض الأسنان ب 98 يومًا. يمكن تقديم عرض خاص قبل عيد الفطر."
-      },
-      {
-        "index": 259,
-        "name": "فيصل البلوي",
-        "score": 75,
-        "lastService": "تبييض الاسنان",
-        "daysSinceLastVisit": 239,
-        "totalVisits": 5,
-        "reasoning": "المريض متأخر عن تبييض الأسنان ب 59 يومًا. يمكن استغلال موسم العيد القادم."
-      },
-      {
-        "index": 189,
-        "name": "عائشة الشهري",
-        "score": 73,
-        "lastService": "تبييض الاسنان",
-        "daysSinceLastVisit": 234,
-        "totalVisits": 3,
-        "reasoning": "المريضة متأخرة عن تبييض الأسنان وتنظيف الأسنان ب 54 يومًا. شهر رمضان قريب، وهو وقت مثالي لتبييض الأسنان."
+        "reasoning": "المريضة زارت العيادة مرة واحدة فقط. يمكن تقديم عرض لتشجيعها على العودة."
       }
     ]
   },
   "campaigns": [
     {
       "name": "Root Canal Crown Completion Campaign",
-      "nameAr": "حملة استكمال التاج بعد علاج العصب",
+      "nameAr": "حملة استكمال تاج بعد علاج العصب",
       "type": "follow_up",
       "segment": "needs_followup",
-      "segmentDescAr": "مرضى يحتاجون إلى تركيب تاج بعد علاج العصب",
-      "segmentDescEn": "Patients needing a crown after root canal treatment",
-      "scriptAr": "مرحباً {patient_name}، نحرص على متابعة صحتك. سنك يحتاج تاج لحمايته من الكسر. للحجز أرسل: حجز",
-      "scriptEn": "Hello {patient_name}, we care about your health. Your tooth needs a crown to protect it from fracture. Reply BOOK to schedule.",
+      "segmentDescAr": "مرضى يحتاجون إلى متابعة بعد علاج العصب لتركيب تاج",
+      "segmentDescEn": "Patients needing crown placement after root canal",
+      "scriptAr": "مرحباً {patient_name}، نحرص على متابعة صحتك. سنك يحتاج تاج لحمايته من الكسر. للحجز أرسل: تاج",
+      "scriptEn": "Hello {patient_name}, we care about your health. Your tooth needs a crown to protect it from fracture. Reply CROWN to book.",
       "channelSequence": [
         "whatsapp"
       ],
       "suggestedOfferType": null,
       "suggestedDiscount": null,
-      "reasoning": "Critical to complete root canal with a crown to prevent fracture. High priority.",
-      "reasoningAr": "من الضروري استكمال علاج العصب بالتاج لحماية السن من الكسر. أولوية عالية.",
-      "expectedOutcome": "Increased crown completion rate after root canals.",
+      "reasoning": "High priority to complete root canal treatment with a crown to prevent tooth fracture.",
+      "reasoningAr": "أولوية عالية لاستكمال علاج قناة الجذر بتاج لمنع كسر الأسنان.",
+      "expectedOutcome": "Increased crown completion rate after root canal procedures.",
       "priority": 95,
       "confidenceScore": 0.9
     },
     {
       "name": "Lapsed Cleaning Re-engagement Campaign",
-      "nameAr": "حملة إعادة تواصل لتنظيف الأسنان المتأخر",
+      "nameAr": "حملة إعادة تفعيل تنظيف الأسنان المتأخر",
       "type": "re_engagement",
       "segment": "lapsed_long",
-      "segmentDescAr": "مرضى متأخرون عن تنظيف الأسنان",
-      "segmentDescEn": "Patients overdue for teeth cleaning",
-      "scriptAr": "{patient_name}، اشتقنالك! 💙 حان وقت تنظيف أسنانك — مر أكثر من 6 أشهر. للحجز أرسل: حجز",
-      "scriptEn": "{patient_name}, we miss you! It's time for your teeth cleaning — it's been over 6 months. Reply BOOK to schedule.",
+      "segmentDescAr": "مرضى متأخرون جدًا عن تنظيف الأسنان",
+      "segmentDescEn": "Patients significantly overdue for cleaning",
+      "scriptAr": "{patient_name}، اشتقنالك! 💙 حان وقت تنظيف أسنانك — مر أكثر من 6 أشهر. نقدم خصم 20% على التنظيف. للحجز أرسل: تنظيف",
+      "scriptEn": "{patient_name}, we miss you! 💙 It's time for your cleaning — it's been over 6 months. Get 20% off your cleaning. Reply CLEAN to book.",
       "channelSequence": [
         "whatsapp",
         "sms"
       ],
       "suggestedOfferType": "discount",
       "suggestedDiscount": 0,
-      "reasoning": "Re-engage lapsed patients with a small incentive to return for cleaning.",
-      "reasoningAr": "إعادة تواصل مع المرضى المتأخرين بتقديم حافز صغير للعودة لتنظيف الأسنان.",
-      "expectedOutcome": "Increased cleaning appointments from lapsed patients.",
-      "priority": 80,
+      "reasoning": "High value recall campaign for patients significantly overdue for cleaning.",
+      "reasoningAr": "حملة استعادة عالية القيمة للمرضى الذين فات موعد تنظيف أسنانهم بفترة طويلة.",
+      "expectedOutcome": "Re-engage lapsed patients and increase cleaning appointments.",
+      "priority": 85,
       "confidenceScore": 0.85
     },
     {
-      "name": "High Value Inactive Re-engagement Campaign",
-      "nameAr": "حملة إعادة تواصل مع عملاء ذوي قيمة عالية",
+      "name": "High Value Inactive Cleaning & Whitening Re-engagement",
+      "nameAr": "حملة إعادة تواصل مع عملاء مميزين لتنظيف وتبييض الأسنان",
       "type": "re_engagement",
       "segment": "high_value_inactive",
-      "segmentDescAr": "عملاء ذوو قيمة عالية غير نشطين",
-      "segmentDescEn": "High-value inactive patients",
-      "scriptAr": "{patient_name}، من عملائنا المميزين! حان وقت تنظيف أسنانك وتبييضها. لدينا باقة VIP لك. للحجز أرسل: حجز",
-      "scriptEn": "{patient_name}, you're one of our VIP clients! It's time for your cleaning and whitening. We have a VIP package for you. Reply BOOK to schedule.",
+      "segmentDescAr": "عملاء ذوو قيمة عالية غير نشطين ومتأخرين عن تنظيف وتبييض الأسنان",
+      "segmentDescEn": "High-value inactive patients overdue for cleaning and whitening",
+      "scriptAr": "{patient_name}، من عملائنا المميزين! نقدم لك باقة VIP لتنظيف وتبييض الأسنان بسعر خاص. للحجز أرسل: VIP",
+      "scriptEn": "{patient_name}, as one of our VIP clients! We offer you a special VIP package for cleaning and whitening. Reply VIP to book.",
       "channelSequence": [
         "whatsapp"
       ],
       "suggestedOfferType": "loyalty_bonus",
       "suggestedDiscount": null,
-      "reasoning": "Re-engage high-value patients with a VIP offer to encourage return.",
-      "reasoningAr": "إعادة تواصل مع المرضى ذوي القيمة العالية بعرض VIP لتشجيع العودة.",
+      "reasoning": "Re-engage high-value patients with a special offer to encourage them to return.",
+      "reasoningAr": "إعادة التواصل مع المرضى ذوي القيمة العالية بعرض خاص لتشجيعهم على العودة.",
       "expectedOutcome": "Increased appointments from high-value patients.",
-      "priority": 75,
+      "priority": 80,
       "confidenceScore": 0.75
     },
     {
-      "name": "Pre-Eid Whitening Campaign",
+      "name": "Pre-Eid Whitening Promotion",
       "nameAr": "حملة تبييض الأسنان قبل العيد",
       "type": "promotional",
       "segment": "seasonal_candidate",
-      "segmentDescAr": "مرشحون لتبييض الأسنان",
-      "segmentDescEn": "Candidates for teeth whitening",
-      "scriptAr": "{patient_name}، استعد للعيد! ✨ حافظ على بياض ابتسامتك — حان وقت التجديد. احجز الآن: {booking_link}",
-      "scriptEn": "{patient_name}, get ready for Eid! ✨ Keep your smile bright — it's time for a touch-up. Book now: {booking_link}",
+      "segmentDescAr": "مرشحون لتبييض الأسنان قبل العيد",
+      "segmentDescEn": "Candidates for teeth whitening before Eid",
+      "scriptAr": "{patient_name}، استعد للعيد! ✨ ابتسامة العيد تبدأ بأسنان بيضاء. احصل على باقة تبييض الأسنان الآن! احجز الآن: {booking_link}",
+      "scriptEn": "{patient_name}, get ready for Eid! ✨ An Eid smile starts with white teeth. Get our teeth whitening package now! Book now: {booking_link}",
       "channelSequence": [
         "whatsapp"
       ],
       "suggestedOfferType": "package_deal",
       "suggestedDiscount": null,
-      "reasoning": "Capitalize on pre-Eid demand for whitening services.",
-      "reasoningAr": "الاستفادة من الطلب على خدمات تبييض الأسنان قبل العيد.",
+      "reasoning": "Capitalize on the pre-Eid demand for cosmetic dental services.",
+      "reasoningAr": "الاستفادة من الطلب على خدمات تجميل الأسنان قبل العيد.",
       "expectedOutcome": "Increased whitening appointments before Eid.",
-      "priority": 70,
+      "priority": 75,
       "confidenceScore": 0.8
-    },
-    {
-      "name": "New Patient Welcome Back Campaign",
-      "nameAr": "حملة ترحيب بالمرضى الجدد للعودة",
-      "type": "re_engagement",
-      "segment": "new_patient_dropout",
-      "segmentDescAr": "مرضى جدد لم يعودوا",
-      "segmentDescEn": "New patients who haven't returned",
-      "scriptAr": "أهلاً {patient_name}، سعدنا بزيارتك الأولى! نقدم لك استشارة مجانية. للحجز أرسل: حجز",
-      "scriptEn": "Hello {patient_name}, we were happy to see you for your first visit! We offer you a free consultation. Reply BOOK to schedule.",
-      "channelSequence": [
-        "whatsapp"
-      ],
-      "suggestedOfferType": "free_consultation",
-      "suggestedDiscount": null,
-      "reasoning": "Encourage new patients to return with a free consultation offer.",
-      "reasoningAr": "تشجيع المرضى الجدد على العودة بتقديم استشارة مجانية.",
-      "expectedOutcome": "Increased return visits from new patients.",
-      "priority": 65,
-      "confidenceScore": 0.7
-    },
-    {
-      "name": "Routine Cleaning Reminder Campaign",
-      "nameAr": "حملة تذكير بتنظيف الأسنان الروتيني",
-      "type": "preventive",
-      "segment": "overdue_routine",
-      "segmentDescAr": "مرضى متأخرون عن تنظيف الأسنان الروتيني",
-      "segmentDescEn": "Patients overdue for routine teeth cleaning",
-      "scriptAr": "السلام عليكم {patient_name}، حان وقت تنظيف أسنانك — مر أكثر من 6 أشهر. للحجز أرسل: حجز",
-      "scriptEn": "Hello {patient_name}, it's time for your teeth cleaning — it's been over 6 months. Reply BOOK to schedule.",
-      "channelSequence": [
-        "whatsapp",
-        "sms"
-      ],
-      "suggestedOfferType": null,
-      "suggestedDiscount": null,
-      "reasoning": "Remind patients overdue for routine cleaning to schedule an appointment.",
-      "reasoningAr": "تذكير المرضى المتأخرين عن التنظيف الروتيني لتحديد موعد.",
-      "expectedOutcome": "Increased cleaning appointments.",
-      "priority": 60,
-      "confidenceScore": 0.75
     },
     {
       "name": "Cleaning and Whitening Upsell Campaign",
       "nameAr": "حملة ترويجية لتنظيف وتبييض الأسنان",
       "type": "recall",
       "segment": "upsell_candidate",
-      "segmentDescAr": "مرشحون لخدمات تبييض الأسنان",
-      "segmentDescEn": "Candidates for teeth whitening services",
-      "scriptAr": "مرحباً {patient_name}، عندنا عرض خاص لك! أضف تبييض مع التنظيف — باقة خاصة. للحجز أرسل: حجز",
-      "scriptEn": "Hello {patient_name}, we have a special offer for you! Add whitening with cleaning — special package. Reply BOOK to schedule.",
+      "segmentDescAr": "مرشحون لخدمة تبييض الأسنان بعد تنظيف الأسنان",
+      "segmentDescEn": "Candidates for teeth whitening after cleaning",
+      "scriptAr": "مرحباً {patient_name}، عندنا عرض خاص لك! أضف تبييض مع التنظيف — باقة خاصة لابتسامة أكثر إشراقاً. للحجز أرسل: باقة",
+      "scriptEn": "Hello {patient_name}, we have a special offer for you! Add whitening with your cleaning — a special package for a brighter smile. Reply PACKAGE to book.",
       "channelSequence": [
         "whatsapp"
       ],
       "suggestedOfferType": "package_deal",
       "suggestedDiscount": null,
       "reasoning": "Upsell whitening services to patients already scheduled for cleaning.",
-      "reasoningAr": "ترويج خدمات تبييض الأسنان للمرضى الذين لديهم بالفعل موعد لتنظيف الأسنان.",
-      "expectedOutcome": "Increased whitening service bookings.",
-      "priority": 55,
+      "reasoningAr": "ترويج خدمات تبييض الأسنان للمرضى الذين حجزوا بالفعل لتنظيف الأسنان.",
+      "expectedOutcome": "Increased whitening appointments and revenue.",
+      "priority": 70,
+      "confidenceScore": 0.7
+    },
+    {
+      "name": "New Patient Re-engagement",
+      "nameAr": "حملة إعادة تواصل مع مرضى جدد",
+      "type": "re_engagement",
+      "segment": "new_patient_dropout",
+      "segmentDescAr": "مرضى جدد لم يعودوا بعد الزيارة الأولى",
+      "segmentDescEn": "New patients who haven't returned after their first visit",
+      "scriptAr": "أهلاً {patient_name}، سعدنا بزيارتك الأولى! نقدم لك استشارة مجانية لتقييم احتياجاتك. للحجز أرسل: استشارة",
+      "scriptEn": "Hello {patient_name}, we were happy to see you for your first visit! We offer you a free consultation to assess your needs. Reply CONSULT to book.",
+      "channelSequence": [
+        "whatsapp"
+      ],
+      "suggestedOfferType": "free_consultation",
+      "suggestedDiscount": null,
+      "reasoning": "Re-engage new patients by offering a free consultation to encourage them to return.",
+      "reasoningAr": "إعادة التواصل مع المرضى الجدد من خلال تقديم استشارة مجانية لتشجيعهم على العودة.",
+      "expectedOutcome": "Increased patient retention and revenue.",
+      "priority": 65,
       "confidenceScore": 0.65
+    },
+    {
+      "name": "Routine Cleaning Reminder",
+      "nameAr": "حملة تذكير بتنظيف الأسنان الروتيني",
+      "type": "preventive",
+      "segment": "overdue_routine",
+      "segmentDescAr": "مرضى متأخرون عن تنظيف الأسنان الروتيني",
+      "segmentDescEn": "Patients overdue for routine cleaning",
+      "scriptAr": "السلام عليكم {patient_name}، حان وقت تنظيف أسنانك. للحجز أرسل: حجز",
+      "scriptEn": "Hello {patient_name}, it's time for your cleaning. Reply BOOK to schedule.",
+      "channelSequence": [
+        "whatsapp",
+        "sms"
+      ],
+      "suggestedOfferType": null,
+      "suggestedDiscount": null,
+      "reasoning": "Remind patients who are overdue for their routine cleaning appointment.",
+      "reasoningAr": "تذكير المرضى الذين فات موعد تنظيف الأسنان الروتيني.",
+      "expectedOutcome": "Increased number of routine cleaning appointments.",
+      "priority": 60,
+      "confidenceScore": 0.7
     }
   ],
   "totalPatients": 500,
   "totalAnalyzed": 500,
-  "uniqueScores": 54
+  "uniqueScores": 51
 }

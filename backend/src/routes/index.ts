@@ -1,5 +1,6 @@
 import { FastifyInstance } from 'fastify';
 import { authPlugin } from '../plugins/auth.js';
+import { platformAuthPlugin } from '../plugins/platformAuth.js';
 import { subscriptionGuardPlugin } from '../plugins/subscriptionGuard.js';
 import authRoutes from './auth.js';
 import patientsRoutes from './patients.js';
@@ -34,6 +35,11 @@ import whatsappChatRoutes from './whatsappChat.js';
 import baileysWhatsAppRoutes from './baileysWhatsApp.js';
 import patientAuthRoutes from './patientAuth.js';
 import patientPortalRoutes from './patientPortal.js';
+import platformAuthRoutes from './platformAuth.js';
+import platformOrgsRoutes from './platformOrgs.js';
+import platformMetricsRoutes from './platformMetrics.js';
+import platformSubscriptionsRoutes from './platformSubscriptions.js';
+import platformAuditRoutes from './platformAudit.js';
 import agentBuilderRoutes from './agentBuilder.js';
 import campaignRoutes from './campaigns.js';
 import { integrationsRoutes, webhookSubscriptionsRoutes } from './integrations.js';
@@ -54,6 +60,9 @@ import patientIntelligenceRoutes from './patientIntelligence.js';
 export async function registerRoutes(app: FastifyInstance) {
   // Register auth plugin
   await app.register(authPlugin);
+
+  // Register platform-admin auth plugin (separate JWT type)
+  await app.register(platformAuthPlugin);
 
   // Register subscription guard plugin
   await app.register(subscriptionGuardPlugin);
@@ -90,6 +99,13 @@ export async function registerRoutes(app: FastifyInstance) {
   // Patient Portal routes (patient JWT auth, separate from admin)
   await app.register(patientAuthRoutes, { prefix: '/api/patient-portal' });
   await app.register(patientPortalRoutes, { prefix: '/api/patient-portal' });
+
+  // Platform Admin routes (platform JWT auth, separate from staff and patient)
+  await app.register(platformAuthRoutes, { prefix: '/api/platform/auth' });
+  await app.register(platformOrgsRoutes, { prefix: '/api/platform/orgs' });
+  await app.register(platformMetricsRoutes, { prefix: '/api/platform/metrics' });
+  await app.register(platformSubscriptionsRoutes, { prefix: '/api/platform/subscriptions' });
+  await app.register(platformAuditRoutes, { prefix: '/api/platform/audit-log' });
 
   // Serve widget.js at root level too (for <script src="/widget.js">)
   await app.register(async (instance) => {
@@ -160,7 +176,7 @@ export async function registerRoutes(app: FastifyInstance) {
   // Reports & Export
   await app.register(reportsRoutes, { prefix: '/api/reports' });
 
-  // Moyasar Payments
+  // Tap Payments
   await app.register(paymentsRoutes, { prefix: '/api/payments' });
 
   // Subscription management

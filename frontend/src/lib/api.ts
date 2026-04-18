@@ -21,6 +21,10 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
+      // Platform-admin surface has its own auth and redirect behavior — skip staff-auth cleanup.
+      if (window.location.pathname.startsWith('/platform')) {
+        return Promise.reject(error)
+      }
       localStorage.removeItem('token')
       // Only redirect if not already on auth pages
       if (!window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/register')) {

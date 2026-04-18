@@ -13,6 +13,8 @@
     "db:pull": "prisma db pull",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
+    "platform:create-admin": "tsx scripts/createPlatformAdmin.ts",
+    "billing:run-dunning": "tsx scripts/runDunning.ts",
     "test": "vitest run",
     "test:watch": "vitest watch",
     "test:ui": "vitest --ui",

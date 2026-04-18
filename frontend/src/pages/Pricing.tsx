@@ -1,8 +1,27 @@
 import { useState } from 'react';
-import { CheckCircle, Zap, Stethoscope, Crown, ArrowRight } from 'lucide-react';
+import { CheckCircle, Zap, Stethoscope, Crown, ArrowRight, X, Lock } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
+import TapCardForm from '../components/billing/TapCardForm';
 
-const PLANS = [
+type PlanId = 'starter' | 'professional' | 'enterprise';
+
+interface Plan {
+  id: PlanId;
+  nameAr: string;
+  nameEn: string;
+  price: number;
+  amount: number;
+  icon: typeof Zap;
+  color: 'blue' | 'purple' | 'gold';
+  description: string;
+  descriptionEn: string;
+  features: string[];
+  featuresAr: string[];
+  popular?: boolean;
+}
+
+const PLANS: Plan[] = [
   {
     id: 'starter',
     nameAr: 'المبتدئ',
@@ -10,7 +29,7 @@ const PLANS = [
     price: 299,
     amount: 29900,
     icon: Zap,
-    color: 'blue' as const,
+    color: 'blue',
     description: 'للعيادات الصغيرة',
     descriptionEn: 'For small clinics',
     features: [
@@ -35,7 +54,7 @@ const PLANS = [
     price: 499,
     amount: 49900,
     icon: Stethoscope,
-    color: 'purple' as const,
+    color: 'purple',
     description: 'للمنشآت المتوسطة',
     descriptionEn: 'For medium-sized facilities',
     features: [
@@ -63,7 +82,7 @@ const PLANS = [
     price: 799,
     amount: 79900,
     icon: Crown,
-    color: 'gold' as const,
+    color: 'gold',
     description: 'للمستشفيات والمجموعات',
     descriptionEn: 'For hospitals & groups',
     features: [
@@ -93,61 +112,52 @@ interface PricingProps {
 
 export default function Pricing({ lang = 'en' }: PricingProps) {
   const navigate = useNavigate();
-  const [loading, setLoading] = useState<string | null>(null);
+  const { user } = useAuth();
+  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const isRTL = lang === 'ar';
 
-  async function handleSubscribe(plan: (typeof PLANS)[0]) {
-    setLoading(plan.id);
+  function handleSubscribeClick(plan: Plan) {
     setError(null);
-
     const token = localStorage.getItem('token');
     if (!token) {
       navigate('/login?redirect=/pricing');
       return;
     }
+    setSelectedPlan(plan);
+  }
 
-    try {
-      const response = await fetch('/api/subscription/upgrade', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          plan: plan.id,
-          source: {
-            type: 'creditcard',
-          },
-          callbackUrl: `${window.location.origin}/billing?payment=callback&plan=${plan.id}`,
-        }),
-      });
+  async function handleTokenized(tokenId: string) {
+    if (!selectedPlan) return;
+    const authToken = localStorage.getItem('token');
+    const response = await fetch('/api/payments/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({
+        tokenId,
+        plan: selectedPlan.id,
+        callbackUrl: `${window.location.origin}/billing?payment=callback&plan=${selectedPlan.id}`,
+      }),
+    });
 
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to initiate payment');
-      }
-
-      if (data.transactionUrl) {
-        try {
-          const url = new URL(data.transactionUrl);
-          if (url.protocol === 'https:' && url.hostname.endsWith('.moyasar.com')) {
-            window.location.href = data.transactionUrl;
-          } else {
-            setError('Invalid payment redirect URL');
-          }
-        } catch {
-          setError('Invalid payment redirect URL');
-        }
-      } else {
-        navigate(`/billing?paymentId=${data.moyasarPayment?.id}`);
-      }
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(null);
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || data.message || 'Payment failed');
     }
+
+    if (data.transactionUrl) {
+      const url = new URL(data.transactionUrl);
+      if (url.protocol === 'https:' && url.hostname.endsWith('.tap.company')) {
+        window.location.href = data.transactionUrl;
+        return;
+      }
+      throw new Error('Invalid payment redirect URL');
+    }
+
+    navigate(`/billing?chargeId=${encodeURIComponent(data.chargeId)}`);
   }
 
   return (
@@ -164,7 +174,7 @@ export default function Pricing({ lang = 'en' }: PricingProps) {
             ? 'وكيل ذكاء اصطناعي متكامل لإدارة المواعيد والمرضى بالعربية والإنجليزية'
             : 'Full-stack AI agent for appointment management and patient engagement in Arabic & English'}
         </p>
-        {error && (
+        {error && !selectedPlan && (
           <div className="mt-4 bg-red-500/10 border border-red-500/30 text-red-400 rounded-lg px-4 py-3 max-w-md mx-auto">
             {error}
           </div>
@@ -176,7 +186,6 @@ export default function Pricing({ lang = 'en' }: PricingProps) {
         {PLANS.map((plan) => {
           const Icon = plan.icon;
           const isPopular = plan.popular;
-
           return (
             <div
               key={plan.id}
@@ -231,25 +240,15 @@ export default function Pricing({ lang = 'en' }: PricingProps) {
               </ul>
 
               <button
-                onClick={() => handleSubscribe(plan)}
-                disabled={loading === plan.id}
-                className={`w-full py-3 px-6 rounded-xl font-bold text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 ${
+                onClick={() => handleSubscribeClick(plan)}
+                className={`w-full py-3 px-6 rounded-xl font-bold text-white transition-all flex items-center justify-center gap-2 ${
                   isPopular
                     ? 'bg-purple-600 hover:bg-purple-500'
                     : 'bg-slate-700 hover:bg-slate-600 border border-slate-600'
                 }`}
               >
-                {loading === plan.id ? (
-                  <>
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    {isRTL ? 'جاري المعالجة...' : 'Processing...'}
-                  </>
-                ) : (
-                  <>
-                    {isRTL ? `ابدأ مع ${plan.nameAr}` : `Get Started with ${plan.nameEn}`}
-                    <ArrowRight className={`w-4 h-4 ${isRTL ? 'rotate-180' : ''}`} />
-                  </>
-                )}
+                {isRTL ? `ابدأ مع ${plan.nameAr}` : `Get Started with ${plan.nameEn}`}
+                <ArrowRight className={`w-4 h-4 ${isRTL ? 'rotate-180' : ''}`} />
               </button>
             </div>
           );
@@ -259,8 +258,9 @@ export default function Pricing({ lang = 'en' }: PricingProps) {
       {/* Trust Section */}
       <div className="mt-16 text-center">
         <p className="text-slate-500 text-sm">
-          🔒 {isRTL ? 'مدفوعات آمنة عبر' : 'Secure payments via'}{' '}
-          <span className="text-slate-400 font-medium">Moyasar</span>
+          <Lock className="inline w-3.5 h-3.5 -mt-0.5 me-1" />
+          {isRTL ? 'مدفوعات آمنة عبر' : 'Secure payments via'}{' '}
+          <span className="text-slate-400 font-medium">Tap Payments</span>
           {' '}• SSL {isRTL ? 'مشفر' : 'encrypted'} •{' '}
           {isRTL ? 'يمكن الإلغاء في أي وقت' : 'Cancel anytime'}
         </p>
@@ -268,9 +268,50 @@ export default function Pricing({ lang = 'en' }: PricingProps) {
           <span>💳 {isRTL ? 'بطاقات ائتمانية' : 'Credit Cards'}</span>
           <span>🍎 Apple Pay</span>
           <span>🏦 mada</span>
-          <span>🔄 SADAD</span>
+          <span>🔒 3D Secure</span>
         </div>
       </div>
+
+      {/* Card entry modal */}
+      {selectedPlan && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          onClick={() => setSelectedPlan(null)}
+        >
+          <div
+            className="bg-slate-800 rounded-2xl border border-slate-700 w-full max-w-md p-6 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="absolute top-4 end-4 text-slate-400 hover:text-white"
+              onClick={() => setSelectedPlan(null)}
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="mb-4">
+              <h3 className="text-xl font-bold text-white">
+                {isRTL ? `الاشتراك في ${selectedPlan.nameAr}` : `Subscribe to ${selectedPlan.nameEn}`}
+              </h3>
+              <p className="text-slate-400 text-sm mt-1">
+                {isRTL
+                  ? `${selectedPlan.price} ريال شهرياً • تجديد تلقائي`
+                  : `${selectedPlan.price} SAR / month • auto-renews`}
+              </p>
+            </div>
+
+            <TapCardForm
+              amount={selectedPlan.price}
+              currency="SAR"
+              customer={{ userId: user?.userId, email: user?.email }}
+              isRTL={isRTL}
+              onTokenized={handleTokenized}
+              onError={setError}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

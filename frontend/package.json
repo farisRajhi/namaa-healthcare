@@ -13,6 +13,7 @@
   "dependencies": {
     "@gsap/react": "^2.1.2",
     "@tanstack/react-query": "^5.62.0",
+    "@tap-payments/card-sdk": "^1.0.2",
     "@xyflow/react": "^12.10.0",
     "axios": "^1.7.9",
     "clsx": "^2.1.1",

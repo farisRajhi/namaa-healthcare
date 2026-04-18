@@ -7,8 +7,9 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 // ────────────────────────────────────────────────────────
 
 export interface AuditEntry {
-  orgId: string;
+  orgId: string | null;
   userId?: string;
+  platformAdminId?: string;
   action: string;
   resource: string;
   resourceId?: string;
@@ -72,6 +73,12 @@ const SENSITIVE_PATTERNS: {
   { method: 'POST', pathPattern: /^\/api\/patient-portal\/login\/?$/, action: 'patient_portal.login_attempt', resource: 'patient_auth' },
   { method: 'GET', pathPattern: /^\/api\/patient-portal\//, action: 'patient_portal.accessed', resource: 'patient_portal' },
 
+  // Platform admin access (cross-tenant operator surface)
+  { method: 'POST', pathPattern: /^\/api\/platform\/auth\/login\/?$/, action: 'platform.login_attempt', resource: 'platform_auth' },
+  { method: 'GET', pathPattern: /^\/api\/platform\/orgs/, action: 'platform.orgs.viewed', resource: 'platform_orgs' },
+  { method: 'GET', pathPattern: /^\/api\/platform\/metrics/, action: 'platform.metrics.viewed', resource: 'platform_metrics' },
+  { method: 'GET', pathPattern: /^\/api\/platform\/subscriptions/, action: 'platform.subscriptions.viewed', resource: 'platform_subscriptions' },
+
   // Care gaps (sensitive health data)
   { method: 'GET', pathPattern: /^\/api\/care-gaps\//, action: 'care_gaps.viewed', resource: 'care_gap' },
 ];
@@ -89,6 +96,7 @@ export class AuditLoggerService {
       data: {
         orgId: entry.orgId,
         userId: entry.userId ?? null,
+        platformAdminId: entry.platformAdminId ?? null,
         action: entry.action,
         resource: entry.resource,
         resourceId: entry.resourceId ?? null,
@@ -250,7 +258,7 @@ export function registerAuditMiddleware(app: FastifyInstance): void {
   const auditLogger = new AuditLoggerService(app.prisma);
 
   // Auth-related patterns that should be logged even on failure (and even without auth)
-  const AUTH_PATTERNS = new Set(['auth.login_attempt', 'auth.register', 'patient_portal.login_attempt']);
+  const AUTH_PATTERNS = new Set(['auth.login_attempt', 'auth.register', 'patient_portal.login_attempt', 'platform.login_attempt']);
 
   app.addHook('onResponse', async (request: FastifyRequest, reply: FastifyReply) => {
     const method = request.method;
@@ -268,11 +276,19 @@ export function registerAuditMiddleware(app: FastifyInstance): void {
 
         const resourceId = extractResourceId(path);
 
+        const isPlatform = request.user?.type === 'platform';
+        const isImpersonated = request.user?.imp === true;
+
         // Fire and forget — don't block the response
         auditLogger
           .log({
-            orgId: request.user?.orgId ?? 'unknown',
-            userId: request.user?.userId,
+            orgId: isPlatform ? null : (request.user?.orgId ?? null),
+            userId: isPlatform ? undefined : request.user?.userId,
+            platformAdminId: isPlatform
+              ? request.user?.platformAdminId
+              : isImpersonated
+                ? request.user?.platformAdminId
+                : undefined,
             action: reply.statusCode >= 400 ? `${pattern.action}.failed` : pattern.action,
             resource: pattern.resource,
             resourceId,
@@ -280,6 +296,7 @@ export function registerAuditMiddleware(app: FastifyInstance): void {
               method,
               path,
               statusCode: reply.statusCode,
+              ...(isImpersonated ? { impersonated: true } : {}),
             },
             ipAddress: getClientIP(request),
           })

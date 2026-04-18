@@ -128,8 +128,17 @@ export async function buildApp() {
       console.error('FATAL: OPENAI_API_KEY is not set');
       process.exit(1);
     }
+    const tapSecret = process.env.TAP_SECRET_KEY;
+    if (!tapSecret || tapSecret === 'sk_test_CHANGE_ME') {
+      console.error('❌  FATAL: TAP_SECRET_KEY is missing or uses the placeholder value.');
+      process.exit(1);
+    }
     if (!process.env.REGISTRATION_TOKEN) {
       console.warn('WARNING: REGISTRATION_TOKEN is not set — registration is open to the public');
+    }
+    if (process.env.SEED_PLATFORM_ADMIN_EMAIL || process.env.SEED_PLATFORM_ADMIN_PASSWORD) {
+      console.error('❌  FATAL: SEED_PLATFORM_ADMIN_* env vars must not be set in production.');
+      process.exit(1);
     }
   }
 

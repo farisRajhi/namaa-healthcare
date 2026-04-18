@@ -25,6 +25,7 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import ImpersonationBanner from '../ImpersonationBanner'
 
 interface NavItem {
   name: string
@@ -170,6 +171,7 @@ export default function DashboardLayout() {
   return (
     <BranchProvider>
     <div className="min-h-screen bg-healthcare-bg">
+      <ImpersonationBanner />
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
         <div

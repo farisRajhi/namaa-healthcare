@@ -1,10 +1,12 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './context/AuthContext'
 import { PatientAuthProvider, usePatientAuth } from './context/PatientAuthContext'
+import { PlatformAuthProvider, usePlatformAuth } from './context/PlatformAuthContext'
 import DashboardLayout from './components/layout/DashboardLayout'
 import PortalLayout from './components/portal/PortalLayout'
 import Landing from './pages/Landing'
 import Pricing from './pages/Pricing'
+import Billing from './pages/Billing'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
@@ -37,6 +39,13 @@ import PrivacyPolicy from './pages/Legal/PrivacyPolicy'
 import Terms from './pages/Legal/Terms'
 import NotFound from './pages/NotFound'
 import PublicBooking from './pages/PublicBooking'
+import PlatformLayout from './components/platform/PlatformLayout'
+import PlatformLogin from './pages/platform/PlatformLogin'
+import PlatformDashboard from './pages/platform/PlatformDashboard'
+import PlatformOrgs from './pages/platform/PlatformOrgs'
+import PlatformOrgDetail from './pages/platform/PlatformOrgDetail'
+import PlatformSubscriptions from './pages/platform/PlatformSubscriptions'
+import PlatformAudit from './pages/platform/PlatformAudit'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth()
@@ -74,6 +83,24 @@ function ProtectedPatientRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
+function ProtectedPlatformRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, isLoading } = usePlatformAuth()
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-900">
+        <LoadingSpinner size="lg" text="Loading..." />
+      </div>
+    )
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/platform/login" replace />
+  }
+
+  return <>{children}</>
+}
+
 function App() {
   return (
     <Routes>
@@ -82,6 +109,16 @@ function App() {
       <Route path="/pricing" element={<Pricing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+
+      {/* Billing (post-payment callback + subscription status) */}
+      <Route
+        path="/billing"
+        element={
+          <ProtectedRoute>
+            <Billing />
+          </ProtectedRoute>
+        }
+      />
 
       {/* Protected routes */}
       <Route
@@ -151,6 +188,32 @@ function App() {
 
       {/* Public self-booking link for clinics */}
       <Route path="/book/:slug" element={<PublicBooking />} />
+
+      {/* Platform Admin (operator of the Tawafud SaaS) — isolated auth */}
+      <Route
+        path="/platform/login"
+        element={
+          <PlatformAuthProvider>
+            <PlatformLogin />
+          </PlatformAuthProvider>
+        }
+      />
+      <Route
+        path="/platform"
+        element={
+          <PlatformAuthProvider>
+            <ProtectedPlatformRoute>
+              <PlatformLayout />
+            </ProtectedPlatformRoute>
+          </PlatformAuthProvider>
+        }
+      >
+        <Route index element={<PlatformDashboard />} />
+        <Route path="orgs" element={<PlatformOrgs />} />
+        <Route path="orgs/:id" element={<PlatformOrgDetail />} />
+        <Route path="subscriptions" element={<PlatformSubscriptions />} />
+        <Route path="audit" element={<PlatformAudit />} />
+      </Route>
 
       {/* Catch all — proper 404 page */}
       <Route path="*" element={<NotFound />} />

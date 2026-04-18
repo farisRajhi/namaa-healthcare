@@ -15,7 +15,7 @@
 | 5 | **JWT Guard** — server refuses to start without real `JWT_SECRET` | ✅ | `app.ts` checks `INSECURE_DEFAULTS` set + empty string, calls `process.exit(1)` if missing |
 | 6 | **Sex Enum** `patients.ts` uses `z.enum(['male','female'])` | ✅ | line 9 in patients.ts |
 | 7 | **HTTP Status** appointments + payments return 404/400 on errors | ✅ | appointments: 404 (not found), 400 (bad input); payments: 400, 404, 401, 500 all used correctly |
-| 8 | **Moyasar Webhook** signature always enforced (no NODE_ENV gate) | ✅ | No `NODE_ENV` in payments.ts; comment reads "always enforced regardless of environment" |
+| 8 | **Tap Webhook** signature always enforced (no NODE_ENV gate) | ✅ | No `NODE_ENV` in payments.ts; `hashstring` HMAC verified on every request |
 | 9 | **TypeScript** `npx tsc --noEmit` | ✅ | Zero errors (clean exit, no output) |
 
 ---
@@ -29,7 +29,7 @@ All 8 critical fixes are correctly implemented and TypeScript compiles cleanly.
 ## Notes
 
 - `twilioVerify.ts` skips verification ONLY when `NODE_ENV=development` AND `SKIP_TWILIO_VERIFY=true` are both set — acceptable for local dev, not a bypass in staging/production.
-- Moyasar webhook uses `crypto.timingSafeEqual` to prevent timing attacks.
+- Tap webhook uses `crypto.timingSafeEqual` on the `hashstring` HMAC to prevent timing attacks.
 - JWT guard blocks known insecure defaults (`secret`, `changeme`, `your-super-secret-key-change-in-production`, empty string).
 - Rate limit on patient login is scoped per IP (not per phone), which is appropriate for a shared-NAT environment.
 
@@ -43,4 +43,4 @@ All 8 critical fixes are correctly implemented and TypeScript compiles cleanly.
 | ORM | Prisma + PostgreSQL |
 | Voice | Twilio + ElevenLabs |
 | AI | OpenAI / Gemini |
-| Payments | Moyasar |
+| Payments | Tap Payments |

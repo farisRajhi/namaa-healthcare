@@ -3,7 +3,7 @@ import fp from 'fastify-plugin';
 
 /**
  * Subscription Guard Middleware
- * Checks if the org has an active Moyasar subscription before allowing access.
+ * Checks if the org has an active Tawafud subscription before allowing access.
  * Decorates fastify with `requireSubscription` hook.
  */
 const subscriptionGuardPlugin: FastifyPluginAsync = async (fastify) => {
@@ -17,6 +17,19 @@ const subscriptionGuardPlugin: FastifyPluginAsync = async (fastify) => {
       }
 
       try {
+        // Short-circuit on org suspension (belt-and-suspenders with auth plugin).
+        const org = await fastify.prisma.org.findUnique({
+          where: { orgId: user.orgId },
+          select: { status: true },
+        });
+        if (!org || org.status !== 'active') {
+          return reply.code(403).send({
+            error: 'Organization suspended',
+            message: 'This organization has been suspended. Contact support.',
+            code: 'ORG_SUSPENDED',
+          });
+        }
+
         const subscription = await fastify.prisma.tawafudSubscription.findFirst({
           where: {
             orgId: user.orgId,

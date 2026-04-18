@@ -14,9 +14,13 @@ model Org {
   name            String
   defaultTimezone String           @default("UTC") @map("default_timezone")
   aiAutoReply     Boolean          @default(true) @map("ai_auto_reply")
+  status          org_status       @default(active)
+  suspendedAt     DateTime?        @map("suspended_at") @db.Timestamptz(6)
+  suspendedReason String?          @map("suspended_reason")
   createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   agentFlows      AgentFlow[]
   phoneNumbers    OrgPhoneNumber[]
+  users           User[]
 
   @@map("orgs")
 }
@@ -535,17 +539,19 @@ model AppointmentReminder {
 // ─── Security ───────────────────────────────────────────────
 
 model AuditLog {
-  auditId    String   @id @default(dbgenerated("gen_random_uuid()")) @map("audit_id") @db.Uuid
-  orgId      String   @map("org_id") @db.Uuid
-  userId     String?  @map("user_id")
-  action     String
-  resource   String
-  resourceId String?  @map("resource_id")
-  details    Json?
-  ipAddress  String?  @map("ip_address")
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  auditId          String   @id @default(dbgenerated("gen_random_uuid()")) @map("audit_id") @db.Uuid
+  orgId            String?  @map("org_id") @db.Uuid
+  userId           String?  @map("user_id")
+  platformAdminId  String?  @map("platform_admin_id") @db.Uuid
+  action           String
+  resource         String
+  resourceId       String?  @map("resource_id")
+  details          Json?
+  ipAddress        String?  @map("ip_address")
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
   @@index([orgId, createdAt(sort: Desc)])
+  @@index([platformAdminId, createdAt(sort: Desc)])
   @@map("audit_logs")
 }
 
@@ -908,20 +914,27 @@ model SmsTemplate {
   @@map("sms_templates")
 }
 
-// ─── Moyasar Payment & Subscription ─────────────────────────
+// ─── Tap Payment & Subscription ─────────────────────────────
 
 model TawafudSubscription {
-  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId      String   @map("org_id") @db.Uuid
-  plan       String   // starter, professional, enterprise
-  status     String   @default("active") // active, cancelled, expired
-  moyasarId  String?  @map("moyasar_id")
-  startDate  DateTime @map("start_date") @db.Timestamptz(6)
-  endDate    DateTime @map("end_date") @db.Timestamptz(6)
-  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt  DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  id                   String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId                String    @unique @map("org_id") @db.Uuid
+  plan                 String    // starter, professional, enterprise
+  status               String    @default("active") // active, past_due, cancelled, expired
+  tapChargeId          String?   @map("tap_charge_id")
+  cardId               String?   @map("card_id")             // Tap saved-card token (card_xxx)
+  customerId           String?   @map("customer_id")         // Tap customer id (cus_xxx)
+  startDate            DateTime  @map("start_date") @db.Timestamptz(6)
+  endDate              DateTime  @map("end_date") @db.Timestamptz(6)
+  cancelledAt          DateTime? @map("cancelled_at") @db.Timestamptz(6)
+  pastDueAt            DateTime? @map("past_due_at") @db.Timestamptz(6)
+  nextChargeAttemptAt  DateTime? @map("next_charge_attempt_at") @db.Timestamptz(6)
+  failedAttempts       Int       @default(0) @map("failed_attempts")
+  createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt            DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   @@index([orgId, status])
+  @@index([status, endDate])
   @@map("tawafud_subscriptions")
 }
 
@@ -930,19 +943,24 @@ model TawafudPayment {
   orgId        String   @map("org_id") @db.Uuid
   amount       Int      // in halalas (SAR cents)
   currency     String   @default("SAR")
-  status       String   // paid, failed, pending, authorized
-  moyasarId    String?  @unique @map("moyasar_id")
-  source       String?  // creditcard, applepay, sadad, mada
+  status       String   // paid, failed, pending, authorized, refunded, cancelled
+  tapChargeId  String?  @unique @map("tap_charge_id")
+  source       String?  // card brand or token fingerprint
   description  String?
   plan         String?  // which plan this payment is for
   callbackUrl  String?  @map("callback_url")
   errorMessage String?  @map("error_message")
+  cardId       String?  @map("card_id")        // Tap saved-card token (card_xxx)
+  customerId   String?  @map("customer_id")    // Tap customer id (cus_xxx)
+  cardBrand    String?  @map("card_brand")     // VISA, MASTERCARD, MADA, etc.
+  lastFour     String?  @map("last_four")      // last 4 digits of the card
+  kind         String   @default("initial") @map("kind")  // initial | renewal | retry | manual
   metadata     Json?    @default("{}")
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   @@index([orgId, status])
-  @@index([moyasarId])
+  @@index([tapChargeId])
   @@map("tawafud_payments")
 }
 
@@ -976,6 +994,7 @@ model User {
   lastLogin DateTime? @map("last_login") @db.Timestamptz(6)
   createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
+  org       Org       @relation(fields: [orgId], references: [orgId])
 
   @@map("users")
 }
@@ -990,6 +1009,21 @@ model Role {
 
   @@unique([orgId, name])
   @@map("roles")
+}
+
+// ─── Platform Admin ─────────────────────────────────────────
+
+model PlatformAdmin {
+  platformAdminId String    @id @default(dbgenerated("gen_random_uuid()")) @map("platform_admin_id") @db.Uuid
+  email           String    @unique
+  password        String
+  name            String?
+  isActive        Boolean   @default(true) @map("is_active")
+  lastLogin       DateTime? @map("last_login") @db.Timestamptz(6)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("platform_admins")
 }
 
 // ─── Waitlist ───────────────────────────────────────────────
@@ -1055,6 +1089,12 @@ enum appointment_status {
   cancelled
   no_show
   expired
+}
+
+enum org_status {
+  active
+  suspended
+  deleted
 }
 
 enum channel {

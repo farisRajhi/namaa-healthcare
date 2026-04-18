@@ -22,6 +22,7 @@ import { CareGapCampaignPipeline } from '../pipelines/careGapCampaign.js';
 import { getInsightBuilder } from '../patient/insightBuilder.js';
 import { OfferManager } from '../offers/offerManager.js';
 import { getServiceCyclePredictor } from '../patient/serviceCyclePredictor.js';
+import { runDunning } from '../billing/dunning.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -536,6 +537,23 @@ export class TaskScheduler {
             }
           }
           console.log(`[Scheduler]   ✓ ${totalSuggestions} service cycle suggestions generated across ${orgs.length} orgs`);
+        },
+      },
+
+      // 15. Subscription dunning — daily at 4:30 AM AST
+      // Auto-renew Tap subscriptions ~3 days before endDate using saved cards.
+      // Retries failed charges with backoff, transitions to past_due then expired.
+      {
+        name: 'subscription-dunning',
+        schedule: '30 4 * * *',
+        description: 'Renew Tawafud subscriptions, retry failed renewals, and expire past-due subs',
+        enabled: true,
+        timezone: 'Asia/Riyadh',
+        handler: async () => {
+          const result = await runDunning(this.prisma);
+          console.log(
+            `[Scheduler]   ✓ Dunning: scanned=${result.scanned} renewed=${result.renewed} pastDue=${result.pastDue} expired=${result.expired} errors=${result.errors}`,
+          );
         },
       },
 

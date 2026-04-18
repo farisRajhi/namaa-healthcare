@@ -8,6 +8,30 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Seeding Tawafud database...\n');
 
+  // ─── 0. Platform Admin (env-gated, runs every seed) ─────────────────
+  // Platform admins are operators of the Tawafud SaaS (not clinic staff).
+  // In production they must be created out-of-band; this seed is dev-only.
+  const platformEmail = process.env.SEED_PLATFORM_ADMIN_EMAIL;
+  const platformPassword = process.env.SEED_PLATFORM_ADMIN_PASSWORD;
+  if (platformEmail && platformPassword) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'SEED_PLATFORM_ADMIN_EMAIL/PASSWORD must not be set in production. ' +
+        'Create platform admins out-of-band via a one-off script.',
+      );
+    }
+    const existingAdmin = await prisma.platformAdmin.findUnique({ where: { email: platformEmail } });
+    if (!existingAdmin) {
+      const hashed = await bcrypt.hash(platformPassword, 12);
+      await prisma.platformAdmin.create({
+        data: { email: platformEmail, password: hashed, name: 'Platform Admin' },
+      });
+      console.log(`✅ Platform admin created: ${platformEmail}`);
+    } else {
+      console.log(`♻️ Platform admin already exists: ${platformEmail}`);
+    }
+  }
+
   // ─── 1. Organization (idempotent upsert) ────────────────────────────
   // Find existing org by name to avoid duplicates across seed runs
   const existingOrg = await prisma.org.findFirst({
