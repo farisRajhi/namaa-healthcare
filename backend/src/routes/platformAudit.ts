@@ -1,5 +1,7 @@
 import { FastifyInstance, FastifyRequest } from 'fastify';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
+import { redactAuditDetails } from '../services/security/redactAuditDetails.js';
 
 const querySchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(50),
@@ -11,7 +13,8 @@ const querySchema = z.object({
 
 /**
  * Cross-org audit feed for the platform admin "Audit" page.
- * Returns newest-first with optional filters; org name is joined in for display.
+ * Returns newest-first with optional filters; org name (both EN + AR) joined
+ * in for display. PII inside `details` is redacted before returning.
  */
 export default async function platformAuditRoutes(app: FastifyInstance) {
   app.get('/', {
@@ -19,7 +22,7 @@ export default async function platformAuditRoutes(app: FastifyInstance) {
   }, async (request: FastifyRequest) => {
     const q = querySchema.parse(request.query);
 
-    const where: any = {};
+    const where: Prisma.AuditLogWhereInput = {};
     if (q.orgId) where.orgId = q.orgId;
     if (q.platformAdminId) where.platformAdminId = q.platformAdminId;
     if (q.action) where.action = { contains: q.action, mode: 'insensitive' };
@@ -35,21 +38,25 @@ export default async function platformAuditRoutes(app: FastifyInstance) {
     const items = hasMore ? entries.slice(0, q.limit) : entries;
     const nextCursor = hasMore ? items[items.length - 1].auditId : null;
 
-    // Attach org names in a single batch.
     const orgIds = Array.from(new Set(items.map((e) => e.orgId).filter(Boolean) as string[]));
     const orgs = orgIds.length
       ? await app.prisma.org.findMany({
           where: { orgId: { in: orgIds } },
-          select: { orgId: true, name: true },
+          select: { orgId: true, name: true, nameAr: true },
         })
       : [];
-    const orgMap = new Map(orgs.map((o) => [o.orgId, o.name]));
+    const orgMap = new Map(orgs.map((o) => [o.orgId, o]));
 
     return {
-      items: items.map((e) => ({
-        ...e,
-        orgName: e.orgId ? orgMap.get(e.orgId) ?? null : null,
-      })),
+      items: items.map((e) => {
+        const org = e.orgId ? orgMap.get(e.orgId) : null;
+        return {
+          ...e,
+          details: redactAuditDetails(e.details),
+          orgName: org?.name ?? null,
+          orgNameAr: org?.nameAr ?? null,
+        };
+      }),
       nextCursor,
     };
   });

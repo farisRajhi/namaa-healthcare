@@ -60,6 +60,19 @@ export const messages = {
       en: 'You are approaching your monthly AI token limit. Consider upgrading.',
     } as BilingualMessage,
   },
+  platform: {
+    invalidCredentials: { ar: 'بيانات الاعتماد غير صحيحة', en: 'Invalid credentials' } as BilingualMessage,
+    adminNotFound: { ar: 'مدير المنصة غير موجود', en: 'Platform admin not found' } as BilingualMessage,
+    tokenInvalidated: { ar: 'تم إبطال الجلسة', en: 'Token has been invalidated' } as BilingualMessage,
+    orgNotFound: { ar: 'المؤسسة غير موجودة', en: 'Org not found' } as BilingualMessage,
+    subscriptionNotFound: { ar: 'الاشتراك غير موجود', en: 'Subscription not found' } as BilingualMessage,
+    noActiveUserInOrg: { ar: 'لا يوجد مستخدم نشط في هذه المؤسسة', en: 'No active user found in this org' } as BilingualMessage,
+    cannotImpersonateInactiveOrg: { ar: 'لا يمكن انتحال هوية مستخدم في مؤسسة غير نشطة', en: 'Cannot impersonate user in a non-active org' } as BilingualMessage,
+    rateLimitExceeded: { ar: 'تم تجاوز الحد المسموح، حاول مرة أخرى بعد {seconds} ثانية', en: 'Rate limit exceeded, retry in {seconds}s' } as BilingualMessage,
+    validationError: { ar: 'فشل التحقق من البيانات', en: 'Validation failed' } as BilingualMessage,
+    cancelReasonTooShort: { ar: 'يجب أن يكون السبب 3 أحرف على الأقل', en: 'Reason must be at least 3 characters' } as BilingualMessage,
+    subscriptionOverrideRequiresField: { ar: 'يجب تحديد قيمة واحدة على الأقل من: الخطة، تاريخ الانتهاء، أو الحالة', en: 'At least one of plan, endDate, or status must be provided' } as BilingualMessage,
+  },
 }
 
 /**

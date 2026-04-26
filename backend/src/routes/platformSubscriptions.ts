@@ -1,7 +1,9 @@
 import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { cancelSubscription } from '../services/billing/subscriptions.js';
 import { renewOrgSubscription } from '../services/billing/dunning.js';
+import { messages, getLang, msg } from '../lib/messages.js';
 
 const listSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -21,7 +23,7 @@ export default async function platformSubscriptionsRoutes(app: FastifyInstance) 
   }, async (request: FastifyRequest) => {
     const q = listSchema.parse(request.query);
 
-    const where: any = {};
+    const where: Prisma.TawafudSubscriptionWhereInput = {};
     if (q.status) where.status = q.status;
     if (q.plan) where.plan = q.plan;
 
@@ -39,7 +41,7 @@ export default async function platformSubscriptionsRoutes(app: FastifyInstance) 
     const orgs = orgIds.length
       ? await app.prisma.org.findMany({
           where: { orgId: { in: orgIds } },
-          select: { orgId: true, name: true, status: true },
+          select: { orgId: true, name: true, nameAr: true, status: true },
         })
       : [];
     const orgMap = new Map(orgs.map((o) => [o.orgId, o]));
@@ -60,13 +62,14 @@ export default async function platformSubscriptionsRoutes(app: FastifyInstance) 
     preHandler: [app.authenticatePlatform],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
+    const lang = getLang(request.headers['accept-language']);
     const sub = await app.prisma.tawafudSubscription.findUnique({ where: { id } });
-    if (!sub) return reply.code(404).send({ error: 'Subscription not found' });
+    if (!sub) return reply.code(404).send({ error: 'NotFound', message: msg(messages.platform.subscriptionNotFound, lang) });
 
     const [org, payments] = await Promise.all([
       app.prisma.org.findUnique({
         where: { orgId: sub.orgId },
-        select: { orgId: true, name: true, status: true },
+        select: { orgId: true, name: true, nameAr: true, status: true },
       }),
       app.prisma.tawafudPayment.findMany({
         where: { orgId: sub.orgId },
@@ -85,9 +88,11 @@ export default async function platformSubscriptionsRoutes(app: FastifyInstance) 
     const { id } = request.params as { id: string };
     const { reason } = cancelBodySchema.parse(request.body);
     const platformAdminId = request.platformAdmin!.platformAdminId;
+    const lang = getLang(request.headers['accept-language']);
+    const userAgent = request.headers['user-agent'] ?? null;
 
     const sub = await app.prisma.tawafudSubscription.findUnique({ where: { id } });
-    if (!sub) return reply.code(404).send({ error: 'Subscription not found' });
+    if (!sub) return reply.code(404).send({ error: 'NotFound', message: msg(messages.platform.subscriptionNotFound, lang) });
 
     const updated = await cancelSubscription(app.prisma, sub.orgId);
 
@@ -98,7 +103,7 @@ export default async function platformSubscriptionsRoutes(app: FastifyInstance) 
         action: 'platform.subscription.cancel',
         resource: 'subscription',
         resourceId: sub.id,
-        details: { reason, plan: sub.plan, endDate: sub.endDate.toISOString() },
+        details: { reason, plan: sub.plan, endDate: sub.endDate.toISOString(), userAgent },
         ipAddress: request.ip,
       },
     });
@@ -112,9 +117,11 @@ export default async function platformSubscriptionsRoutes(app: FastifyInstance) 
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
     const platformAdminId = request.platformAdmin!.platformAdminId;
+    const lang = getLang(request.headers['accept-language']);
+    const userAgent = request.headers['user-agent'] ?? null;
 
     const sub = await app.prisma.tawafudSubscription.findUnique({ where: { id } });
-    if (!sub) return reply.code(404).send({ error: 'Subscription not found' });
+    if (!sub) return reply.code(404).send({ error: 'NotFound', message: msg(messages.platform.subscriptionNotFound, lang) });
 
     const summary = await renewOrgSubscription(app.prisma, sub.orgId);
 
@@ -125,7 +132,7 @@ export default async function platformSubscriptionsRoutes(app: FastifyInstance) 
         action: 'platform.subscription.retry_renewal',
         resource: 'subscription',
         resourceId: sub.id,
-        details: { summary } as any,
+        details: { summary, userAgent } as unknown as Prisma.InputJsonValue,
         ipAddress: request.ip,
       },
     });

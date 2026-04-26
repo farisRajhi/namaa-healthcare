@@ -42,6 +42,7 @@ export default function PlatformLogin() {
     >
       <form
         onSubmit={handleSubmit}
+        aria-busy={submitting}
         className="w-full max-w-sm card p-8 space-y-5"
       >
         <div className="flex items-start justify-between">
@@ -61,9 +62,10 @@ export default function PlatformLogin() {
           <button
             type="button"
             onClick={() => i18n.changeLanguage(isRTL ? 'en' : 'ar')}
-            className="text-xs text-healthcare-muted hover:text-primary-600 inline-flex items-center gap-1 transition-colors"
+            aria-label={isRTL ? 'Switch to English' : 'التبديل إلى العربية'}
+            className="text-xs text-healthcare-muted hover:text-primary-600 inline-flex items-center gap-1 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded"
           >
-            <Globe className="w-3.5 h-3.5" />
+            <Globe className="w-3.5 h-3.5" aria-hidden="true" />
             {t('platform.auth.switchLang')}
           </button>
         </div>
@@ -71,41 +73,47 @@ export default function PlatformLogin() {
         <p className="text-sm text-healthcare-muted">{t('platform.tagline')}</p>
 
         <div>
-          <label className="block text-sm font-medium text-healthcare-text mb-1.5">
+          <label htmlFor="platform-email" className="block text-sm font-medium text-healthcare-text mb-1.5">
             {t('platform.auth.email')}
           </label>
           <input
+            id="platform-email"
             type="email"
             required
             autoFocus
+            autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            aria-describedby={error ? 'platform-login-error' : undefined}
             className="w-full bg-white border border-healthcare-border rounded-lg px-3 py-2.5 text-sm text-healthcare-text focus:outline-none focus:ring-[3px] focus:ring-primary-400 focus:border-primary-500 transition-colors"
             dir="ltr"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-healthcare-text mb-1.5">
+          <label htmlFor="platform-password" className="block text-sm font-medium text-healthcare-text mb-1.5">
             {t('platform.auth.password')}
           </label>
           <input
+            id="platform-password"
             type="password"
             required
+            autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            aria-describedby={error ? 'platform-login-error' : undefined}
             className="w-full bg-white border border-healthcare-border rounded-lg px-3 py-2.5 text-sm text-healthcare-text focus:outline-none focus:ring-[3px] focus:ring-primary-400 focus:border-primary-500 transition-colors"
             dir="ltr"
           />
         </div>
 
         {error && (
-          <div className="text-sm text-danger-700 bg-danger-50 border border-danger-200 rounded-lg px-3 py-2">
+          <div id="platform-login-error" role="alert" className="text-sm text-danger-700 bg-danger-50 border border-danger-200 rounded-lg px-3 py-2">
             {error}
           </div>
         )}
 
-        <button type="submit" disabled={submitting} className="btn-primary w-full">
+        <button type="submit" disabled={submitting} aria-busy={submitting} className="btn-primary w-full focus-visible:ring-2 focus-visible:ring-primary-400">
           {submitting ? t('platform.auth.signingIn') : t('platform.auth.signIn')}
         </button>
       </form>

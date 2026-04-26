@@ -37,7 +37,13 @@ export default function PlatformLayout() {
 
   return (
     <div className="min-h-screen bg-healthcare-bg flex" dir={isRTL ? 'rtl' : 'ltr'}>
-      <aside className="w-64 bg-white border-e border-healthcare-border/40 shadow-sidebar flex flex-col">
+      <a
+        href="#platform-main"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:start-2 focus:z-50 focus:bg-primary-600 focus:text-white focus:rounded-md focus:px-3 focus:py-2 focus:text-sm"
+      >
+        {t('platform.skipToMain', { defaultValue: 'Skip to main content' })}
+      </a>
+      <aside className="w-64 bg-white border-e border-healthcare-border/40 shadow-sidebar flex flex-col" aria-label={t('platform.title')}>
         {/* Brand header */}
         <div className="p-5 border-b border-healthcare-border/40">
           <div className="flex items-center gap-2.5">
@@ -65,14 +71,14 @@ export default function PlatformLayout() {
                 to={item.to}
                 end={item.end}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                  `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${
                     isActive
                       ? 'bg-primary-50 text-primary-700'
                       : 'text-healthcare-muted hover:bg-healthcare-bg hover:text-healthcare-text'
                   }`
                 }
               >
-                <Icon className="w-[18px] h-[18px]" />
+                <Icon className="w-[18px] h-[18px]" aria-hidden="true" />
                 <span>{item.label}</span>
               </NavLink>
             )
@@ -83,9 +89,10 @@ export default function PlatformLayout() {
         <div className="p-3 border-t border-healthcare-border/40 space-y-2">
           <button
             onClick={toggleLang}
-            className="w-full flex items-center gap-2 text-xs font-medium text-healthcare-muted hover:text-primary-600 hover:bg-healthcare-bg rounded-lg px-3 py-2 transition-colors"
+            aria-label={isRTL ? 'Switch to English' : 'التبديل إلى العربية'}
+            className="w-full flex items-center gap-2 text-xs font-medium text-healthcare-muted hover:text-primary-600 hover:bg-healthcare-bg rounded-lg px-3 py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
           >
-            <Globe className="w-3.5 h-3.5" />
+            <Globe className="w-3.5 h-3.5" aria-hidden="true" />
             {t('platform.auth.switchLang')}
           </button>
           <div className="px-3 py-2">
@@ -98,15 +105,15 @@ export default function PlatformLayout() {
           </div>
           <button
             onClick={handleLogout}
-            className="w-full flex items-center gap-2 text-sm font-medium text-danger-600 hover:bg-danger-50 rounded-lg px-3 py-2 transition-colors"
+            className="w-full flex items-center gap-2 text-sm font-medium text-danger-600 hover:bg-danger-50 rounded-lg px-3 py-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger-400"
           >
-            <LogOut className="w-4 h-4" />
+            <LogOut className="w-4 h-4" aria-hidden="true" />
             {t('platform.auth.logout')}
           </button>
         </div>
       </aside>
 
-      <main className="flex-1 overflow-auto">
+      <main id="platform-main" className="flex-1 overflow-auto">
         <div className="max-w-7xl mx-auto p-8">
           <Outlet />
         </div>

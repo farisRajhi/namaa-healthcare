@@ -36,7 +36,8 @@
     "minutes": "min",
     "providers": "providers",
     "services": "services",
-    "total": "Total"
+    "total": "Total",
+    "unknown": "Unknown"
   },
   "landing": {
     "brand": "Tawafud",
@@ -626,6 +627,11 @@
       "testEscalation": "Test Escalation"
     }
   },
+  "plans": {
+    "starter": "Starter",
+    "professional": "Professional",
+    "enterprise": "Enterprise"
+  },
   "platform": {
     "brand": "Tawafud",
     "title": "Platform Admin",
@@ -680,7 +686,10 @@
       "loading": "Loading…",
       "suspend": "Suspend",
       "reactivate": "Reactivate",
-      "page": "Page {{page}} / {{total}}"
+      "page": "Page {{page}} / {{total}}",
+      "statusActive": "Active",
+      "statusSuspended": "Suspended",
+      "statusDeleted": "Deleted"
     },
     "orgDetail": {
       "back": "← All organizations",
@@ -708,7 +717,17 @@
       "impersonateConfirm": "Confirm — go to /dashboard",
       "impersonateStarting": "Starting…",
       "auditSection": "Audit log",
-      "lastActivity": "Last logged activity: {{when}}"
+      "lastActivity": "Last logged activity: {{when}}",
+      "loading": "Loading…",
+      "loadFailed": "Failed to load org.",
+      "created": "Created {{date}}",
+      "timezone": "Timezone {{tz}}",
+      "suspendedHeading": "Suspended",
+      "auditDescription": "Every action against this org — staff logins, suspensions, subscription changes, impersonations.",
+      "backShort": "Back",
+      "subscriptionPlanInline": "Plan:",
+      "subscriptionStatusInline": "Status:",
+      "subscriptionEndsInline": "Ends:"
     },
     "subscriptions": {
       "title": "Subscriptions",
@@ -728,7 +747,10 @@
       "cancelTitle": "Cancel subscription?",
       "cancelReason": "Reason (audited)",
       "confirmCancel": "Confirm cancel",
-      "retryRenewal": "Retry renewal"
+      "retryRenewal": "Retry renewal",
+      "total": "{{n}} total",
+      "failedAttempts": "{{n}}× failed",
+      "cancelReasonTooShort": "Reason must be at least 3 characters (audit-logged)."
     },
     "audit": {
       "title": "Audit Log",
@@ -737,7 +759,23 @@
       "apply": "Apply",
       "clear": "Clear",
       "loadMore": "Load more",
-      "noEntries": "No audit entries yet."
+      "noEntries": "No audit entries yet.",
+      "loading": "Loading audit log…",
+      "empty": "No audit entries yet.",
+      "error": "Failed to load audit log",
+      "headers": {
+        "when": "When",
+        "action": "Action",
+        "org": "Org",
+        "actor": "Actor",
+        "details": "Details",
+        "ip": "IP"
+      },
+      "actor": {
+        "platformAdmin": "platform admin",
+        "orgUser": "org user",
+        "system": "system"
+      }
     }
   }
 }
