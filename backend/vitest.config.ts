@@ -8,7 +8,7 @@ export default defineConfig({
     setupFiles: ['./vitest.setup.ts'],
     include: ['__tests__/**/*.test.ts', '__tests__/**/*.spec.ts'],
     coverage: {
-      provider: 'c8',
+      provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
       exclude: [
         'node_modules/',

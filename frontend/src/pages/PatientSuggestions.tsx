@@ -17,9 +17,9 @@ export default function PatientSuggestions() {
     isLoading,
     generate,
     isGenerating,
-    send,
-    isSending,
-    dismiss,
+    editMessage,
+    updateStatus,
+    isUpdatingStatus,
   } = usePatientSuggestions(orgId)
 
   return (
@@ -28,12 +28,12 @@ export default function PatientSuggestions() {
       <div className="flex flex-col sm:flex-row sm:items-start gap-3 sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold font-heading text-healthcare-text">
-            {isAr ? 'اقتراحات المتابعة' : 'Patient Suggestions'}
+            {isAr ? 'استرجاع المرضى' : 'Patient Recall'}
           </h1>
           <p className="text-sm text-gray-500 mt-1 max-w-md">
             {isAr
-              ? 'مرضى يحتاجون متابعة بناءً على مواعيد خدماتهم — أرسل تذكير أو عرض لكل مريض'
-              : 'Patients due for services based on their visit history — send a reminder or offer to each one'}
+              ? 'مرضى متأخرون عن موعد خدمتهم — من النظام والملفات المرفوعة. اضغط واتساب للتواصل المباشر.'
+              : 'Patients overdue for their service — from both native bookings and uploaded legacy records. Click WhatsApp to reach out directly.'}
           </p>
         </div>
         <button
@@ -49,14 +49,14 @@ export default function PatientSuggestions() {
       {/* Stats */}
       <SuggestionStatsBar stats={stats} isAr={isAr} />
 
-      {/* Suggestion List */}
+      {/* List */}
       <SuggestionList
         suggestions={suggestions}
         isLoading={isLoading}
         isAr={isAr}
-        onSend={(id, msg) => send({ suggestionId: id, messageAr: msg })}
-        onDismiss={dismiss}
-        isSending={isSending}
+        onEditMessage={(id, msg) => editMessage({ suggestionId: id, messageAr: msg })}
+        onUpdateStatus={(id, source, status) => updateStatus({ id, source, status })}
+        isUpdating={isUpdatingStatus}
       />
     </div>
   )

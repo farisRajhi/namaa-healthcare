@@ -257,13 +257,7 @@ async function main() {
 
   // Patient memories
   const memoriesData = [
-    { idx: 0, type: 'allergy' as const, key: 'penicillin', value: 'حساسية من البنسلين' },
     { idx: 0, type: 'preference' as const, key: 'appointment_time', value: 'يفضل المواعيد الصباحية' },
-    { idx: 1, type: 'condition' as const, key: 'diabetes', value: 'سكري نوع ٢ - منذ ٢٠١٨' },
-    { idx: 1, type: 'medication' as const, key: 'metformin', value: 'ميتفورمين ٥٠٠ ملغ مرتين يومياً' },
-    { idx: 2, type: 'condition' as const, key: 'hypertension', value: 'ضغط دم مرتفع - متابعة شهرية' },
-    { idx: 2, type: 'lifestyle' as const, key: 'smoking', value: 'مدخن - يرغب في الإقلاع' },
-    { idx: 3, type: 'allergy' as const, key: 'eggs', value: 'حساسية من البيض' },
     { idx: 4, type: 'preference' as const, key: 'language', value: 'يفضل التحدث بالعربية' },
     { idx: 4, type: 'note' as const, key: 'emergency_contact', value: 'والده: 0555555555' },
   ];

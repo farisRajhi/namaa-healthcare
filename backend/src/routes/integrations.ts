@@ -31,6 +31,9 @@ const updateWebhookSchema = z.object({
 
 export async function integrationsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
+  app.addHook('preHandler', app.requireSubscription);
+  // Integrations are Enterprise-tier (EHR, payment gateways, booking systems).
+  app.addHook('preHandler', app.requirePlan('enterprise'));
 
   // ── Integrations CRUD ──────────────────────────────────
 
@@ -123,6 +126,8 @@ export async function integrationsRoutes(app: FastifyInstance) {
 
 export async function webhookSubscriptionsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
+  app.addHook('preHandler', app.requireSubscription);
+  app.addHook('preHandler', app.requirePlan('enterprise'));
 
   // List webhook subscriptions
   app.get('/', async (request: FastifyRequest) => {

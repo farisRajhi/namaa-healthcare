@@ -3,14 +3,14 @@
  *
  * Full lifecycle for WhatsApp marketing offers: create → activate → track → expire.
  * When an offer is activated, it auto-creates a promotional Campaign using the
- * existing campaign infrastructure for delivery and targeting.
+ * existing campaign infrastructure for targeting (delivery is via Baileys WhatsApp
+ * `/api/baileys-whatsapp/send`).
  */
 import { PrismaClient } from '@prisma/client';
 import { CampaignManager, PatientFilter } from '../campaigns/campaignManager.js';
 import { MarketingConsentService } from '../compliance/marketingConsent.js';
 import { TARGETING_PRESETS } from '../campaigns/targetingPresets.js';
 import type { TargetPresetInfo } from '../campaigns/targetingPresets.js';
-import type { Twilio } from 'twilio';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -58,10 +58,7 @@ export interface OfferAnalytics {
 // ---------------------------------------------------------------------------
 
 export class OfferManager {
-  constructor(
-    private prisma: PrismaClient,
-    private twilio: Twilio | null,
-  ) {}
+  constructor(private prisma: PrismaClient) {}
 
   // -----------------------------------------------------------------------
   // CRUD
@@ -173,9 +170,6 @@ export class OfferManager {
   // Lifecycle: activate / pause / expire
   // -----------------------------------------------------------------------
 
-  /**
-   * Activate an offer — auto-creates a promotional Campaign with WhatsApp channel.
-   */
   async activateOffer(offerId: string) {
     const offer = await this.prisma.offer.findUnique({ where: { offerId } });
     if (!offer) throw new Error('Offer not found');
@@ -183,15 +177,12 @@ export class OfferManager {
       throw new Error(`Cannot activate offer in ${offer.status} status`);
     }
 
-    // Build the offer message with variable substitution placeholders
     const scriptAr = offer.messageAr || this.buildDefaultMessage(offer, 'ar');
     const scriptEn = offer.messageEn || this.buildDefaultMessage(offer, 'en');
 
-    // Resolve the target filter (from preset or custom)
     const targetFilter = this.resolveTargetFilter(offer);
 
-    // Create promotional campaign
-    const campaignManager = new CampaignManager(this.prisma, this.twilio);
+    const campaignManager = new CampaignManager(this.prisma);
     const campaign = await this.prisma.campaign.create({
       data: {
         orgId: offer.orgId,
@@ -210,16 +201,13 @@ export class OfferManager {
       },
     });
 
-    // Start the campaign (resolves targets and activates)
     await campaignManager.startCampaign(campaign.campaignId);
 
-    // Update offer status
     const updated = await this.prisma.offer.update({
       where: { offerId },
       data: { status: 'active' },
     });
 
-    // Update totalSent counter
     const targetCount = await this.prisma.campaignTarget.count({
       where: { campaignId: campaign.campaignId },
     });
@@ -238,8 +226,7 @@ export class OfferManager {
     });
     if (!offer) throw new Error('Offer not found');
 
-    // Pause linked campaigns
-    const campaignManager = new CampaignManager(this.prisma, this.twilio);
+    const campaignManager = new CampaignManager(this.prisma);
     for (const campaign of offer.campaigns) {
       await campaignManager.pauseCampaign(campaign.campaignId);
     }
@@ -257,8 +244,7 @@ export class OfferManager {
     });
     if (!offer) throw new Error('Offer not found');
 
-    // Complete linked campaigns
-    const campaignManager = new CampaignManager(this.prisma, this.twilio);
+    const campaignManager = new CampaignManager(this.prisma);
     for (const campaign of offer.campaigns) {
       await campaignManager.completeCampaign(campaign.campaignId);
     }
@@ -273,13 +259,13 @@ export class OfferManager {
   // Promo Code
   // -----------------------------------------------------------------------
 
-  async generatePromoCode(orgId: string): Promise<string> {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no I/O/0/1 to avoid confusion
+  async generatePromoCode(_orgId: string): Promise<string> {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
     let code: string;
     let attempts = 0;
 
     do {
-      code = 'TW'; // Tawafud prefix
+      code = 'TW';
       for (let i = 0; i < 4; i++) {
         code += chars.charAt(Math.floor(Math.random() * chars.length));
       }
@@ -288,7 +274,6 @@ export class OfferManager {
       attempts++;
     } while (attempts < 20);
 
-    // Fallback to longer code
     code = 'TW';
     for (let i = 0; i < 6; i++) {
       code += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -306,12 +291,10 @@ export class OfferManager {
     if (new Date() < offer.validFrom) return { valid: false, reason: 'not_started' };
     if (new Date() > offer.validUntil) return { valid: false, reason: 'expired' };
 
-    // Check max redemptions
     if (offer.maxRedemptions && offer.totalRedeemed >= offer.maxRedemptions) {
       return { valid: false, reason: 'max_redemptions_reached' };
     }
 
-    // Check per-patient limit
     if (patientId) {
       const patientRedemptions = await this.prisma.offerRedemption.count({
         where: { offerId: offer.offerId, patientId, status: { not: 'cancelled' } },
@@ -374,14 +357,10 @@ export class OfferManager {
     return TARGETING_PRESETS;
   }
 
-  /**
-   * Preview audience size for a given filter (dry-run, no campaign created).
-   */
   async previewAudience(orgId: string, filter: PatientFilter): Promise<{ count: number }> {
-    const campaignManager = new CampaignManager(this.prisma, this.twilio);
+    const campaignManager = new CampaignManager(this.prisma);
     const patients = await campaignManager.queryPatientsByFilter(orgId, filter);
 
-    // Also check marketing consent
     const consentService = new MarketingConsentService(this.prisma);
     const consented = await consentService.bulkCheckConsent(
       patients.map((p) => p.patientId),
@@ -419,7 +398,6 @@ export class OfferManager {
     if (offer.targetPreset && offer.targetPreset !== 'custom') {
       const preset = TARGETING_PRESETS.find((p) => p.key === offer.targetPreset);
       if (preset) {
-        // Merge preset filter with any custom overrides
         return { ...preset.filter, ...(offer.targetFilter || {}) };
       }
     }
@@ -472,7 +450,7 @@ export class OfferManager {
       return lang === 'ar' ? `خصم ${value}%` : `${value}% discount`;
     }
     if (unit === 'sar') {
-      const sar = value / 100; // halalas to SAR
+      const sar = value / 100;
       return lang === 'ar' ? `خصم ${sar} ريال` : `${sar} SAR discount`;
     }
     return '';

@@ -12,6 +12,7 @@ interface CampaignCreateData {
   startDate?: string
   endDate?: string
   offerId?: string
+  adImageId?: string
 }
 
 export function useCampaignCreate(options: {

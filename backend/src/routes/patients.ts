@@ -101,7 +101,9 @@ export default async function patientsRoutes(app: FastifyInstance) {
         skip,
         take: query.limit,
         include: {
-          contacts: true,
+          contacts: {
+            orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
+          },
           insight: {
             select: {
               engagementScore: true,
@@ -115,7 +117,7 @@ export default async function patientsRoutes(app: FastifyInstance) {
           tags: { select: { tag: true, source: true } },
           memories: {
             where: {
-              memoryType: { in: ['service_interest', 'condition', 'satisfaction'] },
+              memoryType: { in: ['service_interest', 'satisfaction'] },
               isActive: true,
             },
             select: { memoryType: true, memoryKey: true, memoryValue: true },
@@ -170,6 +172,7 @@ export default async function patientsRoutes(app: FastifyInstance) {
             contactValue: true,
             isPrimary: true,
           },
+          orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }],
         },
         appointments: {
           include: {

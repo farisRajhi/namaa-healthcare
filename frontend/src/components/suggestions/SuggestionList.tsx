@@ -1,37 +1,53 @@
 import { useState } from 'react'
 import { Search, Inbox } from 'lucide-react'
 import SuggestionCard from './SuggestionCard'
-import type { SuggestionCard as SuggestionCardType } from '../../hooks/usePatientSuggestions'
+import type { SuggestionCard as SuggestionCardType, RecallStatus, RecallSource } from '../../hooks/usePatientSuggestions'
 
-type FilterType = 'all' | 'reminder' | 'offer'
+type FilterType = 'all' | 'native' | 'external' | 'reminder' | 'offer'
 
 interface Props {
   suggestions: SuggestionCardType[]
   isLoading: boolean
   isAr: boolean
-  onSend: (suggestionId: string, messageAr?: string) => void
-  onDismiss: (suggestionId: string) => void
-  isSending: boolean
+  onEditMessage?: (suggestionId: string, message: string) => void
+  onUpdateStatus: (id: string, source: RecallSource, status: RecallStatus) => void
+  isUpdating: boolean
 }
 
-export default function SuggestionList({ suggestions, isLoading, isAr, onSend, onDismiss, isSending }: Props) {
+export default function SuggestionList({
+  suggestions,
+  isLoading,
+  isAr,
+  onEditMessage,
+  onUpdateStatus,
+  isUpdating,
+}: Props) {
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<FilterType>('all')
 
   const filtered = suggestions.filter(s => {
-    if (filter !== 'all' && s.suggestionType !== filter) return false
+    if (filter === 'native' && s.source !== 'native') return false
+    if (filter === 'external' && s.source !== 'external') return false
+    if (filter === 'reminder' && s.suggestionType !== 'reminder') return false
+    if (filter === 'offer' && s.suggestionType !== 'offer') return false
     if (search) {
       const q = search.toLowerCase()
-      return s.patientName.toLowerCase().includes(q) || s.serviceName.toLowerCase().includes(q)
+      const name = s.patientName.toLowerCase()
+      const svc = (s.serviceName || s.serviceNameEn || '').toLowerCase()
+      return name.includes(q) || svc.includes(q)
     }
     return true
   })
 
+  const nativeCount = suggestions.filter(s => s.source === 'native').length
+  const externalCount = suggestions.filter(s => s.source === 'external').length
   const reminderCount = suggestions.filter(s => s.suggestionType === 'reminder').length
   const offerCount = suggestions.filter(s => s.suggestionType === 'offer').length
 
   const filters: { key: FilterType; label: string; count: number }[] = [
     { key: 'all', label: isAr ? 'الكل' : 'All', count: suggestions.length },
+    { key: 'native', label: isAr ? 'مباشر' : 'Native', count: nativeCount },
+    { key: 'external', label: isAr ? 'قديم' : 'Legacy', count: externalCount },
     { key: 'reminder', label: isAr ? 'تذكيرات' : 'Reminders', count: reminderCount },
     { key: 'offer', label: isAr ? 'عروض' : 'Offers', count: offerCount },
   ]
@@ -62,7 +78,7 @@ export default function SuggestionList({ suggestions, isLoading, isAr, onSend, o
     <div className="space-y-4">
       {/* Filter bar */}
       <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-        <div className="flex gap-2" role="tablist" aria-label={isAr ? 'تصفية الاقتراحات' : 'Filter suggestions'}>
+        <div className="flex flex-wrap gap-2" role="tablist" aria-label={isAr ? 'تصفية المرضى' : 'Filter patients'}>
           {filters.map(f => (
             <button
               key={f.key}
@@ -92,12 +108,11 @@ export default function SuggestionList({ suggestions, isLoading, isAr, onSend, o
             onChange={e => setSearch(e.target.value)}
             placeholder={isAr ? 'بحث بالاسم أو الخدمة...' : 'Search by name or service...'}
             className="w-full sm:w-72 ps-10 pe-3 py-2.5 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary-400 focus:border-primary-400 min-h-[44px]"
-            aria-label={isAr ? 'بحث في الاقتراحات' : 'Search suggestions'}
+            aria-label={isAr ? 'بحث في المرضى' : 'Search patients'}
           />
         </div>
       </div>
 
-      {/* Results count */}
       {search && (
         <p className="text-xs text-gray-500">
           {isAr
@@ -106,30 +121,29 @@ export default function SuggestionList({ suggestions, isLoading, isAr, onSend, o
         </p>
       )}
 
-      {/* Cards */}
       {filtered.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <Inbox size={48} className="mx-auto mb-4 opacity-30" />
           <p className="text-base font-medium text-gray-500 mb-1">
-            {isAr ? 'لا توجد اقتراحات' : 'No suggestions'}
+            {isAr ? 'لا يوجد مرضى للتواصل' : 'No patients to contact'}
           </p>
           <p className="text-sm text-gray-400">
             {search
               ? (isAr ? 'جرب كلمة بحث مختلفة' : 'Try a different search term')
-              : (isAr ? 'اضغط "تحديث الاقتراحات" لتوليد اقتراحات جديدة' : 'Click "Refresh Suggestions" to generate new ones')}
+              : (isAr ? 'اضغط "تحديث الاقتراحات" لتوليد قائمة جديدة' : 'Click "Refresh Suggestions" to generate a new list')}
           </p>
         </div>
       ) : (
         <div className="space-y-4">
           {filtered.map((s, i) => (
             <SuggestionCard
-              key={s.suggestionId}
+              key={`${s.source}-${s.id}`}
               suggestion={s}
               rank={i + 1}
               isAr={isAr}
-              onSend={onSend}
-              onDismiss={onDismiss}
-              isSending={isSending}
+              onEditMessage={onEditMessage}
+              onUpdateStatus={onUpdateStatus}
+              isUpdating={isUpdating}
             />
           ))}
         </div>

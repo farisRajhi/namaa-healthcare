@@ -167,16 +167,72 @@ export async function createCharge(params: CreateChargeParams): Promise<TapCharg
 
   const data = (await response.json()) as TapChargeResponse;
   if (!response.ok) {
-    const err = new Error(
-      (data as any)?.errors?.[0]?.description ||
-        (data as any)?.response?.message ||
-        `Tap charge creation failed (${response.status})`,
-    );
-    (err as any).details = data;
-    (err as any).statusCode = response.status;
-    throw err;
+    throw toTapError(data, response.status);
   }
   return data;
+}
+
+/**
+ * Error codes surfaced by the Tap API. We map a curated subset to
+ * translatable codes so the frontend can render localized messages;
+ * unmapped codes fall through with `kind: 'unknown'` and the raw message.
+ *
+ * See https://developers.tap.company/docs for the authoritative list.
+ */
+export type TapErrorKind =
+  | 'invalid_card'
+  | 'insufficient_funds'
+  | 'declined'
+  | 'threed_secure_failed'
+  | 'expired_card'
+  | 'cvv_mismatch'
+  | 'timeout'
+  | 'auth_failed'
+  | 'unknown';
+
+const TAP_CODE_TO_KIND: Record<string, TapErrorKind> = {
+  '1101': 'invalid_card',
+  '1102': 'insufficient_funds',
+  '1110': 'threed_secure_failed',
+  '1120': 'declined',
+  '1125': 'declined',
+  '1130': 'expired_card',
+  '1140': 'cvv_mismatch',
+  '1150': 'timeout',
+  '1300': 'auth_failed',
+  '1301': 'auth_failed',
+};
+
+export interface TapApiError extends Error {
+  kind: TapErrorKind;
+  code: string | null;
+  statusCode: number;
+  details?: unknown;
+  isUserError: boolean;
+}
+
+export function toTapError(data: any, httpStatus: number): TapApiError {
+  const errObj = Array.isArray(data?.errors) ? data.errors[0] : null;
+  const code: string | null =
+    errObj?.code?.toString() ??
+    data?.response?.code?.toString() ??
+    null;
+  const description: string =
+    errObj?.description ||
+    data?.response?.message ||
+    data?.message ||
+    `Tap request failed (HTTP ${httpStatus})`;
+
+  const kind: TapErrorKind = (code && TAP_CODE_TO_KIND[code]) || 'unknown';
+
+  const err = new Error(description) as TapApiError;
+  err.kind = kind;
+  err.code = code;
+  err.statusCode = httpStatus;
+  err.details = data;
+  // 4xx from Tap → user-actionable. 5xx → infrastructure.
+  err.isUserError = httpStatus >= 400 && httpStatus < 500;
+  return err;
 }
 
 /**
@@ -213,10 +269,7 @@ export async function retrieveCharge(chargeId: string): Promise<TapChargeRespons
   });
   const data = (await response.json()) as TapChargeResponse;
   if (!response.ok) {
-    const err = new Error(`Tap charge retrieval failed (${response.status})`);
-    (err as any).details = data;
-    (err as any).statusCode = response.status;
-    throw err;
+    throw toTapError(data, response.status);
   }
   return data;
 }

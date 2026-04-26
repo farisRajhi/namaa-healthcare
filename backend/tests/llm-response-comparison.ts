@@ -50,7 +50,7 @@ async function main() {
 
   console.log(`\n${'═'.repeat(70)}`);
   console.log(`  LLM RESPONSE COMPARISON: Old vs New WhatsApp Prompt`);
-  console.log(`  Org: ${org.name} | Model: ${process.env.LLM_MODEL || 'gpt-4-turbo-preview'}`);
+  console.log(`  Org: ${org.name} | Model: ${process.env.LLM_MODEL || 'gemini-2.5-flash'}`);
   console.log(`${'═'.repeat(70)}\n`);
 
   for (const test of TEST_MESSAGES) {

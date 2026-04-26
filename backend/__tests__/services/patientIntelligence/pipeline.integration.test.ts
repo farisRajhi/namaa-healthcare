@@ -34,7 +34,6 @@ import { generateCampaigns, type SegmentSummary } from '@/services/patientIntell
 import { loadSkillsForClinicType } from '@/services/patientIntelligence/skillLoader.js';
 import { normalizePatientRow, daysSince, calculateAge, parseDate } from '@/services/patientIntelligence/normalizers.js';
 import type { ContactHistorySummary } from '@/services/patientIntelligence/feedbackCollector.js';
-import type { GeminiConfig } from '@/services/patientIntelligence/geminiClient.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -45,7 +44,6 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const describeIf = GEMINI_API_KEY ? describe : describe.skip;
 
 // Shared state across tests (populated sequentially)
-let geminiConfig: GeminiConfig;
 let csvBuffer: Buffer;
 let parsedCsv: ReturnType<typeof parseCsvBuffer>;
 let understanding: Awaited<ReturnType<typeof analyzeDataStructure>>;
@@ -59,7 +57,6 @@ const outputLog: Record<string, any> = {};
 describeIf('Patient Intelligence Pipeline — Integration', () => {
   beforeAll(() => {
     vi.setConfig({ testTimeout: 300000 });
-    geminiConfig = { apiKey: GEMINI_API_KEY! };
     csvBuffer = readFileSync(join(FIXTURES_DIR, 'dental-clinic-patients.csv'));
   });
 
@@ -88,7 +85,7 @@ describeIf('Patient Intelligence Pipeline — Integration', () => {
   describe('AI Data Understanding', () => {
     it('should detect clinic type as dental', async () => {
       const sample = getSample(parsedCsv, 5);
-      understanding = await analyzeDataStructure(geminiConfig, parsedCsv.headers, sample);
+      understanding = await analyzeDataStructure(parsedCsv.headers, sample);
 
       expect(understanding.clinicType).toBe('dental');
       outputLog.dataUnderstanding = understanding;
@@ -189,7 +186,7 @@ describeIf('Patient Intelligence Pipeline — Integration', () => {
           }
         }
 
-        const results = await analyzeBatch(geminiConfig, batch, skillContent, batchHistory, 'dental');
+        const results = await analyzeBatch(batch, skillContent, batchHistory, 'dental');
         allResults.push(...results);
       }
 
@@ -320,7 +317,7 @@ describeIf('Patient Intelligence Pipeline — Integration', () => {
           };
         });
 
-      campaigns = await generateCampaigns(geminiConfig, segments, skillContent, 'dental');
+      campaigns = await generateCampaigns(segments, skillContent, 'dental');
 
       expect(campaigns.length).toBeGreaterThanOrEqual(3);
       expect(campaigns.length).toBeLessThanOrEqual(7);

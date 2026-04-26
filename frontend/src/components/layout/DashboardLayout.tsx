@@ -1,9 +1,11 @@
 import { useState } from 'react'
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, useNavigate, Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { useAuth } from '../../context/AuthContext'
+import { useSubscription } from '../../hooks/useSubscription'
 import { BranchProvider } from '../../context/BranchContext'
 import BranchSelector from '../ui/BranchSelector'
+import TrialBanner from '../subscription/TrialBanner'
 import {
   LayoutDashboard,
   Users,
@@ -23,6 +25,8 @@ import {
   Brain,
   HeartPulse,
   Sparkles,
+  CreditCard,
+  ArrowUpCircle,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import ImpersonationBanner from '../ImpersonationBanner'
@@ -83,6 +87,7 @@ const getNavigation = (t: (key: string) => string): NavGroup[] => [
     group: t('nav.groups.system'),
     items: [
       { name: t('nav.settings'), href: '/dashboard/settings', icon: Settings },
+      { name: t('billing.title'), href: '/dashboard/billing', icon: CreditCard },
     ],
   },
 ]
@@ -91,10 +96,17 @@ export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userDropdown, setUserDropdown] = useState(false)
   const { user, logout } = useAuth()
+  const sub = useSubscription()
   const navigate = useNavigate()
   const { t, i18n } = useTranslation()
 
   const navigation = getNavigation(t)
+
+  // Surface an Upgrade button when the paid sub is inactive or within 7 days of
+  // expiry. Trial countdown is surfaced separately via TrialBanner.
+  const showUpgradeCta =
+    !sub.hasPaidActive ||
+    (sub.daysRemaining !== null && sub.daysRemaining <= 7 && sub.status !== 'active')
 
   const handleLogout = () => {
     logout()
@@ -208,6 +220,9 @@ export default function DashboardLayout() {
 
       {/* Main content */}
       <div className="lg:ps-[280px]">
+        {/* Trial countdown (only shown when trialing, not hidden behind header) */}
+        <TrialBanner />
+
         {/* Top header */}
         <div className="top-header flex items-center gap-4 px-4 lg:px-6">
           {/* Mobile menu button */}
@@ -233,6 +248,16 @@ export default function DashboardLayout() {
 
           {/* Right side actions */}
           <div className="flex items-center gap-2">
+            {showUpgradeCta && (
+              <Link
+                to="/dashboard/billing?tab=plans"
+                className="hidden sm:inline-flex items-center gap-1.5 bg-warning-50 border border-warning-200 text-warning-800 hover:bg-warning-100 rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors"
+              >
+                <ArrowUpCircle className="w-4 h-4" />
+                {t('subscription.header.upgrade')}
+              </Link>
+            )}
+
             {/* Branch selector (multi-clinic) */}
             <BranchSelector />
 

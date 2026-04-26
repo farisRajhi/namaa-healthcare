@@ -30,7 +30,6 @@ import { loadSkillsForClinicType } from '@/services/patientIntelligence/skillLoa
 import { normalizePatientRow, daysSince, calculateAge } from '@/services/patientIntelligence/normalizers.js';
 import { computeServiceGaps } from '@/services/patientIntelligence/serviceCycleMap.js';
 import type { ContactHistorySummary } from '@/services/patientIntelligence/feedbackCollector.js';
-import type { GeminiConfig } from '@/services/patientIntelligence/geminiClient.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const FIXTURES_DIR = join(__dirname, '..', '..', 'fixtures');
@@ -38,7 +37,6 @@ const FIXTURES_DIR = join(__dirname, '..', '..', 'fixtures');
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const describeIf = GEMINI_API_KEY ? describe : describe.skip;
 
-let geminiConfig: GeminiConfig;
 let allResults: any[] = [];
 let campaigns: any[] = [];
 const outputLog: Record<string, any> = {};
@@ -46,10 +44,6 @@ const outputLog: Record<string, any> = {};
 vi.setConfig({ testTimeout: 600000, hookTimeout: 600000 });
 
 describeIf('500-Patient Stress Test', () => {
-  beforeAll(() => {
-    geminiConfig = { apiKey: GEMINI_API_KEY! };
-  });
-
   it('should parse 500 patients and run full pipeline', async () => {
     const csvBuffer = readFileSync(join(FIXTURES_DIR, 'dental-clinic-500-patients.csv'));
     const parsedCsv = parseCsvBuffer(csvBuffer);
@@ -57,7 +51,7 @@ describeIf('500-Patient Stress Test', () => {
 
     // Step 1: Data understanding
     const sample = getSample(parsedCsv, 5);
-    const understanding = await analyzeDataStructure(geminiConfig, parsedCsv.headers, sample);
+    const understanding = await analyzeDataStructure(parsedCsv.headers, sample);
     expect(understanding.clinicType).toBe('dental');
     outputLog.clinicType = understanding.clinicType;
     outputLog.columnMapping = understanding.columnMapping;
@@ -140,7 +134,7 @@ describeIf('500-Patient Stress Test', () => {
         }
       }
 
-      const results = await analyzeBatch(geminiConfig, batch, skills.content, batchHistory, 'dental');
+      const results = await analyzeBatch(batch, skills.content, batchHistory, 'dental');
       allResults.push(...results);
       console.log(`[Pipeline] Batch ${b + 1}/${totalBatches} analyzed (${allResults.length}/${allPatients.length})`);
     }
@@ -177,7 +171,7 @@ describeIf('500-Patient Stress Test', () => {
     console.log('[Pipeline] Segments:', segments.map(s => `${s.segment}(${s.patientCount})`).join(', '));
 
     // Step 6: Generate campaigns
-    campaigns = await generateCampaigns(geminiConfig, segments, skills.content, 'dental');
+    campaigns = await generateCampaigns(segments, skills.content, 'dental');
     console.log('[Pipeline] Generated', campaigns.length, 'campaigns');
 
     // ── Build detailed output ──

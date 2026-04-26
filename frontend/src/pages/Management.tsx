@@ -19,7 +19,7 @@ interface Department { departmentId: string; name: string; createdAt: string; _c
 interface Facility { facilityId: string; name: string; timezone: string; addressLine1: string | null; city: string | null; region: string | null; country: string | null; _count: { providers: number; appointments: number }; [key: string]: any }
 interface Provider { providerId: string; displayName: string; credentials: string | null; active: boolean; departmentId: string | null; facilityId: string | null; department: { departmentId: string; name: string } | null; facility: { facilityId: string; name: string } | null; services: Array<{ service: { serviceId: string; name: string } }>; availabilityRules?: AvailabilityRule[] }
 interface AvailabilityRule { ruleId: string; dayOfWeek: number; startLocal: string; endLocal: string; slotIntervalMin: number }
-interface Service { serviceId: string; name: string; durationMin: number; bufferBeforeMin: number; bufferAfterMin: number; active: boolean; providers: Array<{ provider: { displayName: string } }> }
+interface Service { serviceId: string; name: string; durationMin: number; bufferBeforeMin: number; bufferAfterMin: number; active: boolean; priceSar?: number | null; priceNote?: string | null; priceNoteEn?: string | null; showPrice?: boolean; providers: Array<{ provider: { displayName: string } }> }
 
 const DAYS = ['الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة', 'السبت']
 const DAYS_EN = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -725,13 +725,31 @@ function AddSectionButton({ isAr }: { isAr: boolean }) {
 function ServicesCatalog({ services, isAr }: { services: Service[]; isAr: boolean }) {
   const [expanded, setExpanded] = useState(false)
   const [showModal, setShowModal] = useState(false)
-  const [formData, setFormData] = useState({ name: '', durationMin: 30, bufferBeforeMin: 0, bufferAfterMin: 0, active: true })
+  const emptyForm = { name: '', durationMin: 30, bufferBeforeMin: 0, bufferAfterMin: 0, active: true, priceSar: '' as string | number, priceNote: '', priceNoteEn: '', showPrice: false }
+  const [formData, setFormData] = useState(emptyForm)
   const qc = useQueryClient()
   const { addToast } = useToast()
 
   const createM = useMutation({
-    mutationFn: (data: typeof formData) => api.post('/api/services', data).then(r => r.data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['services'] }); setShowModal(false); setFormData({ name: '', durationMin: 30, bufferBeforeMin: 0, bufferAfterMin: 0, active: true }); addToast({ type: 'success', title: isAr ? 'تم إضافة الخدمة' : 'Service created' }) },
+    mutationFn: (data: typeof formData) => {
+      const payload: Record<string, unknown> = {
+        name: data.name,
+        durationMin: data.durationMin,
+        bufferBeforeMin: data.bufferBeforeMin,
+        bufferAfterMin: data.bufferAfterMin,
+        active: data.active,
+        showPrice: data.showPrice,
+        priceNote: data.priceNote || null,
+        priceNoteEn: data.priceNoteEn || null,
+      }
+      if (data.priceSar !== '' && data.priceSar !== null && !Number.isNaN(Number(data.priceSar))) {
+        payload.priceSar = Number(data.priceSar)
+      } else {
+        payload.priceSar = null
+      }
+      return api.post('/api/services', payload).then(r => r.data)
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['services'] }); setShowModal(false); setFormData(emptyForm); addToast({ type: 'success', title: isAr ? 'تم إضافة الخدمة' : 'Service created' }) },
     onError: (err: any) => { addToast({ type: 'error', title: err.response?.data?.error || 'Failed' }) },
   })
 
@@ -757,11 +775,21 @@ function ServicesCatalog({ services, isAr }: { services: Service[]; isAr: boolea
             <div className="p-8"><EmptyState icon={Briefcase} title={isAr ? 'لا توجد خدمات' : 'No services yet'} action={{ label: isAr ? 'إضافة خدمة' : 'Add Service', onClick: () => setShowModal(true) }} /></div>
           ) : (
             <table className="min-w-full">
-              <thead className="table-header"><tr><th>{isAr ? 'الخدمة' : 'Service'}</th><th>{isAr ? 'المدة' : 'Duration'}</th><th>{isAr ? 'الفاصل' : 'Buffer'}</th><th>{isAr ? 'الأطباء' : 'Providers'}</th><th>{isAr ? 'الحالة' : 'Status'}</th></tr></thead>
+              <thead className="table-header"><tr><th>{isAr ? 'الخدمة' : 'Service'}</th><th>{isAr ? 'المدة' : 'Duration'}</th><th>{isAr ? 'السعر' : 'Price'}</th><th>{isAr ? 'الفاصل' : 'Buffer'}</th><th>{isAr ? 'الأطباء' : 'Providers'}</th><th>{isAr ? 'الحالة' : 'Status'}</th></tr></thead>
               <tbody>{services.map(s => (
                 <tr key={s.serviceId} className="table-row">
                   <td><span className="font-semibold text-healthcare-text">{s.name}</span></td>
                   <td><div className="flex items-center gap-1.5 text-sm text-healthcare-muted"><Clock className="h-4 w-4 text-primary-400" />{s.durationMin} {isAr ? 'دقيقة' : 'min'}</div></td>
+                  <td>
+                    {s.priceSar != null ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-healthcare-text">{s.priceSar} {isAr ? 'ر.س' : 'SAR'}</span>
+                        {s.showPrice ? <Badge variant="success">{isAr ? 'يظهر للذكاء' : 'Shown to AI'}</Badge> : <Badge variant="neutral">{isAr ? 'مخفي' : 'Hidden'}</Badge>}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-healthcare-muted">—</span>
+                    )}
+                  </td>
                   <td className="text-sm text-healthcare-muted">{s.bufferBeforeMin > 0 || s.bufferAfterMin > 0 ? `${s.bufferBeforeMin}m / ${s.bufferAfterMin}m` : (isAr ? 'بدون فاصل' : 'No buffer')}</td>
                   <td><div className="flex items-center gap-1.5 text-sm text-healthcare-muted"><Users className="h-4 w-4 text-primary-400" />{s.providers.length} {isAr ? 'طبيب' : 'providers'}</div></td>
                   <td><Badge variant={s.active ? 'success' : 'neutral'} dot>{s.active ? (isAr ? 'نشط' : 'Active') : (isAr ? 'غير نشط' : 'Inactive')}</Badge></td>
@@ -779,6 +807,21 @@ function ServicesCatalog({ services, isAr }: { services: Service[]; isAr: boolea
           <div className="grid grid-cols-2 gap-3">
             <div><label className="input-label">{isAr ? 'فاصل قبل (دقائق)' : 'Buffer Before (min)'}</label><input type="number" value={formData.bufferBeforeMin} onChange={e => setFormData({ ...formData, bufferBeforeMin: parseInt(e.target.value) || 0 })} className="input" min={0} /></div>
             <div><label className="input-label">{isAr ? 'فاصل بعد (دقائق)' : 'Buffer After (min)'}</label><input type="number" value={formData.bufferAfterMin} onChange={e => setFormData({ ...formData, bufferAfterMin: parseInt(e.target.value) || 0 })} className="input" min={0} /></div>
+          </div>
+          <div className="border-t border-healthcare-border/30 pt-4 space-y-3">
+            <div className="text-sm font-semibold text-healthcare-text">{isAr ? 'السعر (اختياري)' : 'Pricing (optional)'}</div>
+            <div><label className="input-label">{isAr ? 'السعر بالريال السعودي' : 'Price in SAR'}</label><input type="number" value={formData.priceSar} onChange={e => setFormData({ ...formData, priceSar: e.target.value })} className="input" min={0} placeholder="200" /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><label className="input-label">{isAr ? 'ملاحظة (عربي)' : 'Note (Arabic)'}</label><input type="text" value={formData.priceNote} onChange={e => setFormData({ ...formData, priceNote: e.target.value })} className="input" placeholder={isAr ? 'يختلف حسب الحالة' : ''} maxLength={200} /></div>
+              <div><label className="input-label">{isAr ? 'ملاحظة (إنجليزي)' : 'Note (English)'}</label><input type="text" value={formData.priceNoteEn} onChange={e => setFormData({ ...formData, priceNoteEn: e.target.value })} className="input" placeholder={isAr ? '' : 'Varies by case'} maxLength={200} /></div>
+            </div>
+            <div className="flex items-start gap-2">
+              <input type="checkbox" id="svc-show-price" checked={formData.showPrice} onChange={e => setFormData({ ...formData, showPrice: e.target.checked })} className="checkbox mt-0.5" />
+              <label htmlFor="svc-show-price" className="text-sm text-healthcare-text leading-tight">
+                {isAr ? 'إظهار السعر في ردود الذكاء الاصطناعي على الواتساب' : 'Show this price in WhatsApp AI replies'}
+                <div className="text-xs text-healthcare-muted mt-0.5">{isAr ? 'إذا فُعّل، سيذكر المساعد السعر للمرضى مع تنبيه أنه تقريبي.' : 'When on, the assistant will quote this price with an "approximate" disclaimer.'}</div>
+              </label>
+            </div>
           </div>
           <div className="flex items-center gap-2"><input type="checkbox" id="svc-active" checked={formData.active} onChange={e => setFormData({ ...formData, active: e.target.checked })} className="checkbox" /><label htmlFor="svc-active" className="text-sm text-healthcare-text">{isAr ? 'نشط' : 'Active'}</label></div>
           <div className="flex gap-3"><button type="button" onClick={() => setShowModal(false)} className="btn-outline flex-1">{isAr ? 'إلغاء' : 'Cancel'}</button><button type="submit" disabled={createM.isPending} className="btn-primary flex-1">{createM.isPending ? (isAr ? 'جاري الإنشاء...' : 'Creating...') : (isAr ? 'إنشاء' : 'Create')}</button></div>

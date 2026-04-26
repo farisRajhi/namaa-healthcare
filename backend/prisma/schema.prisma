@@ -12,17 +12,51 @@ datasource db {
 model Org {
   orgId           String           @id @default(dbgenerated("gen_random_uuid()")) @map("org_id") @db.Uuid
   name            String
+  nameAr          String?          @map("name_ar")
   defaultTimezone String           @default("UTC") @map("default_timezone")
   aiAutoReply     Boolean          @default(true) @map("ai_auto_reply")
   status          org_status       @default(active)
   suspendedAt     DateTime?        @map("suspended_at") @db.Timestamptz(6)
   suspendedReason String?          @map("suspended_reason")
+  /// Free trial expiration. Null → no trial (or already converted to paid).
+  /// Populated at registration (14 days) and unset when a paid subscription activates.
+  trialEndsAt     DateTime?        @map("trial_ends_at") @db.Timestamptz(6)
   createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   agentFlows      AgentFlow[]
-  phoneNumbers    OrgPhoneNumber[]
   users           User[]
+  branding        OrgBranding?
 
   @@map("orgs")
+}
+
+model OrgBranding {
+  orgId     String   @id @map("org_id") @db.Uuid
+  logoUrl   String?  @map("logo_url")
+  logoKey   String?  @map("logo_key")
+  colors    String[] @default([])
+  voiceTone String?  @map("voice_tone")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  org       Org      @relation(fields: [orgId], references: [orgId], onDelete: Cascade)
+
+  @@map("org_branding")
+}
+
+model AdImage {
+  adImageId   String     @id @default(dbgenerated("gen_random_uuid()")) @map("ad_image_id") @db.Uuid
+  orgId       String     @map("org_id") @db.Uuid
+  campaignId  String?    @map("campaign_id") @db.Uuid
+  instruction String
+  promptUsed  String?    @map("prompt_used")
+  url         String
+  storageKey  String     @map("storage_key")
+  mimetype    String
+  status      String     @default("ready")
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  campaigns   Campaign[]
+
+  @@index([orgId, createdAt])
+  @@map("ad_images")
 }
 
 model Facility {
@@ -91,6 +125,10 @@ model Service {
   category        String?
   repeatCycleDays Int?              @map("repeat_cycle_days")
   isRepeating     Boolean           @default(false) @map("is_repeating")
+  priceSar        Int?              @map("price_sar")
+  priceNote       String?           @map("price_note")
+  priceNoteEn     String?           @map("price_note_en")
+  showPrice       Boolean           @default(false) @map("show_price")
   createdAt       DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   appointments    Appointment[]
   providers       ProviderService[]
@@ -288,11 +326,12 @@ model Conversation {
   currentStep            String                @default("start") @map("current_step")
   context                Json                  @default("{}")
   lastActivityAt         DateTime              @default(now()) @map("last_activity_at") @db.Timestamptz(6)
+  totalTokens            Int                   @default(0) @map("total_tokens")
+  humanHandoff           Boolean               @default(false) @map("human_handoff")
   createdAt              DateTime              @default(now()) @map("created_at") @db.Timestamptz(6)
   messages               ConversationMessage[]
   summaries              ConversationSummary[]
   extractedMemories      PatientMemory[]       @relation("MemorySource")
-  voiceCalls             VoiceCall[]
 
   @@unique([orgId, channel, externalThreadId])
   @@map("conversations")
@@ -305,6 +344,9 @@ model ConversationMessage {
   direction         message_direction
   bodyText          String?           @map("body_text")
   payload           Json              @default("{}")
+  promptTokens      Int?              @map("prompt_tokens")
+  completionTokens Int?              @map("completion_tokens")
+  totalTokens       Int?              @map("total_tokens")
   createdAt         DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
   conversation      Conversation      @relation(fields: [conversationId], references: [conversationId], onDelete: Cascade)
 
@@ -415,65 +457,6 @@ model OutboxEvent {
   @@map("outbox_events")
 }
 
-// ─── Voice ──────────────────────────────────────────────────
-
-model VoiceCall {
-  callId          String           @id @default(dbgenerated("gen_random_uuid()")) @map("call_id") @db.Uuid
-  orgId           String           @map("org_id") @db.Uuid
-  conversationId  String?          @map("conversation_id") @db.Uuid
-  twilioCallSid   String           @unique @map("twilio_call_sid")
-  callerPhone     String           @map("caller_phone")
-  calledPhone     String           @map("called_phone")
-  direction       call_direction   @default(inbound)
-  status          call_status      @default(ringing)
-  detectedDialect String?          @map("detected_dialect")
-  durationSec     Int?             @map("duration_sec")
-  recordingUrl    String?          @map("recording_url")
-  transcriptUrl   String?          @map("transcript_url")
-  context         Json             @default("{}")
-  startedAt       DateTime         @default(now()) @map("started_at") @db.Timestamptz(6)
-  endedAt         DateTime?        @map("ended_at") @db.Timestamptz(6)
-  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  conversation    Conversation?    @relation(fields: [conversationId], references: [conversationId])
-  utterances      VoiceUtterance[]
-
-  @@index([orgId, startedAt(sort: Desc)])
-  @@map("voice_calls")
-}
-
-model VoiceUtterance {
-  utteranceId String       @id @default(dbgenerated("gen_random_uuid()")) @map("utterance_id") @db.Uuid
-  callId      String       @map("call_id") @db.Uuid
-  speaker     speaker_type
-  text        String
-  confidence  Float?
-  durationMs  Int?         @map("duration_ms")
-  dialect     String?
-  audioUrl    String?      @map("audio_url")
-  timestamp   DateTime     @default(now()) @db.Timestamptz(6)
-  call        VoiceCall    @relation(fields: [callId], references: [callId], onDelete: Cascade)
-
-  @@index([callId, timestamp])
-  @@map("voice_utterances")
-}
-
-model OrgPhoneNumber {
-  phoneNumberId String            @id @default(dbgenerated("gen_random_uuid()")) @map("phone_number_id") @db.Uuid
-  orgId         String            @map("org_id") @db.Uuid
-  twilioNumber  String            @unique @map("twilio_number")
-  twilioSid     String?           @map("twilio_sid")
-  numberType    phone_number_type @default(twilio_owned) @map("number_type")
-  forwardedFrom String?           @map("forwarded_from")
-  friendlyName  String?           @map("friendly_name")
-  isActive      Boolean           @default(true) @map("is_active")
-  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
-  org           Org               @relation(fields: [orgId], references: [orgId], onDelete: Cascade)
-
-  @@index([twilioNumber])
-  @@index([orgId])
-  @@map("org_phone_numbers")
-}
-
 // ─── Agent Builder ──────────────────────────────────────────
 
 model AgentFlow {
@@ -555,27 +538,6 @@ model AuditLog {
   @@map("audit_logs")
 }
 
-// ─── Quality ────────────────────────────────────────────────
-
-model CallQualityScore {
-  scoreId        String   @id @default(dbgenerated("gen_random_uuid()")) @map("score_id") @db.Uuid
-  callId         String?  @map("call_id") @db.Uuid
-  conversationId String?  @map("conversation_id") @db.Uuid
-  accuracyScore  Int      @map("accuracy_score")
-  toneScore      Int      @map("tone_score")
-  resolutionScore Int     @map("resolution_score")
-  complianceScore Int     @map("compliance_score")
-  overallScore   Int      @map("overall_score")
-  flagged        Boolean  @default(false)
-  flagReason     String?  @map("flag_reason")
-  reviewedBy     String?  @map("reviewed_by")
-  reviewNotes    String?  @map("review_notes")
-  analyzedAt     DateTime @default(now()) @map("analyzed_at") @db.Timestamptz(6)
-
-  @@index([overallScore])
-  @@map("call_quality_scores")
-}
-
 // ─── Campaigns ──────────────────────────────────────────────
 
 model Campaign {
@@ -593,11 +555,13 @@ model Campaign {
   startDate       DateTime?        @map("start_date") @db.Timestamptz(6)
   endDate         DateTime?        @map("end_date") @db.Timestamptz(6)
   offerId         String?          @map("offer_id") @db.Uuid
+  adImageId       String?          @map("ad_image_id") @db.Uuid
   salaryDayOnly   Boolean          @default(false) @map("salary_day_only")
   createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt       DateTime         @default(now()) @map("updated_at") @db.Timestamptz(6)
   targets         CampaignTarget[]
   offer           Offer?           @relation(fields: [offerId], references: [offerId])
+  adImage         AdImage?         @relation(fields: [adImageId], references: [adImageId])
 
   @@index([orgId, status])
   @@map("campaigns")
@@ -890,7 +854,6 @@ model SmsLog {
   channel     String
   body        String
   status      String   @default("sent")
-  twilioSid   String?  @map("twilio_sid")
   triggeredBy String   @map("triggered_by")
   createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
@@ -906,7 +869,7 @@ model SmsTemplate {
   bodyEn     String   @map("body_en")
   bodyAr     String   @map("body_ar")
   variables  String[]
-  channel    String   @default("sms")
+  channel    String   @default("whatsapp")
   isActive   Boolean  @default(true) @map("is_active")
   createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
@@ -930,6 +893,7 @@ model TawafudSubscription {
   pastDueAt            DateTime? @map("past_due_at") @db.Timestamptz(6)
   nextChargeAttemptAt  DateTime? @map("next_charge_attempt_at") @db.Timestamptz(6)
   failedAttempts       Int       @default(0) @map("failed_attempts")
+  priceSnapshot        Int?      @map("price_snapshot")
   createdAt            DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt            DateTime  @default(now()) @map("updated_at") @db.Timestamptz(6)
 
@@ -964,16 +928,37 @@ model TawafudPayment {
   @@map("tawafud_payments")
 }
 
+// Persistent webhook idempotency log. The (provider, eventId) unique constraint is the dedup key —
+// a duplicate insert throws Prisma P2002 and the handler short-circuits to a 200 ack.
+model WebhookEvent {
+  id             String   @id @default(cuid())
+  provider       String
+  eventId        String   @map("event_id")
+  eventType      String?  @map("event_type")
+  signatureValid Boolean  @map("signature_valid")
+  payload        Json
+  processedAt    DateTime @default(now()) @map("processed_at") @db.Timestamptz(6)
+
+  @@unique([provider, eventId])
+  @@map("webhook_events")
+}
+
 // ─── AI Usage Tracking ──────────────────────────────────────
 
 model AiUsageCounter {
-  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  orgId         String   @map("org_id") @db.Uuid
-  year          Int
-  month         Int      // 1-12
-  responseCount Int      @default(0) @map("response_count")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orgId             String   @map("org_id") @db.Uuid
+  year              Int
+  month             Int      // 1-12
+  responseCount     Int      @default(0) @map("response_count")
+  // Distinct conversations started this month — enforced against
+  // PLAN_CONVERSATION_LIMIT separately from per-message responseCount.
+  conversationCount Int      @default(0) @map("conversation_count")
+  promptTokens      BigInt   @default(0) @map("prompt_tokens")
+  completionTokens  BigInt   @default(0) @map("completion_tokens")
+  totalTokens       BigInt   @default(0) @map("total_tokens")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   @@unique([orgId, year, month])
   @@index([orgId])
@@ -1067,13 +1052,7 @@ model WebhookSubscription {
 
 enum MemoryType {
   preference
-  condition
-  allergy
-  medication
-  family_history
-  lifestyle
   note
-  interest
   service_interest
   behavioral
   satisfaction
@@ -1115,30 +1094,6 @@ enum conversation_status {
 enum message_direction {
   in
   out
-}
-
-enum call_direction {
-  inbound
-  outbound
-}
-
-enum call_status {
-  ringing
-  in_progress
-  completed
-  failed
-  no_answer
-  busy
-}
-
-enum speaker_type {
-  caller
-  ai
-}
-
-enum phone_number_type {
-  twilio_owned
-  forwarded
 }
 
 // ─── WhatsApp Baileys Sessions ─────────────────────────────
@@ -1291,6 +1246,11 @@ model ExternalPatient {
   lastCampaignDate  DateTime? @map("last_campaign_date") @db.Timestamptz(6)
   lastCampaignResult String?  @map("last_campaign_result")
 
+  // Recall dashboard workflow (owner marks after outreach)
+  recallStatus      String?   @map("recall_status")
+  recallStatusAt    DateTime? @map("recall_status_at") @db.Timestamptz(6)
+  recallStatusBy    String?   @map("recall_status_by") @db.Uuid
+
   // Raw CSV row
   rawData           Json?     @map("raw_data")
   rowIndex          Int       @default(0) @map("row_index")
@@ -1302,6 +1262,7 @@ model ExternalPatient {
   @@index([analysisId])
   @@index([orgId, phone])
   @@index([analysisId, aiScore(sort: Desc)])
+  @@index([orgId, recallStatus])
   @@map("external_patients")
 }
 

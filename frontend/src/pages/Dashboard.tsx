@@ -5,7 +5,6 @@ import { api } from '../lib/api'
 import {
   Users,
   Calendar,
-  Phone,
   TrendingUp,
   Activity,
   UserPlus,
@@ -30,7 +29,6 @@ import {
 } from 'recharts'
 import { formatHijriDate } from '../lib/utils'
 import StatCard from '../components/ui/StatCard'
-import ComingSoonOverlay from '../components/ui/ComingSoonOverlay'
 import Badge, { getStatusBadgeVariant } from '../components/ui/Badge'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 import StatusDot from '../components/ui/StatusDot'
@@ -165,13 +163,13 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Stats Grid — trend props removed: backend doesn't yet return period-over-period
+          deltas, and showing fabricated +12/+8/+5 numbers is false social proof. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard
           icon={Users}
           value={overview?.totalPatients || 0}
           label={t('dashboard.stats.totalPatients')}
-          trend={{ value: 12, isPositive: true }}
           iconBg="bg-primary-100"
           iconColor="text-primary-600"
         />
@@ -179,26 +177,14 @@ export default function Dashboard() {
           icon={Calendar}
           value={overview?.todayAppointments || 0}
           label={t('dashboard.stats.todayAppointments')}
-          trend={{ value: 8, isPositive: true }}
           iconBg="bg-success-100"
           iconColor="text-success-600"
           live
         />
-        <ComingSoonOverlay>
-          <StatCard
-            icon={Phone}
-            value={overview?.monthAppointments || 0}
-            label={t('dashboard.stats.aiCallsToday')}
-            trend={{ value: 23, isPositive: true }}
-            iconBg="bg-secondary-100"
-            iconColor="text-secondary-600"
-          />
-        </ComingSoonOverlay>
         <StatCard
           icon={TrendingUp}
           value={`${overview?.totalProviders || 0}`}
           label={t('dashboard.stats.activeProviders')}
-          trend={{ value: 5, isPositive: true }}
           iconBg="bg-warning-100"
           iconColor="text-warning-600"
         />
@@ -372,7 +358,7 @@ export default function Dashboard() {
           <h3 className="text-lg font-semibold font-heading text-healthcare-text mb-4">
             {t('dashboard.quickActions.title')}
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <button
               onClick={() => navigate('/dashboard/appointments')}
               className="card-interactive p-4 text-center group border-2 border-dashed border-healthcare-border/40 hover:border-primary-300"
@@ -392,16 +378,6 @@ export default function Dashboard() {
               </div>
               <p className="text-sm font-semibold text-healthcare-text">{t('dashboard.quickActions.addPatient')}</p>
               <p className="text-xs text-healthcare-muted mt-0.5">{t('dashboard.quickActions.addPatientDesc')}</p>
-            </button>
-            <button
-              onClick={() => navigate('/dashboard/analytics')}
-              className="card-interactive p-4 text-center group border-2 border-dashed border-healthcare-border/40 hover:border-secondary-300"
-            >
-              <div className="w-12 h-12 mx-auto rounded-xl bg-secondary-50 flex items-center justify-center mb-3 group-hover:bg-secondary-100 transition-colors">
-                <Activity className="h-6 w-6 text-secondary-500" />
-              </div>
-              <p className="text-sm font-semibold text-healthcare-text">{t('dashboard.quickActions.viewAnalytics')}</p>
-              <p className="text-xs text-healthcare-muted mt-0.5">{t('dashboard.quickActions.viewAnalyticsDesc')}</p>
             </button>
           </div>
         </div>

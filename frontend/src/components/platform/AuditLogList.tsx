@@ -30,17 +30,21 @@ interface AuditLogListProps {
 }
 
 const ACTION_TONE: Record<string, string> = {
-  'platform.org.suspend': 'text-amber-700',
-  'platform.org.reactivate': 'text-green-700',
-  'platform.subscription.override': 'text-purple-700',
-  'platform.subscription.cancel': 'text-red-700',
-  'platform.subscription.retry_renewal': 'text-blue-700',
-  'platform.impersonate.start': 'text-red-700',
-  'subscription.cancel': 'text-red-700',
-  'subscription.resume': 'text-green-700',
+  'platform.org.suspend': 'text-warning-700',
+  'platform.org.reactivate': 'text-success-700',
+  'platform.subscription.override': 'text-secondary-700',
+  'platform.subscription.cancel': 'text-danger-700',
+  'platform.subscription.retry_renewal': 'text-primary-700',
+  'platform.impersonate.start': 'text-danger-700',
+  'subscription.cancel': 'text-danger-700',
+  'subscription.resume': 'text-success-700',
 }
 
-export default function AuditLogList({ orgId, limit = 25, showOrgColumn = false }: AuditLogListProps) {
+export default function AuditLogList({
+  orgId,
+  limit = 25,
+  showOrgColumn = false,
+}: AuditLogListProps) {
   const [entries, setEntries] = useState<AuditEntry[]>([])
   const [cursor, setCursor] = useState<string | null>(null)
   const [hasMore, setHasMore] = useState(false)
@@ -77,58 +81,68 @@ export default function AuditLogList({ orgId, limit = 25, showOrgColumn = false 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [orgId])
 
-  if (loading) return <div className="text-sm text-slate-500">Loading audit log…</div>
-  if (error) return <div className="text-sm text-red-600">{error}</div>
+  if (loading) return <div className="text-sm text-healthcare-muted">Loading audit log…</div>
+  if (error) return <div className="text-sm text-danger-600">{error}</div>
   if (entries.length === 0)
-    return <div className="text-sm text-slate-500 italic">No audit entries yet.</div>
+    return <div className="text-sm text-healthcare-muted italic">No audit entries yet.</div>
 
   return (
     <div className="space-y-3">
-      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+      <div className="card overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-widest">
+          <thead className="bg-healthcare-bg text-healthcare-muted text-[11px] uppercase tracking-widest font-semibold">
             <tr>
-              <th className="text-left px-4 py-2.5">When</th>
-              <th className="text-left px-4 py-2.5">Action</th>
-              {showOrgColumn && <th className="text-left px-4 py-2.5">Org</th>}
-              <th className="text-left px-4 py-2.5">Actor</th>
-              <th className="text-left px-4 py-2.5">Details</th>
-              <th className="text-left px-4 py-2.5">IP</th>
+              <th className="text-start px-4 py-2.5">When</th>
+              <th className="text-start px-4 py-2.5">Action</th>
+              {showOrgColumn && <th className="text-start px-4 py-2.5">Org</th>}
+              <th className="text-start px-4 py-2.5">Actor</th>
+              <th className="text-start px-4 py-2.5">Details</th>
+              <th className="text-start px-4 py-2.5">IP</th>
             </tr>
           </thead>
           <tbody>
             {entries.map((e) => (
-              <tr key={e.auditId} className="border-t border-slate-100 hover:bg-slate-50 align-top">
-                <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">
+              <tr
+                key={e.auditId}
+                className="border-t border-healthcare-border/40 hover:bg-healthcare-bg/60 align-top transition-colors"
+              >
+                <td className="px-4 py-2.5 text-healthcare-muted whitespace-nowrap tabular-nums">
                   {new Date(e.createdAt).toLocaleString()}
                 </td>
-                <td className={`px-4 py-2.5 font-mono text-xs ${ACTION_TONE[e.action] ?? 'text-slate-700'}`}>
+                <td
+                  className={`px-4 py-2.5 font-mono text-xs font-semibold ${ACTION_TONE[e.action] ?? 'text-healthcare-text'}`}
+                >
                   {e.action}
                 </td>
                 {showOrgColumn && (
                   <td className="px-4 py-2.5">
                     {e.orgId ? (
-                      <Link to={`/platform/orgs/${e.orgId}`} className="text-slate-900 hover:underline">
+                      <Link
+                        to={`/platform/orgs/${e.orgId}`}
+                        className="text-healthcare-text hover:text-primary-600 font-medium transition-colors"
+                      >
                         {e.orgName ?? e.orgId.slice(0, 8)}
                       </Link>
                     ) : (
-                      <span className="text-slate-400">—</span>
+                      <span className="text-healthcare-muted">—</span>
                     )}
                   </td>
                 )}
-                <td className="px-4 py-2.5 text-slate-600 text-xs">
+                <td className="px-4 py-2.5 text-healthcare-muted text-xs">
                   {e.platformAdminId ? (
-                    <span title={e.platformAdminId}>platform admin</span>
+                    <span title={e.platformAdminId} className="text-primary-700 font-medium">
+                      platform admin
+                    </span>
                   ) : e.userId ? (
                     <span title={e.userId}>org user</span>
                   ) : (
-                    <span className="text-slate-400">system</span>
+                    <span>system</span>
                   )}
                 </td>
-                <td className="px-4 py-2.5 text-slate-600 text-xs max-w-md">
+                <td className="px-4 py-2.5 text-healthcare-muted text-xs max-w-md">
                   {renderDetails(e.details)}
                 </td>
-                <td className="px-4 py-2.5 text-slate-400 text-xs whitespace-nowrap">
+                <td className="px-4 py-2.5 text-healthcare-muted text-xs whitespace-nowrap tabular-nums">
                   {e.ipAddress ?? '—'}
                 </td>
               </tr>
@@ -142,7 +156,7 @@ export default function AuditLogList({ orgId, limit = 25, showOrgColumn = false 
           <button
             onClick={() => load(cursor)}
             disabled={loadingMore}
-            className="px-3 py-1.5 text-sm border border-slate-300 rounded hover:bg-slate-50 disabled:opacity-40"
+            className="btn-outline btn-sm"
           >
             {loadingMore ? 'Loading…' : 'Load more'}
           </button>
@@ -161,7 +175,11 @@ function renderDetails(details: any): string {
     if (reason) summary.push(`reason: ${reason}`)
     if (details.plan) summary.push(`plan: ${details.plan}`)
     if (details.previousStatus) summary.push(`prev: ${details.previousStatus}`)
-    if (details.next?.plan && details.previous?.plan && details.next.plan !== details.previous.plan) {
+    if (
+      details.next?.plan &&
+      details.previous?.plan &&
+      details.next.plan !== details.previous.plan
+    ) {
       summary.push(`${details.previous.plan} → ${details.next.plan}`)
     }
     if (details.orgName) summary.push(details.orgName)

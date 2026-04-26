@@ -7,7 +7,7 @@ const dateRangeSchema = z.object({
 });
 
 const reportTypeSchema = z.object({
-  type: z.enum(['appointments', 'patients', 'calls', 'campaigns']),
+  type: z.enum(['appointments', 'patients', 'campaigns']),
   from: z.string().regex(/^\d{4}-\d{2}-\d{2}(T.*)?$/).optional(),
   to: z.string().regex(/^\d{4}-\d{2}-\d{2}(T.*)?$/).optional(),
   format: z.enum(['json', 'csv']).default('csv'),
@@ -36,6 +36,8 @@ function toCsv(data: Record<string, any>[], columns?: string[]): string {
 
 export default async function reportsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
+  app.addHook('preHandler', app.requireSubscription);
+  app.addHook('preHandler', app.requirePlan('professional'));
 
   // Summary report (aggregated stats for a date range)
   app.get('/summary', async (request: FastifyRequest) => {
@@ -52,7 +54,6 @@ export default async function reportsRoutes(app: FastifyInstance) {
       completedAppointments,
       cancelledAppointments,
       noShowAppointments,
-      totalCalls,
       activeCampaigns,
     ] = await Promise.all([
       app.prisma.patient.count({ where: { orgId } }),
@@ -61,7 +62,6 @@ export default async function reportsRoutes(app: FastifyInstance) {
       app.prisma.appointment.count({ where: { orgId, status: 'completed', createdAt: { gte: from, lte: to } } }),
       app.prisma.appointment.count({ where: { orgId, status: 'cancelled', createdAt: { gte: from, lte: to } } }),
       app.prisma.appointment.count({ where: { orgId, status: 'no_show', createdAt: { gte: from, lte: to } } }),
-      app.prisma.voiceCall.count({ where: { orgId, createdAt: { gte: from, lte: to } } }),
       app.prisma.campaign.count({ where: { orgId, status: 'active' } }),
     ]);
 
@@ -80,7 +80,6 @@ export default async function reportsRoutes(app: FastifyInstance) {
           completionRate,
           noShowRate,
         },
-        calls: { total: totalCalls },
         campaigns: { active: activeCampaigns },
       },
     };
@@ -152,26 +151,6 @@ export default async function reportsRoutes(app: FastifyInstance) {
           registeredAt: p.createdAt.toISOString(),
         }));
         filename = `patients_${from.toISOString().slice(0, 10)}_${to.toISOString().slice(0, 10)}`;
-        break;
-      }
-      case 'calls': {
-        const calls = await app.prisma.voiceCall.findMany({
-          where: { orgId, createdAt: { gte: from, lte: to } },
-          orderBy: { startedAt: 'desc' },
-          take: 5000,
-        });
-        data = calls.map((c) => ({
-          callId: c.callId,
-          direction: c.direction,
-          status: c.status,
-          callerPhone: c.callerPhone,
-          calledPhone: c.calledPhone,
-          detectedDialect: c.detectedDialect || '',
-          durationSec: c.durationSec || 0,
-          startedAt: c.startedAt.toISOString(),
-          endedAt: c.endedAt ? c.endedAt.toISOString() : '',
-        }));
-        filename = `calls_${from.toISOString().slice(0, 10)}_${to.toISOString().slice(0, 10)}`;
         break;
       }
       case 'campaigns': {

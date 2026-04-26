@@ -185,7 +185,7 @@ export default function PrivacyPolicy() {
                   },
                   {
                     title: 'مزودو الخدمات التقنية',
-                    desc: 'Twilio (الاتصالات) و OpenAI/Google (الذكاء الاصطناعي) بموجب اتفاقيات معالجة بيانات صارمة',
+                    desc: 'OpenAI/Google (الذكاء الاصطناعي) بموجب اتفاقيات معالجة بيانات صارمة',
                   },
                   {
                     title: 'الجهات التنظيمية',

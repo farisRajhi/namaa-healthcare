@@ -69,6 +69,22 @@ const BOOKING_INTENTS = [
   'أبغى موعد', 'ممكن موعد', 'فيه مواعيد',
 ];
 
+// Inquiry phrases — patient asking ABOUT an existing appointment, not
+// trying to create a new one. These must NOT trigger the booking state
+// (which assumes "create new"); they should keep the conversation in the
+// active state where the AI is told to call list_patient_appointments.
+const APPOINTMENT_INQUIRY_PATTERNS: RegExp[] = [
+  /هل\s*عندي\s*موعد/i,
+  /هل\s*لي\s*موعد/i,
+  /وش\s*موعدي/i,
+  /متى\s*موعدي/i,
+  /(اش|ايش)\s*(وقت|تاريخ)\s*موعدي/i,
+  /موعدي\s*(الجاي|القادم|متى)/i,
+  /do\s+i\s+have\s+(an?\s+)?appointment/i,
+  /when\s+is\s+my\s+appointment/i,
+  /what\s+time\s+is\s+my\s+appointment/i,
+];
+
 const CANCEL_INTENTS = [
   'إلغاء', 'الغي', 'ألغي', 'الغ', 'cancel', 'ابغى الغي',
   'أبغى ألغي الموعد', 'لغي الموعد', 'ابي الغي',
@@ -187,13 +203,26 @@ export class ConversationFlowManager {
     }
 
     // Farewell detection (only from active state)
-    if (currentState === 'active' && FAREWELL_INTENTS.some(kw => msg.includes(kw))) {
+    // Exact-match short negatives ("لا", "no", "nope", "كلا") as farewell too —
+    // avoids substring false-positives on words like "لازم" / "لأن" / "لاحقاً".
+    const SHORT_NEGATIVE_FAREWELLS = new Set(['لا', 'كلا', 'no', 'nope', 'nah']);
+    if (currentState === 'active' && (
+      FAREWELL_INTENTS.some(kw => msg.includes(kw)) ||
+      SHORT_NEGATIVE_FAREWELLS.has(msg)
+    )) {
       return { ...setActive('closed'), stateStack: ['closed'] };
     }
 
     // Intent-based transitions with interruption support
     if (HANDOFF_INTENTS.some(kw => msg.includes(kw))) {
       return { ...setActive('handoff'), stateStack: ['handoff'] };
+    }
+
+    // Inquiry about an existing appointment — keep in active state (not booking)
+    // so the AI follows the "must call list_patient_appointments" rule rather
+    // than entering the create-new-booking flow.
+    if (APPOINTMENT_INQUIRY_PATTERNS.some(re => re.test(msg))) {
+      return setActive('active');
     }
 
     if (BOOKING_INTENTS.some(kw => msg.includes(kw))) {
@@ -252,6 +281,13 @@ export class ConversationFlowManager {
 
     const newBooking = { ...ctx.booking };
 
+    // Only persist IDs that are valid UUIDs — LLM sometimes emits refs
+    // like "[طبيب 1]" or service names, which would poison the next turn's
+    // prompt and crash downstream Prisma queries.
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const uuidOrUndef = (v: unknown): string | undefined =>
+      typeof v === 'string' && UUID_RE.test(v) ? v : undefined;
+
     // Phase 5.2: Extract actual data from tool args
     if (toolArgs) {
       for (const argMap of toolArgs) {
@@ -264,21 +300,17 @@ export class ConversationFlowManager {
           }
           if (toolName === 'browse_available_dates') {
             // Extract service/provider filters from browse args
-            if (args.serviceId && typeof args.serviceId === 'string') {
-              newBooking.serviceId = args.serviceId;
-            }
-            if (args.providerId && typeof args.providerId === 'string') {
-              newBooking.providerId = args.providerId;
-            }
+            const sid = uuidOrUndef(args.serviceId);
+            if (sid) newBooking.serviceId = sid;
+            const pid = uuidOrUndef(args.providerId);
+            if (pid) newBooking.providerId = pid;
           }
           if (toolName === 'check_availability') {
             // Extract selected provider/service/date from availability check
-            if (args.providerId && typeof args.providerId === 'string') {
-              newBooking.providerId = args.providerId;
-            }
-            if (args.serviceId && typeof args.serviceId === 'string') {
-              newBooking.serviceId = args.serviceId;
-            }
+            const pid = uuidOrUndef(args.providerId);
+            if (pid) newBooking.providerId = pid;
+            const sid = uuidOrUndef(args.serviceId);
+            if (sid) newBooking.serviceId = sid;
             if (args.date && typeof args.date === 'string') {
               newBooking.date = args.date;
             }
@@ -286,16 +318,20 @@ export class ConversationFlowManager {
           }
           if (toolName === 'hold_appointment') {
             // Extract hold details and move to confirm step
-            if (args.providerId) newBooking.providerId = args.providerId as string;
-            if (args.serviceId) newBooking.serviceId = args.serviceId as string;
+            const pid = uuidOrUndef(args.providerId);
+            if (pid) newBooking.providerId = pid;
+            const sid = uuidOrUndef(args.serviceId);
+            if (sid) newBooking.serviceId = sid;
             if (args.date) newBooking.date = args.date as string;
             if (args.time) newBooking.time = args.time as string;
             newBooking.step = 'confirm';
           }
           if (toolName === 'book_appointment' || toolName === 'book_appointment_guest') {
             // Extract all booking details
-            if (args.providerId) newBooking.providerId = args.providerId as string;
-            if (args.serviceId) newBooking.serviceId = args.serviceId as string;
+            const pid = uuidOrUndef(args.providerId);
+            if (pid) newBooking.providerId = pid;
+            const sid = uuidOrUndef(args.serviceId);
+            if (sid) newBooking.serviceId = sid;
             if (args.date) newBooking.date = args.date as string;
             if (args.time) newBooking.time = args.time as string;
           }
@@ -391,25 +427,14 @@ export class ConversationFlowManager {
 
     switch (ctx.state) {
       case 'start':
-        prompt += `
-## حالة المحادثة: بداية جديدة
-- عرّفي نفسك باختصار واذكري اسم العيادة: "${ctx.orgName || 'العيادة'}"
-- إذا كان المريض معروف، خاطبيه باسمه${ctx.patientName ? `: "${ctx.patientName}"` : ''}
-- اسألي المريض كيف تقدرين تساعدينه — بدون سرد خدمات أو قدرات
-  مثال: "حياك الله في ${ctx.orgName || 'العيادة'}! 😊 كيف أقدر أساعدك؟"
-- ⛔ لا تذكري قائمة بما تقدرين تسوينه (حجز، استفسارات، إلخ) — خلي الرد قصير وطبيعي
-`;
-        break;
-
       case 'greeting':
-        prompt += `
-## حالة المحادثة: ترحيب
-- ردّي بترحيب دافئ واذكري اسم العيادة "${ctx.orgName || 'العيادة'}"
-- اسألي المريض كيف تقدرين تساعدينه بسؤال مفتوح وقصير
-  مثال: "وعليكم السلام! حياك الله في ${ctx.orgName || 'العيادة'} 😊 كيف أقدر أساعدك؟"
-- ⛔ لا تعرضي قائمة خدمات أو قدرات — انتظري المريض يوضح طلبه أولاً
-- ⛔ لا تقولي "أقدر أساعدك بالحجز والاستفسارات و..." — هذا أسلوب آلي
-`;
+        // Greeting guidance (departments list + working hours + invite to book)
+        // now lives in systemPrompt.ts buildStateLayer — it has DB access and
+        // can inject the live schedule. We intentionally emit nothing here so
+        // the two prompts don't conflict with each other.
+        if (ctx.patientName) {
+          prompt += `- المريض معروف باسم: "${ctx.patientName}" — خاطبيه باسمه\n`;
+        }
         break;
 
       case 'booking':
@@ -426,12 +451,14 @@ ${this.getBookingStepPrompt(ctx.booking, ctx.patientIdentified)}
 لا تسأل أسئلة إذا عندك كل المعلومات.
 
 تعليمات مهمة:
-- إذا المريض لم يحدد تاريخ، استخدمي browse_available_dates لعرض الأيام المتاحة
-- إذا المريض حدد تاريخ، استخدمي check_availability لعرض الأوقات المتاحة
-- استخدمي أدوات البحث (search_providers, list_services) للعثور على الخيارات
-- لا تختلقي مواعيد — استخدمي الأدوات فقط
+- **⛔ لا تسألي "وش الأيام اللي تناسبك؟" قبل ما تعرضي الأيام المتاحة** — المريض ما يعرف متى العيادة مفتوحة
+- **بعد ما تفهمي الخدمة: استدعي browse_available_dates فوراً لعرض أيام وساعات العيادة**
+- **اعرضي نتيجة browse_available_dates كاملة — كل الأيام اللي رجعت، مش يوم واحد فقط**
+- إذا المريض حدد تاريخ: استخدمي check_availability لعرض الأوقات المتاحة ليوم معين
+- استخدمي list_services فقط إذا المريض طلب قائمة الخدمات — مش كل مرة
+- لا تختلقي مواعيد أو أيام عمل — استخدمي الأدوات فقط
 - إذا غيّر المريض رأيه أو سأل عن شيء آخر، أجيبيه ثم عودي للحجز
-- لا تطلبي من المريض تاريخ إذا هو يسأل عن المواعيد المتاحة — اعرضيها مباشرة
+- إذا المريض يسأل "متى أنتم مفتوحين؟" أو "ايش أيام الدوام؟": استدعي browse_available_dates — تجيب أيام العمل + ساعاتها
 ${ctx.patientIdentified
   ? `- **مهم: بعد اختيار المريض للوقت، استخدمي hold_appointment أولاً لحجز الموعد مؤقتاً**
 - **ثم اعرضي ملخص مختصر (3 أسطر كحد أقصى) واسألي "أأكد الحجز؟"**
@@ -446,22 +473,27 @@ ${ctx.patientIdentified
       case 'cancelling':
         prompt += `
 ## حالة المحادثة: إلغاء موعد ❌
-- اعرضي مواعيد المريض القادمة باستخدام list_patient_appointments
-- اسأليه أي موعد يريد إلغاءه
-- أكدي قبل الإلغاء
-- استخدمي cancel_appointment لتنفيذ الإلغاء
+⛔ لا تسألي المريض عن "رقم الموعد" أبداً — هذا UUID داخلي ما يعرفه.
+- استدعي list_patient_appointments أولاً
+- النتيجة تحوي مراجع [موعد 1], [موعد 2] — استخدميها كـ appointmentId
+- إذا موعد واحد فقط: عرّفيه بالتاريخ والخدمة، اسألي للتأكيد، ثم cancel_appointment
+- إذا عدة: اعرضيها مرقّمة بالتاريخ والخدمة، اسألي أي واحد يبي يلغي
 `;
         break;
 
       case 'rescheduling':
         prompt += `
 ## حالة المحادثة: إعادة جدولة موعد 🔄
+⛔ لا تسألي المريض عن "رقم الموعد" أبداً — استخدمي list_patient_appointments للحصول عليه داخلياً.
 الخطوات:
-١. اعرضي مواعيد المريض القادمة باستخدام list_patient_appointments
-٢. اسأليه أي موعد يريد تغييره
-٣. اسألي عن التاريخ/الوقت الجديد المرغوب
-٤. استخدمي check_availability للتحقق من التوفر
-٥. استخدمي reschedule_appointment لتنفيذ التغيير
+١. list_patient_appointments فوراً → احصلي على المواعيد القادمة
+٢. كل موعد له مرجع [موعد N] — هذا هو الـ appointmentId اللي تستخدميه
+٣. إذا موعد واحد قادم: اعتبريه هو المطلوب، لا تسألي المريض أي موعد
+٤. إذا عدة: اعرضي قائمة بالتاريخ والخدمة، اسألي أي واحد بالوصف (مش الرقم)
+٥. اسألي عن التاريخ/الوقت الجديد إذا ما حدده
+٦. check_availability للتحقق
+٧. اعرضي ملخص (قديم → جديد) واسألي "أأكد التعديل؟"
+٨. reschedule_appointment مع appointmentId الداخلي + newDate + newTime
 `;
         break;
 
@@ -490,7 +522,9 @@ ${ctx.patientIdentified
 - أجيبي على استفسارات المريض بشكل طبيعي
 - استخدمي الأدوات المتاحة حسب الحاجة
 - إذا المريض يريد حجز، ابدئي مسار الحجز
-- إذا المريض يسأل عن مواعيده، استخدمي list_patient_appointments
+- إذا المريض يسأل عن مواعيده ("هل عندي موعد؟"، "وش موعدي؟"، "متى موعدي؟") → **استدعي list_patient_appointments فوراً ولا تعتمدي على الذاكرة**
+- ⛔ ممنوع ذكر وقت/تاريخ موعد من ذاكرة المحادثة — اقرئيه من نتيجة list_patient_appointments فقط
+- ⛔ ممنوع قول "تم التعديل" إذا reschedule_appointment ما استُدعي بنجاح في هذا الدور
 `;
         // Post-action follow-up prompts
         if (ctx.lastCompletedAction === 'booking') {
@@ -543,19 +577,28 @@ ${ctx.patientIdentified
     switch (booking.step) {
       case 'service':
         return (
-          '1. ✅ حددي الخدمة المطلوبة\n' +
-          '   اسألي المريض عن نوع الموعد أو شكواه، مع ذكر ٣-٤ أمثلة شائعة بشكل طبيعي\n' +
-          '   مثال: "وش نوع الموعد اللي تحتاجه؟ عندنا مثلاً كشف عام 🩺، أسنان 🦷، جلدية... أو قولي وش عندك وأساعدك أختار 😊"\n' +
-          '   ⛔ لا تعرضي كل الخدمات كقائمة مرقمة — اذكري أمثلة فقط\n' +
-          '   إذا المريض طلب القائمة الكاملة: استخدمي list_services مع تقسيمها حسب القسم إذا ممكن\n' +
+          '**الخطوة 1 — تحديد الخدمة، ثم عرض الأيام المتاحة فوراً**\n' +
           '\n' +
-          '   إذا المريض ذكر شكوى صحية بدلاً من خدمة:\n' +
-          '   - اقترحي الخدمة المناسبة بناءً على شكواه\n' +
-          '   - "عندي ألم في ظهري" → "أنصحك بكشف عام"\n' +
-          '   - "أبغى تحاليل" → "عندنا تحاليل مخبرية"\n' +
-          '   - ثم اعرضي المواعيد المتاحة لهذه الخدمة مباشرة\n' +
+          'أ) إذا المريض ما ذكر خدمة بعد:\n' +
+          '   اسألي "وش نوع الموعد اللي تحتاجه؟ (مثلاً: تنظيف أسنان، كشف عام، تبييض...)"\n' +
+          '   ⛔ لا تعرضي قائمة خدمات مرقمة — اذكري ٣-٤ أمثلة بشكل طبيعي\n' +
           '\n' +
-          '   إذا المريض يسأل عن المواعيد المتاحة مباشرة: استخدمي browse_available_dates'
+          'ب) إذا المريض ذكر خدمة (مثل "تنظيف أسنان"):\n' +
+          '   ١. إذا عندك serviceId للخدمة من "قائمة الخدمات" في السياق → استخدمها\n' +
+          '   ٢. إذا ما عندك serviceId → استدعي list_services أولاً للحصول على الـ UUID\n' +
+          '   ٣. **ثم استدعي browse_available_dates مع serviceId — فوراً بنفس الدور**\n' +
+          '   ٤. **اعرضي كل الأيام اللي رجعت الأداة** (مش يوم واحد فقط) — المريض يبغى يشوف كل الخيارات\n' +
+          '   ⛔ لا تسألي "وش الأيام اللي تناسبك؟" — العيادة مفتوحة بأيام معينة، والمريض لا يعرفها. اعرضي الأيام أولاً.\n' +
+          '\n' +
+          'ج) إذا المريض ذكر شكوى بدلاً من خدمة ("عندي ألم في ظهري"):\n' +
+          '   ١. اقترحي الخدمة المناسبة ("أنصحك بكشف عام")\n' +
+          '   ٢. انتظري موافقته، ثم تابعي كما في (ب)\n' +
+          '\n' +
+          'د) إذا المريض سأل "متى أنتم مفتوحين؟" أو "ايش أيام العمل؟":\n' +
+          '   استدعي browse_available_dates (بدون فلاتر) — تعرض كل أيام وساعات العمل\n' +
+          '\n' +
+          'مثال رد صحيح بعد "ابغى تنظيف أسنان":\n' +
+          '   "تمام! هذي الأيام المتاحة لتنظيف الأسنان 👇" ثم اعرضي نتيجة browse_available_dates بالكامل ثم "أي يوم وأي دكتور يناسبك؟"'
         );
       case 'provider':
         return (

@@ -135,49 +135,6 @@ export const mockOpenAI = {
 };
 
 /**
- * Mock ElevenLabs TTS service
- */
-export const mockElevenLabs = {
-  textToSpeech: {
-    convert: vi.fn().mockResolvedValue(Buffer.from('fake-audio-data')),
-  },
-  voices: {
-    getAll: vi.fn().mockResolvedValue({
-      voices: [
-        { voice_id: 'voice-1', name: 'Test Voice 1' },
-        { voice_id: 'voice-2', name: 'Test Voice 2' },
-      ],
-    }),
-  },
-};
-
-/**
- * Mock Twilio service
- */
-export const mockTwilio = {
-  calls: {
-    create: vi.fn().mockResolvedValue({
-      sid: 'CA' + 'x'.repeat(32),
-      status: 'queued',
-    }),
-  },
-  messages: {
-    create: vi.fn().mockResolvedValue({
-      sid: 'SM' + 'x'.repeat(32),
-      status: 'queued',
-    }),
-  },
-  incomingPhoneNumbers: {
-    list: vi.fn().mockResolvedValue([
-      {
-        phoneNumber: '+15551234567',
-        friendlyName: 'Test Number',
-      },
-    ]),
-  },
-};
-
-/**
  * Mock Google Gemini service
  */
 export const mockGemini = {

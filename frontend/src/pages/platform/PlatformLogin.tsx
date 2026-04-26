@@ -1,7 +1,7 @@
 import { FormEvent, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Navigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Globe } from 'lucide-react'
+import { Globe, ShieldCheck } from 'lucide-react'
 import { usePlatformAuth } from '../../context/PlatformAuthContext'
 import { getErrorMessage } from '../../lib/api'
 import i18n from '../../i18n'
@@ -17,7 +17,7 @@ export default function PlatformLogin() {
   const isRTL = i18n.language === 'ar'
 
   if (isAuthenticated) {
-    navigate('/platform', { replace: true })
+    return <Navigate to="/platform" replace />
   }
 
   const handleSubmit = async (e: FormEvent) => {
@@ -36,31 +36,42 @@ export default function PlatformLogin() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-900 p-6" dir={isRTL ? 'rtl' : 'ltr'}>
+    <div
+      className="min-h-screen flex items-center justify-center bg-healthcare-bg p-6"
+      dir={isRTL ? 'rtl' : 'ltr'}
+    >
       <form
         onSubmit={handleSubmit}
-        className="w-full max-w-sm bg-white rounded-lg shadow-lg p-8 space-y-5"
+        className="w-full max-w-sm card p-8 space-y-5"
       >
         <div className="flex items-start justify-between">
-          <div>
-            <div className="text-xs uppercase tracking-widest text-slate-500">
-              {t('platform.brand')}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-primary-500 text-white flex items-center justify-center shadow-btn">
+              <ShieldCheck className="w-5 h-5" />
             </div>
-            <h1 className="text-2xl font-semibold text-slate-900">{t('platform.title')}</h1>
-            <p className="text-sm text-slate-500 mt-1">{t('platform.tagline')}</p>
+            <div>
+              <div className="text-[10px] uppercase tracking-widest text-healthcare-muted font-semibold">
+                {t('platform.brand')}
+              </div>
+              <h1 className="font-heading text-xl font-semibold text-healthcare-text leading-tight">
+                {t('platform.title')}
+              </h1>
+            </div>
           </div>
           <button
             type="button"
             onClick={() => i18n.changeLanguage(isRTL ? 'en' : 'ar')}
-            className="text-xs text-slate-500 hover:text-slate-900 inline-flex items-center gap-1 mt-1"
+            className="text-xs text-healthcare-muted hover:text-primary-600 inline-flex items-center gap-1 transition-colors"
           >
             <Globe className="w-3.5 h-3.5" />
             {t('platform.auth.switchLang')}
           </button>
         </div>
 
+        <p className="text-sm text-healthcare-muted">{t('platform.tagline')}</p>
+
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">
+          <label className="block text-sm font-medium text-healthcare-text mb-1.5">
             {t('platform.auth.email')}
           </label>
           <input
@@ -69,13 +80,13 @@ export default function PlatformLogin() {
             autoFocus
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full border border-slate-300 rounded px-3 py-2 focus:ring-2 focus:ring-slate-800 focus:border-slate-800 outline-none"
+            className="w-full bg-white border border-healthcare-border rounded-lg px-3 py-2.5 text-sm text-healthcare-text focus:outline-none focus:ring-[3px] focus:ring-primary-400 focus:border-primary-500 transition-colors"
             dir="ltr"
           />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">
+          <label className="block text-sm font-medium text-healthcare-text mb-1.5">
             {t('platform.auth.password')}
           </label>
           <input
@@ -83,22 +94,18 @@ export default function PlatformLogin() {
             required
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full border border-slate-300 rounded px-3 py-2 focus:ring-2 focus:ring-slate-800 focus:border-slate-800 outline-none"
+            className="w-full bg-white border border-healthcare-border rounded-lg px-3 py-2.5 text-sm text-healthcare-text focus:outline-none focus:ring-[3px] focus:ring-primary-400 focus:border-primary-500 transition-colors"
             dir="ltr"
           />
         </div>
 
         {error && (
-          <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
+          <div className="text-sm text-danger-700 bg-danger-50 border border-danger-200 rounded-lg px-3 py-2">
             {error}
           </div>
         )}
 
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full bg-slate-900 text-white py-2 rounded hover:bg-slate-800 disabled:opacity-60"
-        >
+        <button type="submit" disabled={submitting} className="btn-primary w-full">
           {submitting ? t('platform.auth.signingIn') : t('platform.auth.signIn')}
         </button>
       </form>

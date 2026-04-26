@@ -35,7 +35,8 @@ interface Analysis {
   progress: number
   currentStep: string | null
   totalPatients: number
-  matchedPatients: number
+  patientsAnalyzed: number
+  matchedPatients?: number
   suggestionsCount: number
   error: string | null
   createdAt: string
@@ -375,7 +376,7 @@ export default function PatientIntelligence() {
         <div>
           <h1 className="page-title flex items-center gap-2">
             <Brain className="h-7 w-7 text-primary-600" />
-            {isAr ? 'ذكاء المرضى' : 'Patient Intelligence'}
+            {isAr ? 'حملات ذكية' : 'Smart Campaigns'}
           </h1>
           <p className="text-healthcare-muted mt-1">
             {isAr
@@ -561,21 +562,21 @@ export default function PatientIntelligence() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <StatCard
               icon={Users}
-              value={currentAnalysis.totalPatients.toLocaleString()}
+              value={(currentAnalysis.totalPatients ?? 0).toLocaleString()}
               label={isAr ? 'إجمالي المرضى' : 'Total Patients'}
               iconBg="bg-blue-100"
               iconColor="text-blue-600"
             />
             <StatCard
               icon={Target}
-              value={currentAnalysis.matchedPatients.toLocaleString()}
-              label={isAr ? 'مرضى مؤهلون' : 'Matched Patients'}
+              value={(currentAnalysis.patientsAnalyzed ?? 0).toLocaleString()}
+              label={isAr ? 'تم تحليلهم' : 'Analyzed'}
               iconBg="bg-green-100"
               iconColor="text-green-600"
             />
             <StatCard
               icon={Sparkles}
-              value={currentAnalysis.suggestionsCount}
+              value={currentAnalysis.suggestionsCount ?? 0}
               label={isAr ? 'اقتراحات الحملات' : 'Campaign Suggestions'}
               iconBg="bg-purple-100"
               iconColor="text-purple-600"
@@ -867,7 +868,7 @@ export default function PatientIntelligence() {
                     </div>
                     <div className="text-end shrink-0">
                       <p className="text-sm font-semibold text-healthcare-text">
-                        {a.totalPatients.toLocaleString()}
+                        {(a.totalPatients ?? 0).toLocaleString()}
                       </p>
                       <p className="text-xs text-gray-400">
                         {isAr ? 'مريض' : 'patients'}

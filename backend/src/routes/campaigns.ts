@@ -19,7 +19,6 @@ const createCampaignSchema = z.object({
     minAge: z.number().optional(),
     maxAge: z.number().optional(),
     sex: z.string().optional(),
-    conditions: z.array(z.string()).optional(),
     lastVisitDaysAgo: z.number().optional(),
     noAppointmentDays: z.number().optional(),
     previousServiceIds: z.array(z.string().uuid()).optional(),
@@ -41,6 +40,7 @@ const createCampaignSchema = z.object({
   maxCallsPerHour: z.number().min(1).max(500).optional(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
+  adImageId: z.string().uuid().nullable().optional(),
 });
 
 const updateCampaignSchema = createCampaignSchema.partial();
@@ -53,10 +53,12 @@ const listQuerySchema = z.object({
 
 export default async function campaignRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
+  app.addHook('preHandler', app.requireSubscription);
+  app.addHook('preHandler', app.requirePlan('professional'));
   // Campaign management is admin/manager only
   app.addHook('preHandler', requireManager);
 
-  const getManager = () => getCampaignManager(app.prisma, app.twilio);
+  const getManager = () => getCampaignManager(app.prisma);
 
   // GET /api/campaigns/:orgId — List campaigns
   app.get<{ Params: { orgId: string } }>('/:orgId', async (request, reply) => {
@@ -99,6 +101,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
       maxCallsPerHour: body.maxCallsPerHour,
       startDate: body.startDate ? new Date(body.startDate) : undefined,
       endDate: body.endDate ? new Date(body.endDate) : undefined,
+      adImageId: body.adImageId ?? undefined,
     });
 
     return campaign;
@@ -132,6 +135,7 @@ export default async function campaignRoutes(app: FastifyInstance) {
         ...body,
         startDate: body.startDate ? new Date(body.startDate) : undefined,
         endDate: body.endDate ? new Date(body.endDate) : undefined,
+        adImageId: body.adImageId ?? undefined,
       });
       return campaign;
     } catch (error) {

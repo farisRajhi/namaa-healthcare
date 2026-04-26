@@ -10,7 +10,18 @@ import { SessionCompactor } from '../services/ai/sessionCompactor.js';
 import { getIdentityVerifier, VerificationLevel } from '../services/patient/identityVerifier.js';
 import { redactPII } from '../services/security/piiRedactor.js';
 import { getContextBuilder } from '../services/patient/contextBuilder.js';
-import { checkAndIncrement, AI_LIMIT_ERROR } from '../services/usage/aiUsageLimiter.js';
+import {
+  assertWithinLimits,
+  checkConversationCap,
+  computeWarning,
+  incrementConversationTokens,
+  PlanLimitReachedError,
+  recordConversation,
+  recordUsage,
+  resolveOrgPlan,
+  CONVERSATION_CAP_ERROR,
+} from '../services/usage/aiUsageLimiter.js';
+import { getLang } from '../lib/messages.js';
 
 const sendMessageSchema = z.object({
   conversationId: z.string().uuid().nullish(),
@@ -19,6 +30,9 @@ const sendMessageSchema = z.object({
 
 export default async function chatRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
+  // Block expired-subscription orgs before they reach the AI pipeline.
+  // Trial and past_due orgs are allowed (subscriptionGuard treats them as active).
+  app.addHook('preHandler', app.requireSubscription);
 
   // Phase 4.1: Rate limiting — 30 messages per user per 5 minutes
   await app.register(rateLimit, {
@@ -104,7 +118,11 @@ export default async function chatRoutes(app: FastifyInstance) {
       });
     }
 
-    // Get or create conversation
+    // Resolve plan once — used by both pre-AI guards and conversation-count enforcement.
+    const plan = await resolveOrgPlan(app.prisma, orgId);
+
+    // Get or create conversation. Creation increments the org's monthly
+    // conversation counter and is gated by PLAN_CONVERSATION_LIMIT.
     let conversationId = body.conversationId;
     let conversation;
 
@@ -116,6 +134,23 @@ export default async function chatRoutes(app: FastifyInstance) {
         return { error: 'Conversation not found' };
       }
     } else {
+      // Block at the plan's monthly conversation cap before persisting a new row.
+      try {
+        await assertWithinLimits(app.prisma, orgId, plan, 'conversation');
+      } catch (err) {
+        if (err instanceof PlanLimitReachedError) {
+          const lang = getLang(request.headers['accept-language']);
+          const e: any = new Error(err.bilingual[lang]);
+          e.statusCode = 402;
+          e.code = err.code;
+          e.kind = err.kind;
+          e.usage = { used: err.used, limit: err.limit };
+          e.upgradeUrl = `${process.env.FRONTEND_URL}/billing?tab=plans`;
+          throw e;
+        }
+        throw err;
+      }
+
       conversation = await app.prisma.conversation.create({
         data: {
           orgId,
@@ -138,6 +173,13 @@ export default async function chatRoutes(app: FastifyInstance) {
         },
       });
       conversationId = conversation.conversationId;
+
+      // Best-effort: bump the org's monthly conversation counter. Non-fatal.
+      try {
+        await recordConversation(app.prisma, orgId);
+      } catch (err) {
+        app.log.warn({ err, orgId }, 'Failed to increment conversation counter');
+      }
     }
 
     // Save user message (PII redacted for logging)
@@ -227,28 +269,71 @@ export default async function chatRoutes(app: FastifyInstance) {
     toolRegistry.setChannel('web');
     const tools = toolRegistry.getToolDefinitions(permissionLevel);
 
-    // ── AI usage limit check ──
-    const usageCheck = await checkAndIncrement(app.prisma, orgId);
-    if (!usageCheck.allowed) {
-      const lang = request.headers['accept-language']?.startsWith('en') ? 'en' : 'ar';
-      const err: any = new Error(AI_LIMIT_ERROR[lang]);
-      err.statusCode = 429;
-      err.code = 'AI_LIMIT_EXCEEDED';
-      err.usage = { current: usageCheck.current, limit: usageCheck.limit, remaining: 0 };
+    // ── AI usage limit check (plan-aware token budget) ──
+    try {
+      await assertWithinLimits(app.prisma, orgId, plan, 'tokens');
+    } catch (err) {
+      if (err instanceof PlanLimitReachedError) {
+        const lang = getLang(request.headers['accept-language']);
+        const e: any = new Error(err.bilingual[lang]);
+        e.statusCode = 402;
+        e.code = err.code;
+        e.kind = err.kind;
+        e.usage = { used: err.used, limit: err.limit, remaining: 0 };
+        e.upgradeUrl = `${process.env.FRONTEND_URL}/billing?tab=plans`;
+        throw e;
+      }
       throw err;
     }
 
+    // Per-conversation cap: a single chat can't drain the monthly budget.
+    const convCap = await checkConversationCap(app.prisma, conversationId);
+    if (!convCap.allowed) {
+      const lang = getLang(request.headers['accept-language']);
+      return {
+        conversationId,
+        response: CONVERSATION_CAP_ERROR[lang],
+        confidence: null,
+        verificationLevel: 0,
+        toolCalls: [],
+        conversationState: 'handoff',
+        stateTransition: null,
+        turnCount: 0,
+        compacted: false,
+        capped: true,
+      };
+    }
+
     // ── Call LLM with tools ──
+    // maxIterations capped at 3 to match the WhatsApp path; chatWithTools also
+    // enforces a 25s wall-clock timeout internally and routes around mid-loop
+    // failures using a mutation tracker.
     const llmService = getLLMService();
     const llmResult = await llmService.chatWithTools(
       chatMessages,
       systemPrompt,
       tools,
       (name, args) => toolRegistry.executeTool(name, args),
-      { maxIterations: 6 },
+      { maxIterations: 3 },
     );
 
     let response = llmResult.response;
+
+    // ── Record actual token usage (per-org monthly + per-conversation running total) ──
+    try {
+      await recordUsage(app.prisma, orgId, llmResult.usage);
+      await incrementConversationTokens(app.prisma, conversationId, llmResult.usage.totalTokens);
+    } catch (err) {
+      app.log.warn({ err }, 'Failed to record AI token usage — non-fatal');
+    }
+
+    // ── Soft-warning at 80% of either limit (token or conversation count) ──
+    const [tokenWarning, conversationWarning] = await Promise.all([
+      computeWarning(app.prisma, orgId, plan, 'tokens'),
+      computeWarning(app.prisma, orgId, plan, 'conversation'),
+    ]).catch(() => [null, null] as const);
+    const lang = getLang(request.headers['accept-language']);
+    const warning = tokenWarning ?? conversationWarning;
 
     // ── Update conversation flow ──
     const toolCallNames = llmResult.toolCalls.map(tc => tc.toolName);
@@ -324,7 +409,7 @@ export default async function chatRoutes(app: FastifyInstance) {
         direction: 'out',
         bodyText: redactedResponse,
         payload: {
-          model: process.env.LLM_MODEL || 'gpt-4-turbo-preview',
+          model: process.env.LLM_MODEL || 'gemini-2.5-flash',
           confidence: guardrailResult?.confidence ?? null,
           guardrailFlags: guardrailResult?.flags?.map(f => f.type) ?? [],
           toolCalls: llmResult.toolCalls.map(tc => ({
@@ -375,6 +460,15 @@ export default async function chatRoutes(app: FastifyInstance) {
         : null,
       turnCount: flowCtx.turnCount,
       compacted: compactionResult.compacted,
+      // Soft-limit warning surfaced when usage crosses 80% of any plan cap.
+      // Frontend can show a non-blocking banner; the request still succeeds.
+      warning: warning ? {
+        kind: warning.kind,
+        used: warning.used,
+        limit: warning.limit,
+        percentage: warning.percentage,
+        message: warning.message[lang],
+      } : null,
     };
   });
 
@@ -412,6 +506,24 @@ export default async function chatRoutes(app: FastifyInstance) {
   app.post('/new', async (request: FastifyRequest) => {
     const { orgId, userId, email } = request.user;
 
+    // Enforce monthly conversation cap before persisting a new row.
+    const plan = await resolveOrgPlan(app.prisma, orgId);
+    try {
+      await assertWithinLimits(app.prisma, orgId, plan, 'conversation');
+    } catch (err) {
+      if (err instanceof PlanLimitReachedError) {
+        const lang = getLang(request.headers['accept-language']);
+        const e: any = new Error(err.bilingual[lang]);
+        e.statusCode = 402;
+        e.code = err.code;
+        e.kind = err.kind;
+        e.usage = { used: err.used, limit: err.limit };
+        e.upgradeUrl = `${process.env.FRONTEND_URL}/billing?tab=plans`;
+        throw e;
+      }
+      throw err;
+    }
+
     let messagingUser = await app.prisma.messagingUser.findFirst({
       where: { orgId, channel: 'web', externalUserId: userId },
     });
@@ -448,6 +560,13 @@ export default async function chatRoutes(app: FastifyInstance) {
         },
       },
     });
+
+    // Best-effort: bump the org's monthly conversation counter. Non-fatal.
+    try {
+      await recordConversation(app.prisma, orgId);
+    } catch (err) {
+      app.log.warn({ err, orgId }, 'Failed to increment conversation counter');
+    }
 
     return conversation;
   });

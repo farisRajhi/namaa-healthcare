@@ -18,9 +18,6 @@ const TOTAL_CONTEXT_BUDGET = 120_000; // Force compaction if total context excee
 
 export interface ConversationEntities {
   patientName: string | null;
-  allergiesMentioned: string[];
-  conditionsMentioned: string[];
-  medicationsMentioned: string[];
   appointmentsBooked: { provider: string; date: string; time: string }[];
   appointmentsCancelled: string[];
   pendingRequest: string | null;
@@ -116,9 +113,6 @@ export class SessionCompactor {
   ): ConversationEntities {
     const entities: ConversationEntities = {
       patientName: existing?.patientName ?? null,
-      allergiesMentioned: [...(existing?.allergiesMentioned ?? [])],
-      conditionsMentioned: [...(existing?.conditionsMentioned ?? [])],
-      medicationsMentioned: [...(existing?.medicationsMentioned ?? [])],
       appointmentsBooked: [...(existing?.appointmentsBooked ?? [])],
       appointmentsCancelled: [...(existing?.appointmentsCancelled ?? [])],
       pendingRequest: null,
@@ -131,34 +125,6 @@ export class SessionCompactor {
       if (!entities.patientName) {
         const nameMatch = content.match(/(?:أنا|اسمي|my name is|I'm|أخوك|أخوي)\s+([^\s,.!?]+(?:\s+[^\s,.!?]+)?)/i);
         if (nameMatch) entities.patientName = nameMatch[1];
-      }
-
-      // Extract allergies
-      const allergyPatterns = [
-        /(?:حساسية|عندي حساسية|allergic to|allergy)\s+(?:من|to)?\s*([^.،,\n]+)/gi,
-      ];
-      for (const pattern of allergyPatterns) {
-        let match;
-        while ((match = pattern.exec(content)) !== null) {
-          const allergy = match[1].trim();
-          if (allergy && !entities.allergiesMentioned.includes(allergy)) {
-            entities.allergiesMentioned.push(allergy);
-          }
-        }
-      }
-
-      // Extract conditions from message content
-      const conditionPatterns = [
-        /(?:عندي|أعاني من|diagnosed with|I have|مريض)\s+([^.،,\n]+)/gi,
-      ];
-      for (const pattern of conditionPatterns) {
-        let match;
-        while ((match = pattern.exec(content)) !== null) {
-          const condition = match[1].trim();
-          if (condition.length > 2 && condition.length < 60 && !entities.conditionsMentioned.includes(condition)) {
-            entities.conditionsMentioned.push(condition);
-          }
-        }
       }
 
       // Extract booked appointments from tool results
@@ -196,11 +162,6 @@ export class SessionCompactor {
       }
     }
 
-    // Deduplicate arrays
-    entities.allergiesMentioned = [...new Set(entities.allergiesMentioned)];
-    entities.conditionsMentioned = [...new Set(entities.conditionsMentioned)];
-    entities.medicationsMentioned = [...new Set(entities.medicationsMentioned)];
-
     return entities;
   }
 
@@ -212,15 +173,6 @@ export class SessionCompactor {
 
     if (entities.patientName) {
       lines.push(`- اسم المريض: ${entities.patientName}`);
-    }
-    if (entities.allergiesMentioned.length > 0) {
-      lines.push(`- ⚠️ الحساسيات: ${entities.allergiesMentioned.join('، ')}`);
-    }
-    if (entities.conditionsMentioned.length > 0) {
-      lines.push(`- الحالات المرضية: ${entities.conditionsMentioned.join('، ')}`);
-    }
-    if (entities.medicationsMentioned.length > 0) {
-      lines.push(`- الأدوية: ${entities.medicationsMentioned.join('، ')}`);
     }
     if (entities.appointmentsBooked.length > 0) {
       for (const apt of entities.appointmentsBooked) {
@@ -259,7 +211,11 @@ export class SessionCompactor {
         ? `Previous summary:\n${existingSummary}\n\nNew messages to incorporate:\n${conversationText}`
         : conversationText;
 
-      const summary = await llm.chat(
+      // Hard timeout — compaction runs in-band on every long-conversation turn.
+      // If the LLM hangs (network blip, provider stall) we fall back to the
+      // deterministic simple summarizer rather than blocking the patient's reply.
+      const COMPACTION_TIMEOUT_MS = 10_000;
+      const llmPromise = llm.chat(
         [{ role: 'user', content: prompt }],
         `You are a conversation summarizer for a medical receptionist AI. Create a brief NARRATIVE summary only (do NOT include structured data like allergies or appointments — those are handled separately).
 
@@ -272,6 +228,13 @@ Focus on:
 
 Keep under ${SUMMARY_MAX_TOKENS} tokens. Write in Arabic primarily, with English terms where needed. Be factual and concise.`,
       );
+
+      const { text: summary } = await Promise.race([
+        llmPromise,
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('SUMMARIZE_TIMEOUT')), COMPACTION_TIMEOUT_MS),
+        ),
+      ]);
 
       return summary;
     } catch {

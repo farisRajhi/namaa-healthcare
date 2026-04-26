@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { PLAN_KEYS } from '../services/billing/plans.js';
+import { getBaileysManager } from '../services/messaging/baileysManager.js';
 
 const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -175,6 +176,18 @@ export default async function platformOrgsRoutes(app: FastifyInstance) {
 
       return org;
     });
+
+    // Tear down the WhatsApp session when suspending so the org stops sending/
+    // receiving messages immediately. Health check skips suspended orgs so it
+    // won't get resurrected. Best-effort: failure to disconnect must not block
+    // the suspension itself.
+    if (isSuspending) {
+      try {
+        await getBaileysManager().disconnect(id);
+      } catch (err) {
+        request.log.warn({ err, orgId: id }, 'Failed to tear down Baileys session on suspend');
+      }
+    }
 
     return updated;
   });

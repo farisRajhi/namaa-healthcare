@@ -9,7 +9,6 @@ import {
   TrendingUp,
   Users,
   Sparkles,
-  Shield,
   Activity,
   Star,
   Eye,
@@ -51,7 +50,6 @@ export default function KnowledgeBase() {
   const getScore = (p: any) => p.insight?.engagementScore ?? 0
   const getTags = (p: any) => (p.tags || []).map((t: any) => t.tag)
   const getInterests = (p: any) => (p.memories || []).filter((m: any) => m.memoryType === 'service_interest').map((m: any) => m.memoryKey)
-  const getConditions = (p: any) => (p.memories || []).filter((m: any) => m.memoryType === 'condition').map((m: any) => m.memoryKey)
   const getChannel = (p: any) => p.insight?.channelPreference || '—'
   const getVisits = (p: any) => p.insight?.lifetimeValue ?? 0
   const getCompletion = (p: any) => p.insight?.completionRate ?? 0
@@ -225,7 +223,6 @@ export default function KnowledgeBase() {
             const score = getScore(p)
             const tags = getTags(p)
             const interests = getInterests(p)
-            const conditions = getConditions(p)
 
             return (
               <div
@@ -282,23 +279,6 @@ export default function KnowledgeBase() {
                         {interests.map((si: string) => (
                           <span key={si} className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-50 text-green-700 border border-green-200">
                             {si}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Conditions */}
-                  {conditions.length > 0 && (
-                    <div className="mb-3">
-                      <p className="text-[10px] font-medium text-healthcare-muted uppercase tracking-wide mb-1.5 flex items-center gap-1">
-                        <Shield className="h-3 w-3 text-blue-500" />
-                        {isAr ? 'حالات صحية' : 'Conditions'}
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {conditions.map((c: string) => (
-                          <span key={c} className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
-                            {c}
                           </span>
                         ))}
                       </div>

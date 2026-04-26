@@ -8,7 +8,6 @@ import { PrismaClient } from '@prisma/client';
 import { CampaignManager, PatientFilter } from './campaignManager.js';
 import { MarketingConsentService } from '../compliance/marketingConsent.js';
 import { TARGETING_PRESETS } from './targetingPresets.js';
-import type { Twilio } from 'twilio';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -80,17 +79,14 @@ export interface AudiencePreview {
 // ---------------------------------------------------------------------------
 
 export class AudienceAnalyticsService {
-  constructor(
-    private prisma: PrismaClient,
-    private twilio: Twilio | null = null,
-  ) {}
+  constructor(private prisma: PrismaClient) {}
 
   /**
    * Get enriched data for each predefined targeting segment:
    * count, rank, average score, top services, and top patients.
    */
   async getSegmentOverview(orgId: string): Promise<SegmentCount[]> {
-    const manager = new CampaignManager(this.prisma, this.twilio);
+    const manager = new CampaignManager(this.prisma);
 
     // Pre-fetch all services for name resolution
     const allServices = await this.prisma.service.findMany({
@@ -333,7 +329,7 @@ export class AudienceAnalyticsService {
     filter: PatientFilter,
     channel: 'whatsapp' | 'sms' = 'whatsapp',
   ): Promise<AudiencePreview> {
-    const manager = new CampaignManager(this.prisma, this.twilio);
+    const manager = new CampaignManager(this.prisma);
     const patients = await manager.queryPatientsByFilter(orgId, filter);
     const totalMatching = patients.length;
 

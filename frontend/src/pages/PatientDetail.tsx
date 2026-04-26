@@ -24,10 +24,7 @@ import {
   RefreshCw,
   Sparkles,
   Heart,
-  Shield,
-  Pill,
   Star,
-  TrendingUp,
   BarChart3,
   MessageCircle,
 } from 'lucide-react'
@@ -130,88 +127,12 @@ function calcAge(dob: string | null): string | null {
 }
 
 const MEMORY_CATEGORIES = [
-  { key: 'allergy', icon: Shield, labelAr: 'الحساسيات', labelEn: 'Allergies', bgColor: 'bg-red-50/50', borderColor: 'border-red-200/50', iconColor: 'text-red-500' },
-  { key: 'condition', icon: Activity, labelAr: 'الحالات الصحية', labelEn: 'Conditions', bgColor: 'bg-blue-50/50', borderColor: 'border-blue-200/50', iconColor: 'text-blue-500' },
-  { key: 'medication', icon: Pill, labelAr: 'الأدوية', labelEn: 'Medications', bgColor: 'bg-purple-50/50', borderColor: 'border-purple-200/50', iconColor: 'text-purple-500' },
   { key: 'preference', icon: Star, labelAr: 'التفضيلات', labelEn: 'Preferences', bgColor: 'bg-yellow-50/50', borderColor: 'border-yellow-200/50', iconColor: 'text-yellow-500' },
   { key: 'service_interest', icon: Sparkles, labelAr: 'اهتمامات بالخدمات', labelEn: 'Service Interests', bgColor: 'bg-green-50/50', borderColor: 'border-green-200/50', iconColor: 'text-green-500' },
-  { key: 'interest', icon: TrendingUp, labelAr: 'اهتمامات عامة', labelEn: 'Interests', bgColor: 'bg-primary-50/50', borderColor: 'border-primary-200/50', iconColor: 'text-primary-500' },
   { key: 'behavioral', icon: BarChart3, labelAr: 'أنماط سلوكية', labelEn: 'Behavioral', bgColor: 'bg-indigo-50/50', borderColor: 'border-indigo-200/50', iconColor: 'text-indigo-500' },
   { key: 'satisfaction', icon: Heart, labelAr: 'مؤشرات الرضا', labelEn: 'Satisfaction', bgColor: 'bg-pink-50/50', borderColor: 'border-pink-200/50', iconColor: 'text-pink-500' },
-  { key: 'family_history', icon: User, labelAr: 'معلومات عائلية', labelEn: 'Family', bgColor: 'bg-orange-50/50', borderColor: 'border-orange-200/50', iconColor: 'text-orange-500' },
-  { key: 'lifestyle', icon: Activity, labelAr: 'نمط الحياة', labelEn: 'Lifestyle', bgColor: 'bg-primary-50/50', borderColor: 'border-primary-200/50', iconColor: 'text-primary-500' },
   { key: 'note', icon: ClipboardList, labelAr: 'ملاحظات', labelEn: 'Notes', bgColor: 'bg-gray-50/50', borderColor: 'border-gray-200/50', iconColor: 'text-gray-500' },
 ]
-
-// ─── Mock Data (TODO: remove after backend prisma generate) ─────────────────
-
-const MOCK_KNOWLEDGE: KnowledgeData = {
-  insight: {
-    patientId: '',
-    totalAppointments: 12,
-    completedAppointments: 9,
-    noShowCount: 1,
-    cancelledCount: 2,
-    completionRate: 0.75,
-    preferredServiceIds: [],
-    preferredProviderIds: [],
-    preferredDayOfWeek: 0, // Sunday
-    preferredTimeSlot: 'morning',
-    channelPreference: 'whatsapp',
-    engagementScore: 72,
-    lastInteractionAt: '2026-03-28T10:30:00Z',
-    totalConversations: 18,
-    lifetimeValue: 9,
-  },
-  tags: [
-    { tagId: 'mock-1', tag: 'VIP', source: 'manual', createdAt: '2026-01-15T00:00:00Z' },
-    { tagId: 'mock-2', tag: 'مرضى السكري', source: 'auto', createdAt: '2026-02-10T00:00:00Z' },
-    { tagId: 'mock-3', tag: 'عميل دائم', source: 'auto', createdAt: '2026-02-20T00:00:00Z' },
-    { tagId: 'mock-4', tag: 'تأمين طبي', source: 'manual', createdAt: '2026-03-01T00:00:00Z' },
-  ],
-  memories: {
-    allergy: [
-      { memoryId: 'm1', memoryType: 'allergy', memoryKey: 'بنسلين', memoryValue: 'حساسية من البنسلين — يسبب طفح جلدي', confidence: 1.0, isActive: true, updatedAt: '2026-01-10T00:00:00Z' },
-      { memoryId: 'm2', memoryType: 'allergy', memoryKey: 'أسبرين', memoryValue: 'حساسية من الأسبرين', confidence: 0.8, isActive: true, updatedAt: '2026-02-15T00:00:00Z' },
-    ],
-    condition: [
-      { memoryId: 'm3', memoryType: 'condition', memoryKey: 'سكري', memoryValue: 'سكري نوع ثاني — مشخّص منذ 2020', confidence: 1.0, isActive: true, updatedAt: '2026-01-10T00:00:00Z' },
-      { memoryId: 'm4', memoryType: 'condition', memoryKey: 'ضغط', memoryValue: 'ارتفاع ضغط الدم — يراجع كل 3 شهور', confidence: 0.9, isActive: true, updatedAt: '2026-02-01T00:00:00Z' },
-    ],
-    medication: [
-      { memoryId: 'm5', memoryType: 'medication', memoryKey: 'ميتفورمين', memoryValue: 'يتناول ميتفورمين 500 ملغ مرتين يومياً', confidence: 1.0, isActive: true, updatedAt: '2026-01-10T00:00:00Z' },
-      { memoryId: 'm6', memoryType: 'medication', memoryKey: 'أملوديبين', memoryValue: 'يتناول أملوديبين 5 ملغ مرة يومياً', confidence: 0.8, isActive: true, updatedAt: '2026-02-01T00:00:00Z' },
-    ],
-    preference: [
-      { memoryId: 'm7', memoryType: 'preference', memoryKey: 'وقت_الموعد_المفضل', memoryValue: 'يفضل المواعيد الصباحية (8-10 صباحاً)', confidence: 0.9, isActive: true, updatedAt: '2026-03-01T00:00:00Z' },
-      { memoryId: 'm8', memoryType: 'preference', memoryKey: 'الطبيب_المفضل', memoryValue: 'دكتور أحمد العمري', confidence: 1.0, isActive: true, updatedAt: '2026-02-20T00:00:00Z' },
-      { memoryId: 'm9', memoryType: 'preference', memoryKey: 'جنس_الطبيب', memoryValue: 'لا يوجد تفضيل', confidence: 0.7, isActive: true, updatedAt: '2026-01-15T00:00:00Z' },
-    ],
-    service_interest: [
-      { memoryId: 'm10', memoryType: 'service_interest', memoryKey: 'dental_cleaning', memoryValue: 'سأل عن تنظيف الأسنان وأبدى اهتماماً بالحجز', confidence: 0.9, isActive: true, updatedAt: '2026-03-15T00:00:00Z' },
-      { memoryId: 'm11', memoryType: 'service_interest', memoryKey: 'comprehensive_checkup', memoryValue: 'مهتم بالفحص الشامل السنوي', confidence: 0.8, isActive: true, updatedAt: '2026-03-20T00:00:00Z' },
-      { memoryId: 'm12', memoryType: 'service_interest', memoryKey: 'eye_exam', memoryValue: 'ذكر أنه يريد فحص نظر بسبب السكري', confidence: 0.7, isActive: true, updatedAt: '2026-03-25T00:00:00Z' },
-    ],
-    interest: [
-      { memoryId: 'm13', memoryType: 'interest', memoryKey: 'preventive_care', memoryValue: 'مهتم ببرامج الرعاية الوقائية', confidence: 0.8, isActive: true, updatedAt: '2026-03-10T00:00:00Z' },
-      { memoryId: 'm14', memoryType: 'interest', memoryKey: 'nutrition_program', memoryValue: 'سأل عن برنامج تغذية لمرضى السكري', confidence: 0.7, isActive: true, updatedAt: '2026-03-18T00:00:00Z' },
-    ],
-    behavioral: [
-      { memoryId: 'm15', memoryType: 'behavioral', memoryKey: 'saturday_regular', memoryValue: 'يحجز دائماً يوم السبت صباحاً', confidence: 0.85, isActive: true, updatedAt: '2026-03-20T00:00:00Z' },
-      { memoryId: 'm16', memoryType: 'behavioral', memoryKey: 'books_ahead', memoryValue: 'يحجز قبل أسبوعين عادةً', confidence: 0.7, isActive: true, updatedAt: '2026-03-22T00:00:00Z' },
-    ],
-    satisfaction: [
-      { memoryId: 'm17', memoryType: 'satisfaction', memoryKey: 'praised_dr_ahmed', memoryValue: 'أشاد بالدكتور أحمد العمري — "أفضل دكتور راجعته"', confidence: 0.95, isActive: true, updatedAt: '2026-03-15T00:00:00Z' },
-      { memoryId: 'm18', memoryType: 'satisfaction', memoryKey: 'wait_time_complaint', memoryValue: 'اشتكى من طول الانتظار في آخر زيارة (45 دقيقة)', confidence: 0.8, isActive: true, updatedAt: '2026-03-28T00:00:00Z' },
-    ],
-    family_history: [
-      { memoryId: 'm19', memoryType: 'family_history', memoryKey: 'ابن', memoryValue: 'ابنه عمره 8 سنوات — يحتاج تطعيمات', confidence: 0.9, isActive: true, updatedAt: '2026-02-25T00:00:00Z' },
-    ],
-    lifestyle: [
-      { memoryId: 'm20', memoryType: 'lifestyle', memoryKey: 'exercise', memoryValue: 'يمشي 30 دقيقة يومياً', confidence: 0.7, isActive: true, updatedAt: '2026-03-05T00:00:00Z' },
-    ],
-  },
-}
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
@@ -250,17 +171,8 @@ export default function PatientDetail() {
   const { data: knowledge } = useQuery<KnowledgeData>({
     queryKey: ['patient-knowledge', id],
     queryFn: async () => {
-      try {
-        const res = await api.get(`/api/patients/${id}/knowledge`)
-        const data = res.data
-        // Use mock data if API returns empty (TODO: remove mock fallback after backend is ready)
-        if (!data?.insight && (!data?.memories || Object.keys(data.memories).length === 0)) {
-          return MOCK_KNOWLEDGE
-        }
-        return data
-      } catch {
-        return MOCK_KNOWLEDGE
-      }
+      const res = await api.get(`/api/patients/${id}/knowledge`)
+      return res.data ?? { memories: {}, insight: null, tags: [] }
     },
     enabled: !!id && activeTab === 'knowledge',
   })

@@ -2,6 +2,7 @@ import { FastifyInstance } from 'fastify';
 import { authPlugin } from '../plugins/auth.js';
 import { platformAuthPlugin } from '../plugins/platformAuth.js';
 import { subscriptionGuardPlugin } from '../plugins/subscriptionGuard.js';
+import { planGuardPlugin } from '../plugins/planGuard.js';
 import authRoutes from './auth.js';
 import patientsRoutes from './patients.js';
 import appointmentsRoutes from './appointments.js';
@@ -14,24 +15,13 @@ import analyticsRoutes from './analytics.js';
 import analyticsEnhancedRoutes from './analyticsEnhanced.js';
 import chatRoutes from './chat.js';
 import chatWebSocketRoutes from './chatWebSocket.js';
-import voiceRoutes from './voice.js';
-import voiceStreamRoutes from './voiceStream.js';
-import voiceStreamGeminiRoutes from './voiceStreamGemini.js';
-import voiceDemoRoutes from './voiceDemo.js';
-import voiceDemoRealtimeRoutes from './voiceDemoRealtime.js';
 import demoChatRoutes from './demoChat.js';
-import geminiTestRoutes from './geminiTest.js';
-import voiceTestRoutes from './voiceTest.js';
-import phoneNumbersRoutes from './phoneNumbers.js';
 import { registerAuditMiddleware } from '../services/security/auditLogger.js';
-import outboundRoutes from './outbound.js';
 import remindersRoutes from './reminders.js';
 import careGapsRoutes, { careGapRulesRoutes } from './careGaps.js';
 import faqRoutes, { triageRulesRoutes } from './faq.js';
-import smsTemplatesRoutes, { smsLogsRoutes } from './smsTemplates.js';
 import patientMemoryRoutes from './patientMemory.js';
 import widgetRoutes from './widget.js';
-import whatsappChatRoutes from './whatsappChat.js';
 import baileysWhatsAppRoutes from './baileysWhatsApp.js';
 import patientAuthRoutes from './patientAuth.js';
 import patientPortalRoutes from './patientPortal.js';
@@ -42,12 +32,12 @@ import platformSubscriptionsRoutes from './platformSubscriptions.js';
 import platformAuditRoutes from './platformAudit.js';
 import agentBuilderRoutes from './agentBuilder.js';
 import campaignRoutes from './campaigns.js';
+import outboundCampaignsRoutes from './outboundCampaigns.js';
 import { integrationsRoutes, webhookSubscriptionsRoutes } from './integrations.js';
 import settingsRoutes from './settings.js';
 import reportsRoutes from './reports.js';
 import paymentsRoutes from './payments.js';
 import subscriptionRoutes from './subscription.js';
-import callSummariesRoutes from './callSummaries.js';
 import publicBookingRoutes from './publicBooking.js';
 import branchRoutes from './branches.js';
 import usageRoutes from './usage.js';
@@ -56,6 +46,8 @@ import marketingConsentRoutes from './marketingConsent.js';
 import audienceAnalyticsRoutes from './audienceAnalytics.js';
 import suggestionsRoutes from './suggestions.js';
 import patientIntelligenceRoutes from './patientIntelligence.js';
+import brandingRoutes from './branding.js';
+import adImagesRoutes from './adImages.js';
 
 export async function registerRoutes(app: FastifyInstance) {
   // Register auth plugin
@@ -67,28 +59,17 @@ export async function registerRoutes(app: FastifyInstance) {
   // Register subscription guard plugin
   await app.register(subscriptionGuardPlugin);
 
+  // Register plan-tier guard plugin (depends on subscriptionGuard)
+  await app.register(planGuardPlugin);
+
   // Public routes
   await app.register(authRoutes, { prefix: '/api/auth' });
 
   // Webhook routes (secured by API key, not JWT)
   await app.register(webhooksRoutes, { prefix: '/api/webhooks' });
 
-  // Voice routes (secured by Twilio signature)
-  await app.register(voiceRoutes, { prefix: '/api/voice' });
-  await app.register(voiceStreamRoutes, { prefix: '/api/voice' });
-  await app.register(voiceStreamGeminiRoutes, { prefix: '/api/voice' });
-
-  // WhatsApp conversational AI routes (secured by Twilio signature)
-  await app.register(whatsappChatRoutes, { prefix: '/api/whatsapp' });
-
   // Baileys WhatsApp Web routes (QR pairing, session management)
   await app.register(baileysWhatsAppRoutes, { prefix: '/api/baileys-whatsapp' });
-
-  // Voice demo routes — disabled in production (unauthenticated, burns API quota)
-  if (process.env.NODE_ENV !== 'production') {
-    await app.register(voiceDemoRoutes, { prefix: '/api/voice' });
-    await app.register(voiceDemoRealtimeRoutes, { prefix: '/api/voice' });
-  }
 
   // Demo chat routes (public - for landing page demo)
   await app.register(demoChatRoutes, { prefix: '/api/demo-chat' });
@@ -115,14 +96,6 @@ export async function registerRoutes(app: FastifyInstance) {
     });
   });
 
-  // Gemini test routes — disabled in production (unauthenticated, burns API quota)
-  if (process.env.NODE_ENV !== 'production') {
-    await app.register(geminiTestRoutes, { prefix: '/api/gemini-test' });
-  }
-
-  // Voice test routes (authenticated - for management dashboard)
-  await app.register(voiceTestRoutes, { prefix: '/api/voice' });
-
   // Protected routes
   await app.register(patientsRoutes, { prefix: '/api/patients' });
   await app.register(patientMemoryRoutes, { prefix: '/api/patients' });
@@ -134,18 +107,10 @@ export async function registerRoutes(app: FastifyInstance) {
   await app.register(analyticsRoutes, { prefix: '/api/analytics' });
   await app.register(chatRoutes, { prefix: '/api/chat' });
   await app.register(chatWebSocketRoutes, { prefix: '/api/chat' });
-  await app.register(phoneNumbersRoutes, { prefix: '/api/phone-numbers' });
 
   // FAQ & Triage
   await app.register(faqRoutes, { prefix: '/api/faq' });
   await app.register(triageRulesRoutes, { prefix: '/api/triage-rules' });
-
-  // SMS Templates & Logs
-  await app.register(smsTemplatesRoutes, { prefix: '/api/sms-templates' });
-  await app.register(smsLogsRoutes, { prefix: '/api/sms-logs' });
-
-  // Outbound & Campaign routes
-  await app.register(outboundRoutes, { prefix: '/api/outbound' });
 
   // Appointment Reminder routes
   await app.register(remindersRoutes, { prefix: '/api/reminders' });
@@ -159,6 +124,9 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // Campaign routes (org-scoped: /api/campaigns/:orgId)
   await app.register(campaignRoutes, { prefix: '/api/campaigns' });
+
+  // Legacy outbound campaign URLs (used by the campaigns dashboard)
+  await app.register(outboundCampaignsRoutes, { prefix: '/api/outbound/campaigns' });
 
   // Service Cycle Suggestions (patient re-engagement predictions)
   await app.register(suggestionsRoutes, { prefix: '/api/suggestions' });
@@ -182,9 +150,6 @@ export async function registerRoutes(app: FastifyInstance) {
   // Subscription management
   await app.register(subscriptionRoutes, { prefix: '/api/subscription' });
 
-  // Call Summaries, Transcripts & AI Analysis
-  await app.register(callSummariesRoutes, { prefix: '/api/calls' });
-
   // Public patient self-booking links (no auth required)
   await app.register(publicBookingRoutes, { prefix: '/api/book' });
 
@@ -205,6 +170,12 @@ export async function registerRoutes(app: FastifyInstance) {
 
   // Patient Intelligence (external DB AI analysis)
   await app.register(patientIntelligenceRoutes, { prefix: '/api/patient-intelligence' });
+
+  // Brand identity (logo, colors, voice/tone) used by AI ad image generation
+  await app.register(brandingRoutes, { prefix: '/api/branding' });
+
+  // AI-generated ad images for marketing campaigns
+  await app.register(adImagesRoutes, { prefix: '/api/ad-images' });
 
   // Register audit trail middleware (auto-logs sensitive route access)
   registerAuditMiddleware(app);

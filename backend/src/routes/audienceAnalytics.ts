@@ -16,7 +16,6 @@ const previewBodySchema = z.object({
     minAge: z.number().optional(),
     maxAge: z.number().optional(),
     sex: z.string().optional(),
-    conditions: z.array(z.string()).optional(),
     lastVisitDaysAgo: z.number().optional(),
     noAppointmentDays: z.number().optional(),
     previousServiceIds: z.array(z.string().uuid()).optional(),
@@ -36,6 +35,10 @@ const previewBodySchema = z.object({
 export default async function audienceAnalyticsRoutes(app: FastifyInstance) {
   // All routes require authentication
   app.addHook('onRequest', app.authenticate);
+  // Audience segmentation is a Professional-tier feature (Starter is single-clinic
+  // with basic metrics only; segmentation drives campaign targeting).
+  app.addHook('preHandler', app.requireSubscription);
+  app.addHook('preHandler', app.requirePlan('professional'));
 
   // -------------------------------------------------------------------------
   // GET /api/audience/:orgId/presets — Targeting preset definitions
@@ -58,7 +61,7 @@ export default async function audienceAnalyticsRoutes(app: FastifyInstance) {
       return reply.code(403).send({ error: 'Forbidden' });
     }
 
-    const service = new AudienceAnalyticsService(app.prisma, app.twilio ?? null);
+    const service = new AudienceAnalyticsService(app.prisma);
     const segments = await service.getSegmentOverview(orgId);
     return { segments };
   });
@@ -72,7 +75,7 @@ export default async function audienceAnalyticsRoutes(app: FastifyInstance) {
       return reply.code(403).send({ error: 'Forbidden' });
     }
 
-    const service = new AudienceAnalyticsService(app.prisma, app.twilio ?? null);
+    const service = new AudienceAnalyticsService(app.prisma);
     const patterns = await service.getClinicBehaviorPatterns(orgId);
     return patterns;
   });
@@ -92,7 +95,7 @@ export default async function audienceAnalyticsRoutes(app: FastifyInstance) {
     }
 
     const { targetFilter, channel } = parsed.data;
-    const service = new AudienceAnalyticsService(app.prisma, app.twilio ?? null);
+    const service = new AudienceAnalyticsService(app.prisma);
     const preview = await service.previewAudience(orgId, targetFilter, channel);
     return preview;
   });

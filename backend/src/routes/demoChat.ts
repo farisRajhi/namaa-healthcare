@@ -336,7 +336,7 @@ export default async function demoChatRoutes(app: FastifyInstance) {
 
       // Get LLM response
       const llmService = getLLMService();
-      const response = await llmService.chat(history, systemPrompt);
+      const { text: response } = await llmService.chat(history, systemPrompt);
 
       // Increment rate limit counter
       incrementRateLimit(clientIP, body.sessionId);

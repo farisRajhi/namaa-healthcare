@@ -14,8 +14,10 @@ import {
 import { CampaignManager } from '../services/campaigns/campaignManager.js';
 
 export default async function patientIntelligenceRoutes(app: FastifyInstance) {
-  // All routes require authentication
+  // All routes require authentication + active subscription (trial OK).
+  // Patient Intelligence is included in every paid plan, so no plan-tier guard.
   app.addHook('onRequest', app.authenticate);
+  app.addHook('preHandler', app.requireSubscription);
 
   // -----------------------------------------------------------------------
   // Upload CSV and start analysis pipeline
@@ -68,9 +70,9 @@ export default async function patientIntelligenceRoutes(app: FastifyInstance) {
       },
     });
 
-    // Fire-and-forget: run pipeline asynchronously
-    const geminiConfig = { apiKey: process.env.GEMINI_API_KEY || '' };
-    runPipeline(app.prisma, geminiConfig, analysis.analysisId, buffer).catch((err) => {
+    // Fire-and-forget: run pipeline asynchronously.
+    // LLM provider per step is resolved via llmRouter (env-configurable).
+    runPipeline(app.prisma, analysis.analysisId, buffer).catch((err) => {
       app.log.error({ err, analysisId: analysis.analysisId }, 'Pipeline failed');
     });
 
@@ -105,13 +107,31 @@ export default async function patientIntelligenceRoutes(app: FastifyInstance) {
         progress: true,
         currentStep: true,
         totalPatients: true,
+        patientsAnalyzed: true,
         suggestionsCount: true,
+        errorMessage: true,
         createdAt: true,
         completedAt: true,
       },
     });
 
-    return { data: analyses };
+    const reshaped = analyses.map((a) => ({
+      id: a.analysisId,
+      fileName: a.fileName,
+      fileSize: a.fileSize,
+      clinicType: a.clinicType,
+      status: a.status,
+      progress: a.progress,
+      currentStep: a.currentStep,
+      totalPatients: a.totalPatients,
+      patientsAnalyzed: a.patientsAnalyzed,
+      suggestionsCount: a.suggestionsCount,
+      error: a.errorMessage ?? null,
+      createdAt: a.createdAt,
+      completedAt: a.completedAt,
+    }));
+
+    return { data: reshaped };
   });
 
   // -----------------------------------------------------------------------
@@ -133,7 +153,22 @@ export default async function patientIntelligenceRoutes(app: FastifyInstance) {
       return reply.code(404).send({ error: 'Analysis not found' });
     }
 
-    return analysis;
+    return {
+      id: analysis.analysisId,
+      orgId: analysis.orgId,
+      fileName: analysis.fileName,
+      fileSize: analysis.fileSize,
+      clinicType: analysis.clinicType,
+      status: analysis.status,
+      progress: analysis.progress,
+      currentStep: analysis.currentStep,
+      totalPatients: analysis.totalPatients,
+      patientsAnalyzed: analysis.patientsAnalyzed,
+      suggestionsCount: analysis.suggestionsCount,
+      error: analysis.errorMessage ?? null,
+      createdAt: analysis.createdAt,
+      completedAt: analysis.completedAt,
+    };
   });
 
   // -----------------------------------------------------------------------
@@ -203,7 +238,25 @@ export default async function patientIntelligenceRoutes(app: FastifyInstance) {
       orderBy: { priority: 'desc' },
     });
 
-    return { data: suggestions };
+    const reshaped = suggestions.map((s) => ({
+      id: s.suggestionId,
+      analysisId: s.analysisId,
+      campaignName: s.name,
+      campaignNameAr: s.nameAr ?? s.name,
+      type: s.type,
+      channel: s.channelSequence,
+      priority: s.priority >= 70 ? 'high' : s.priority >= 40 ? 'medium' : 'low',
+      patientCount: s.patientCount ?? 0,
+      confidenceScore: s.confidenceScore,
+      reasoning: s.reasoning ?? '',
+      reasoningAr: s.reasoningAr ?? s.reasoning ?? '',
+      messageScriptAr: s.scriptAr ?? '',
+      messageScriptEn: s.scriptEn ?? '',
+      status: s.status,
+      createdAt: s.createdAt,
+    }));
+
+    return { data: reshaped };
   });
 
   // -----------------------------------------------------------------------
@@ -223,7 +276,7 @@ export default async function patientIntelligenceRoutes(app: FastifyInstance) {
     });
     const body = approveSchema.parse(request.body || {});
 
-    const campaignManager = new CampaignManager(app.prisma, app.twilio ?? null);
+    const campaignManager = new CampaignManager(app.prisma);
 
     const result = await approveSuggestion(app.prisma, campaignManager, {
       suggestionId: id,
@@ -288,9 +341,13 @@ export default async function patientIntelligenceRoutes(app: FastifyInstance) {
     }
 
     // Cascade deletes ExternalPatients and AICampaignSuggestions
-    await app.prisma.externalAnalysis.delete({
-      where: { analysisId: id },
+    const deleteResult = await app.prisma.externalAnalysis.deleteMany({
+      where: { analysisId: id, orgId },
     });
+
+    if (deleteResult.count === 0) {
+      return reply.code(404).send({ error: 'Analysis not found' });
+    }
 
     return { success: true };
   });

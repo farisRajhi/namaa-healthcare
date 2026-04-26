@@ -1,5 +1,16 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import {
+  ArrowLeft,
+  Users,
+  Building2,
+  UserCheck,
+  CalendarDays,
+  MessageSquare,
+  ShieldAlert,
+  Wallet,
+  UserCog,
+} from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { platformApi } from '../../lib/platformApi'
 import { getErrorMessage } from '../../lib/api'
@@ -33,14 +44,17 @@ interface OrgDetail {
   lastActivityAt: string | null
 }
 
+const STATUS_BADGE: Record<OrgStatus, string> = {
+  active: 'bg-success-50 text-success-700 border-success-200',
+  suspended: 'bg-warning-50 text-warning-700 border-warning-200',
+  deleted: 'bg-healthcare-bg text-healthcare-muted border-healthcare-border',
+}
+
 function StatusPill({ status }: { status: OrgStatus }) {
-  const styles: Record<OrgStatus, string> = {
-    active: 'bg-green-100 text-green-800',
-    suspended: 'bg-amber-100 text-amber-800',
-    deleted: 'bg-slate-200 text-slate-600',
-  }
   return (
-    <span className={`inline-block text-xs font-medium rounded px-2 py-0.5 ${styles[status]}`}>
+    <span
+      className={`inline-block text-xs font-semibold border rounded-full px-2.5 py-0.5 ${STATUS_BADGE[status]}`}
+    >
       {status}
     </span>
   )
@@ -113,66 +127,112 @@ export default function PlatformOrgDetail() {
   })
 
   if (detailQuery.isLoading) {
-    return <div className="text-slate-500">Loading…</div>
+    return <div className="text-healthcare-muted text-sm">Loading…</div>
   }
   if (detailQuery.error || !detailQuery.data) {
-    return <div className="text-red-600">Failed to load org.</div>
+    return <div className="text-danger-600 text-sm">Failed to load org.</div>
   }
 
   const org = detailQuery.data
   const canSuspend = org.status === 'active'
   const canReactivate = org.status === 'suspended'
 
+  const counts = [
+    { label: 'Users', v: org.counts.users, icon: Users, tone: 'primary' },
+    { label: 'Facilities', v: org.counts.facilities, icon: Building2, tone: 'secondary' },
+    { label: 'Patients', v: org.counts.patients.toLocaleString(), icon: UserCheck, tone: 'success' },
+    {
+      label: 'Appointments',
+      v: org.counts.appointments.toLocaleString(),
+      icon: CalendarDays,
+      tone: 'primary',
+    },
+    {
+      label: 'SMS sent',
+      v: org.counts.smsMessages.toLocaleString(),
+      icon: MessageSquare,
+      tone: 'secondary',
+    },
+  ] as const
+
+  const TONE: Record<string, { iconBg: string; iconText: string }> = {
+    primary: { iconBg: 'bg-primary-50', iconText: 'text-primary-600' },
+    secondary: { iconBg: 'bg-secondary-50', iconText: 'text-secondary-700' },
+    success: { iconBg: 'bg-success-50', iconText: 'text-success-600' },
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3 text-sm text-slate-500">
-        <Link to="/platform/orgs" className="hover:underline">← All organizations</Link>
-      </div>
+      <Link
+        to="/platform/orgs"
+        className="inline-flex items-center gap-1.5 text-sm text-healthcare-muted hover:text-primary-600 transition-colors"
+      >
+        <ArrowLeft className="w-4 h-4" />
+        All organizations
+      </Link>
 
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">{org.name}</h1>
-          <div className="mt-1 flex items-center gap-3 text-sm text-slate-500">
+          <h1 className="font-heading text-3xl font-semibold text-healthcare-text">{org.name}</h1>
+          <div className="mt-2 flex items-center gap-3 text-sm text-healthcare-muted flex-wrap">
             <StatusPill status={org.status} />
             <span>Created {new Date(org.createdAt).toLocaleDateString()}</span>
+            <span className="text-healthcare-border">·</span>
             <span>Timezone {org.defaultTimezone}</span>
           </div>
           {org.status === 'suspended' && org.suspendedReason && (
-            <div className="mt-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-1.5">
-              Suspended {org.suspendedAt ? new Date(org.suspendedAt).toLocaleString() : ''} — {org.suspendedReason}
+            <div className="mt-3 text-sm text-warning-800 bg-warning-50 border border-warning-200 rounded-lg px-3 py-2">
+              <strong>Suspended</strong>{' '}
+              {org.suspendedAt ? new Date(org.suspendedAt).toLocaleString() : ''} —{' '}
+              {org.suspendedReason}
             </div>
           )}
         </div>
       </div>
 
+      {/* Counts */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        {[
-          { label: 'Users', v: org.counts.users },
-          { label: 'Facilities', v: org.counts.facilities },
-          { label: 'Patients', v: org.counts.patients.toLocaleString() },
-          { label: 'Appointments', v: org.counts.appointments.toLocaleString() },
-          { label: 'SMS sent', v: org.counts.smsMessages.toLocaleString() },
-        ].map((c) => (
-          <div key={c.label} className="bg-white rounded-lg border border-slate-200 p-4">
-            <div className="text-xs uppercase tracking-widest text-slate-500">{c.label}</div>
-            <div className="mt-1 text-2xl font-semibold text-slate-900">{c.v}</div>
-          </div>
-        ))}
+        {counts.map((c) => {
+          const t = TONE[c.tone]
+          const Icon = c.icon
+          return (
+            <div key={c.label} className="card p-4">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-[11px] uppercase tracking-widest text-healthcare-muted font-semibold">
+                    {c.label}
+                  </div>
+                  <div className="mt-1 font-heading text-2xl font-semibold text-healthcare-text tabular-nums">
+                    {c.v}
+                  </div>
+                </div>
+                <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${t.iconBg} ${t.iconText}`}>
+                  <Icon className="w-4 h-4" />
+                </div>
+              </div>
+            </div>
+          )
+        })}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Status controls */}
-        <div className="bg-white rounded-lg border border-slate-200 p-5 space-y-3">
-          <h2 className="text-sm font-semibold text-slate-900 uppercase tracking-widest">Status</h2>
+        <div className="card p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-lg bg-warning-50 text-warning-600 flex items-center justify-center">
+              <ShieldAlert className="w-4 h-4" />
+            </div>
+            <h2 className="font-heading text-base font-semibold text-healthcare-text">Status</h2>
+          </div>
           <textarea
             value={statusReason}
             onChange={(e) => setStatusReason(e.target.value)}
             rows={2}
             placeholder="Reason for the audit log…"
-            className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+            className="w-full bg-white border border-healthcare-border rounded-lg px-3 py-2 text-sm text-healthcare-text focus:outline-none focus:ring-[3px] focus:ring-primary-400 focus:border-primary-500 resize-none"
           />
           {statusError && (
-            <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
+            <div className="text-sm text-danger-700 bg-danger-50 border border-danger-200 rounded-lg px-3 py-2">
               {statusError}
             </div>
           )}
@@ -180,14 +240,14 @@ export default function PlatformOrgDetail() {
             <button
               disabled={!canSuspend || statusMutation.isPending}
               onClick={() => statusMutation.mutate({ next: 'suspended', reason: statusReason })}
-              className="px-3 py-2 text-sm text-white rounded bg-amber-600 hover:bg-amber-700 disabled:opacity-40"
+              className="btn-warning btn-sm"
             >
               Suspend
             </button>
             <button
               disabled={!canReactivate || statusMutation.isPending}
               onClick={() => statusMutation.mutate({ next: 'active', reason: statusReason })}
-              className="px-3 py-2 text-sm text-white rounded bg-green-700 hover:bg-green-800 disabled:opacity-40"
+              className="btn-success btn-sm"
             >
               Reactivate
             </button>
@@ -195,34 +255,45 @@ export default function PlatformOrgDetail() {
         </div>
 
         {/* Subscription override */}
-        <div className="bg-white rounded-lg border border-slate-200 p-5 space-y-3">
-          <h2 className="text-sm font-semibold text-slate-900 uppercase tracking-widest">Subscription</h2>
+        <div className="card p-5 space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="w-9 h-9 rounded-lg bg-secondary-50 text-secondary-700 flex items-center justify-center">
+              <Wallet className="w-4 h-4" />
+            </div>
+            <h2 className="font-heading text-base font-semibold text-healthcare-text">
+              Subscription
+            </h2>
+          </div>
           {org.subscription ? (
-            <div className="text-sm text-slate-600 space-y-0.5">
+            <div className="text-sm space-y-1 bg-healthcare-bg rounded-lg p-3 border border-healthcare-border/40">
               <div>
-                <span className="text-slate-500">Plan</span>{' '}
-                <span className="font-medium capitalize">{org.subscription.plan}</span>
+                <span className="text-healthcare-muted">Plan:</span>{' '}
+                <span className="font-semibold text-healthcare-text capitalize">
+                  {org.subscription.plan}
+                </span>
               </div>
               <div>
-                <span className="text-slate-500">Status</span>{' '}
-                <span className="font-medium">{org.subscription.status}</span>
+                <span className="text-healthcare-muted">Status:</span>{' '}
+                <span className="font-medium text-healthcare-text">{org.subscription.status}</span>
               </div>
               <div>
-                <span className="text-slate-500">Ends</span>{' '}
-                <span className="font-medium">{new Date(org.subscription.endDate).toLocaleDateString()}</span>
+                <span className="text-healthcare-muted">Ends:</span>{' '}
+                <span className="font-medium text-healthcare-text tabular-nums">
+                  {new Date(org.subscription.endDate).toLocaleDateString()}
+                </span>
               </div>
             </div>
           ) : (
-            <div className="text-sm text-slate-500">No subscription yet.</div>
+            <div className="text-sm text-healthcare-muted italic">No subscription yet.</div>
           )}
 
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-xs text-slate-500 mb-1">Plan</label>
+              <label className="block text-xs text-healthcare-muted mb-1 font-medium">Plan</label>
               <select
                 value={subPlan}
                 onChange={(e) => setSubPlan(e.target.value as typeof subPlan)}
-                className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
+                className="w-full bg-white border border-healthcare-border rounded-lg px-2 py-1.5 text-sm text-healthcare-text focus:outline-none focus:ring-[3px] focus:ring-primary-400 focus:border-primary-500"
               >
                 <option value="">(unchanged)</option>
                 <option value="starter">starter</option>
@@ -231,12 +302,12 @@ export default function PlatformOrgDetail() {
               </select>
             </div>
             <div>
-              <label className="block text-xs text-slate-500 mb-1">End date</label>
+              <label className="block text-xs text-healthcare-muted mb-1 font-medium">End date</label>
               <input
                 type="date"
                 value={subEnd}
                 onChange={(e) => setSubEnd(e.target.value)}
-                className="w-full border border-slate-300 rounded px-2 py-1.5 text-sm"
+                className="w-full bg-white border border-healthcare-border rounded-lg px-2 py-1.5 text-sm text-healthcare-text focus:outline-none focus:ring-[3px] focus:ring-primary-400 focus:border-primary-500"
               />
             </div>
           </div>
@@ -245,22 +316,22 @@ export default function PlatformOrgDetail() {
             onChange={(e) => setSubReason(e.target.value)}
             rows={2}
             placeholder="Reason (required, audited)…"
-            className="w-full border border-slate-300 rounded px-3 py-2 text-sm"
+            className="w-full bg-white border border-healthcare-border rounded-lg px-3 py-2 text-sm text-healthcare-text focus:outline-none focus:ring-[3px] focus:ring-primary-400 focus:border-primary-500 resize-none"
           />
           {subError && (
-            <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
+            <div className="text-sm text-danger-700 bg-danger-50 border border-danger-200 rounded-lg px-3 py-2">
               {subError}
             </div>
           )}
           {subSaved && (
-            <div className="text-sm text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
+            <div className="text-sm text-success-700 bg-success-50 border border-success-200 rounded-lg px-3 py-2">
               Subscription updated.
             </div>
           )}
           <button
             disabled={(!subPlan && !subEnd) || subReason.trim().length < 3 || subMutation.isPending}
             onClick={() => subMutation.mutate()}
-            className="px-3 py-2 text-sm text-white rounded bg-slate-900 hover:bg-slate-800 disabled:opacity-40"
+            className="btn-primary btn-sm"
           >
             {subMutation.isPending ? 'Saving…' : 'Override subscription'}
           </button>
@@ -268,16 +339,23 @@ export default function PlatformOrgDetail() {
       </div>
 
       {/* Impersonate */}
-      <div className="bg-white rounded-lg border border-slate-200 p-5 space-y-3">
-        <div>
-          <h2 className="text-sm font-semibold text-slate-900 uppercase tracking-widest">Impersonate</h2>
-          <p className="text-sm text-slate-500 mt-1">
-            Signs you into this org as an admin user for 15 minutes. Every action is audit-logged with your platform
-            admin ID.
-          </p>
+      <div className="card p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <div className="w-9 h-9 rounded-lg bg-danger-50 text-danger-600 flex items-center justify-center">
+            <UserCog className="w-4 h-4" />
+          </div>
+          <div>
+            <h2 className="font-heading text-base font-semibold text-healthcare-text">
+              Impersonate
+            </h2>
+            <p className="text-sm text-healthcare-muted mt-0.5">
+              Signs you into this org as an admin user for 15 minutes. Every action is
+              audit-logged with your platform admin ID.
+            </p>
+          </div>
         </div>
         {impError && (
-          <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
+          <div className="text-sm text-danger-700 bg-danger-50 border border-danger-200 rounded-lg px-3 py-2">
             {impError}
           </div>
         )}
@@ -285,7 +363,7 @@ export default function PlatformOrgDetail() {
           <button
             onClick={() => setShowImpConfirm(true)}
             disabled={org.status !== 'active'}
-            className="px-3 py-2 text-sm text-white rounded bg-slate-900 hover:bg-slate-800 disabled:opacity-40"
+            className="btn-primary btn-sm"
           >
             Impersonate admin
           </button>
@@ -297,14 +375,11 @@ export default function PlatformOrgDetail() {
                 impMutation.mutate()
               }}
               disabled={impMutation.isPending}
-              className="px-3 py-2 text-sm text-white rounded bg-red-700 hover:bg-red-800 disabled:opacity-60"
+              className="btn-danger btn-sm"
             >
               {impMutation.isPending ? 'Starting…' : 'Confirm — go to /dashboard'}
             </button>
-            <button
-              onClick={() => setShowImpConfirm(false)}
-              className="px-3 py-2 text-sm border border-slate-300 rounded hover:bg-slate-50"
-            >
+            <button onClick={() => setShowImpConfirm(false)} className="btn-outline btn-sm">
               Cancel
             </button>
           </div>
@@ -312,22 +387,28 @@ export default function PlatformOrgDetail() {
       </div>
 
       {/* Audit log */}
-      <div className="bg-white rounded-lg border border-slate-200 p-5 space-y-3">
-        <h2 className="text-sm font-semibold text-slate-900 uppercase tracking-widest">Audit log</h2>
-        <p className="text-sm text-slate-500">
-          Every action against this org — staff logins, suspensions, subscription changes, impersonations.
-        </p>
+      <div className="card p-5 space-y-3">
+        <div>
+          <h2 className="font-heading text-base font-semibold text-healthcare-text">Audit log</h2>
+          <p className="text-sm text-healthcare-muted mt-0.5">
+            Every action against this org — staff logins, suspensions, subscription changes,
+            impersonations.
+          </p>
+        </div>
         {id && <AuditLogList orgId={id} limit={25} />}
       </div>
 
       {org.lastActivityAt && (
-        <div className="text-xs text-slate-400">
+        <div className="text-xs text-healthcare-muted">
           Last logged activity: {new Date(org.lastActivityAt).toLocaleString()}
         </div>
       )}
 
       <div>
-        <button onClick={() => navigate(-1)} className="text-sm text-slate-500 hover:underline">
+        <button
+          onClick={() => navigate(-1)}
+          className="text-sm text-healthcare-muted hover:text-primary-600 transition-colors"
+        >
           ← Back
         </button>
       </div>

@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { PLAN_PRICES, isPlanKey } from './plans.js';
 
 export type SubscriptionLifecycleStatus =
   | 'active'
@@ -34,6 +35,16 @@ export async function activateOrExtendSubscription(
   const baseDate = existing && existing.endDate > now ? existing.endDate : now;
   const newEndDate = addMonths(baseDate, monthsToAdd);
 
+  // Lock in the price the customer just paid. Existing snapshot is preserved on
+  // plan-unchanged renewals; on plan changes (upgrade/downgrade) we re-snapshot
+  // to the current PLAN_PRICES entry.
+  const currentPlanPrice = isPlanKey(plan) ? PLAN_PRICES[plan] : null;
+  const existingSnapshot = (existing as any)?.priceSnapshot as number | null | undefined;
+  const priceSnapshot =
+    existing && existing.plan === plan && existingSnapshot && existingSnapshot > 0
+      ? existingSnapshot
+      : currentPlanPrice;
+
   const data = {
     plan,
     status: 'active' as SubscriptionLifecycleStatus,
@@ -44,9 +55,10 @@ export async function activateOrExtendSubscription(
     pastDueAt: null,
     nextChargeAttemptAt: null,
     failedAttempts: 0,
+    priceSnapshot,
     endDate: newEndDate,
     updatedAt: now,
-  };
+  } as any;
 
   if (existing) {
     return prisma.tawafudSubscription.update({

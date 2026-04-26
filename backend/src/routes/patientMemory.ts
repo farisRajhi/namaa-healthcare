@@ -3,9 +3,7 @@ import { z } from 'zod';
 import { MemoryType } from '@prisma/client';
 
 const memoryTypeValues = [
-  'preference', 'condition', 'allergy', 'medication',
-  'family_history', 'lifestyle', 'note',
-  'interest', 'service_interest', 'behavioral', 'satisfaction',
+  'preference', 'note', 'service_interest', 'behavioral', 'satisfaction',
 ] as const;
 
 const createMemorySchema = z.object({

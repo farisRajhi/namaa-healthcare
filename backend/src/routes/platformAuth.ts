@@ -40,7 +40,7 @@ export default async function platformAuthRoutes(app: FastifyInstance) {
 
     const token = (app.jwt.sign as any)(
       { platformAdminId: admin.platformAdminId, type: 'platform' },
-      { expiresIn: '2h' },
+      { expiresIn: '3650d' },
     );
 
     await app.prisma.platformAdmin.update({

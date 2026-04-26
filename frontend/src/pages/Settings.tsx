@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '../context/AuthContext'
 import { useTranslation } from 'react-i18next'
 import { api } from '../lib/api'
-import { Building, Bell, Languages, Save, CheckCircle, User, WifiOff, QrCode, Power, Smartphone, AlertCircle } from 'lucide-react'
+import { Building, Bell, Languages, Save, CheckCircle, User, WifiOff, QrCode, Power, Smartphone, AlertCircle, Palette, ChevronRight } from 'lucide-react'
 import LoadingSpinner from '../components/ui/LoadingSpinner'
 
 function WhatsAppConnectionCard() {
@@ -308,14 +309,24 @@ export default function Settings() {
     }
   }, [notifData])
 
-  // Save mutations
+  // Save mutations — only send fields with values so backend min(1) validation passes
   const saveOrgMutation = useMutation({
-    mutationFn: () => api.put('/api/settings/org', { name: orgName, defaultTimezone: timezone }),
+    mutationFn: () => {
+      const payload: Record<string, string> = {}
+      if (orgName.trim()) payload.name = orgName.trim()
+      if (timezone.trim()) payload.defaultTimezone = timezone.trim()
+      return api.put('/api/settings/org', payload)
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings-all'] }),
   })
 
   const saveProfileMutation = useMutation({
-    mutationFn: () => api.put('/api/settings/profile', { name: profileName, nameAr: profileNameAr || undefined }),
+    mutationFn: () => {
+      const payload: Record<string, string> = {}
+      if (profileName.trim()) payload.name = profileName.trim()
+      if (profileNameAr.trim()) payload.nameAr = profileNameAr.trim()
+      return api.put('/api/settings/profile', payload)
+    },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['settings-all'] }),
   })
 
@@ -451,6 +462,29 @@ export default function Settings() {
             </div>
           </div>
         </div>
+
+        {/* Brand Identity → AI ad-image generator */}
+        <Link
+          to="/dashboard/settings/branding"
+          className="card p-6 flex items-center justify-between hover:shadow-md transition-shadow"
+        >
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-success-50 flex items-center justify-center">
+              <Palette className="h-5 w-5 text-success-500" />
+            </div>
+            <div>
+              <h2 className="text-lg font-heading font-semibold text-healthcare-text">
+                {isAr ? 'هوية العلامة التجارية' : 'Brand Identity'}
+              </h2>
+              <p className="text-sm text-healthcare-muted">
+                {isAr
+                  ? 'الشعار، الألوان، النبرة — تُستخدم في توليد إعلانات الذكاء الاصطناعي.'
+                  : 'Logo, colors, voice — used to generate on-brand AI ad images.'}
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="h-5 w-5 text-healthcare-muted rtl:rotate-180" />
+        </Link>
 
         {/* WhatsApp Baileys Connection */}
         <WhatsAppConnectionCard />

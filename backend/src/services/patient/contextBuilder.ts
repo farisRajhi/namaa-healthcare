@@ -1,5 +1,4 @@
-import { PrismaClient, MemoryType } from '@prisma/client';
-import { getLLMService } from '../llm.js';
+import { PrismaClient } from '@prisma/client';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -18,79 +17,6 @@ export interface ConversationMessage {
   direction: 'in' | 'out';
   bodyText: string | null;
 }
-
-interface ExtractedMemory {
-  memoryType: MemoryType;
-  memoryKey: string;
-  memoryValue: string;
-}
-
-// ─── Memory value sanitization (prompt injection defense) ─────────────────────
-
-function sanitizeMemoryValue(value: string): string {
-  return value
-    .replace(/ignore\s+(previous|all|above)\s+(instructions?|prompts?)/gi, '[filtered]')
-    .replace(/system\s*:/gi, '[filtered]')
-    .replace(/###/g, '')
-    .replace(/```/g, '')
-    .slice(0, 500);
-}
-
-// ─── Keyword patterns for memory extraction ────────────────────────────────────
-
-const ALLERGY_PATTERNS = [
-  // Arabic patterns
-  /(?:عندي|لدي|أعاني من)\s*حساسية\s*(?:من|ضد)\s*(.+?)(?:\.|،|$)/i,
-  /حساسية\s*(.+?)(?:\.|،|$)/i,
-  // English patterns
-  /(?:i'?m|i am)\s*allergic\s*to\s*(.+?)(?:\.|,|$)/i,
-  /allergy\s*(?:to|from)\s*(.+?)(?:\.|,|$)/i,
-  /allergic\s*(?:to|from)\s*(.+?)(?:\.|,|$)/i,
-];
-
-const CONDITION_PATTERNS = [
-  // Arabic patterns
-  /(?:عندي|لدي|أعاني من|مصاب بـ?|عندي مرض)\s*(.+?)(?:\.|،|$)/i,
-  /(?:أعاني|يعاني)\s*(?:من)?\s*(.+?)(?:\.|،|$)/i,
-  /(?:مريض|مريضة)\s*(?:بـ?|ب)\s*(.+?)(?:\.|،|$)/i,
-];
-
-const CONDITION_KEYWORDS_AR = [
-  'سكر', 'سكري', 'ضغط', 'ربو', 'قلب', 'كلى', 'كبد', 'غدة', 'درقية',
-  'كوليسترول', 'أنيميا', 'فقر دم', 'روماتيزم', 'صداع نصفي',
-];
-
-const MEDICATION_PATTERNS = [
-  // Arabic patterns
-  /(?:آخذ|أخذ|أتناول|أستخدم|استخدم)\s*(?:حبوب|دواء|علاج|إبر|إبرة)?\s*(.+?)(?:\.|،|$)/i,
-  /(?:حبوب|دواء|علاج)\s+(.+?)(?:\.|،|$)/i,
-  // English patterns
-  /(?:i'?m|i am)\s*(?:taking|on|using)\s*(.+?)(?:\.|,|$)/i,
-  /(?:take|taking|prescribed)\s*(.+?)(?:\.|,|$)/i,
-];
-
-const PREFERENCE_PATTERNS = [
-  // Arabic patterns
-  /(?:أفضل|أبغى|أبي|أريد|أحب)\s*(?:دكتور|دكتورة|طبيب|طبيبة)\s*(.+?)(?:\.|،|$)/i,
-  /(?:أفضل|أبغى|أبي|أريد|أحب)\s*(?:موعد|مواعيد)\s*(?:الصبح|الصباح|بالصبح|صباحي|المساء|بالمساء|مسائي|بالليل|العصر|الظهر)(?:\.|،|$)/i,
-  /(?:أفضل|أبغى|أبي|أريد)\s*(.+?)(?:\.|،|$)/i,
-];
-
-const PREFERENCE_TIME_PATTERNS = [
-  /(?:أفضل|أبغى|أبي|أريد|أحب)\s*(?:موعد|مواعيد)?\s*(الصبح|الصباح|بالصبح|صباحي|صباحية)/i,
-  /(?:أفضل|أبغى|أبي|أريد|أحب)\s*(?:موعد|مواعيد)?\s*(المساء|بالمساء|مسائي|مسائية)/i,
-  /(?:أفضل|أبغى|أبي|أريد|أحب)\s*(?:موعد|مواعيد)?\s*(الظهر|بالظهر|ظهري)/i,
-  /(?:prefer|want)\s*(?:morning|afternoon|evening)\s*(?:appointment)?/i,
-];
-
-const FAMILY_PATTERNS = [
-  // Arabic patterns
-  /(?:بنتي|ابنتي|ولدي|ابني)\s*(?:عمرها?|عمره?)\s*(.+?)(?:\.|،|$)/i,
-  /(?:زوجتي|زوجي|أمي|أبوي|أخوي|أختي)\s*(.+?)(?:\.|،|$)/i,
-  /(?:بنتي|ابنتي|ولدي|ابني|طفلي|طفلتي)\s*(?:اسمها?|اسمه?)\s*(.+?)(?:\.|،|$)/i,
-  // English patterns
-  /(?:my\s+(?:daughter|son|wife|husband|mother|father|child))\s*(.+?)(?:\.|,|$)/i,
-];
 
 // ─── Arabic date/time formatting helpers ────────────────────────────────────────
 
@@ -134,19 +60,22 @@ export class ContextBuilder {
    * بناء سياق المريض الكامل لإضافته في system prompt
    */
   async buildPatientContext(patientId: string): Promise<string> {
+    // Fetch patient first to derive orgId for downstream queries (multi-tenant scoping).
+    const patient = await this.prisma.patient.findUnique({
+      where: { patientId },
+      include: { contacts: true },
+    });
+
+    if (!patient) return '';
+    const { orgId } = patient;
+
     const [
-      patient,
       memories,
       upcomingAppointments,
       recentAppointments,
       lastSummary,
       familyLinks,
     ] = await Promise.all([
-      // معلومات المريض الأساسية مع جهات الاتصال
-      this.prisma.patient.findUnique({
-        where: { patientId },
-        include: { contacts: true },
-      }),
       // ذاكرة المريض (الفعالة فقط)
       this.prisma.patientMemory.findMany({
         where: { patientId, isActive: true },
@@ -156,6 +85,7 @@ export class ContextBuilder {
       this.prisma.appointment.findMany({
         where: {
           patientId,
+          orgId,
           startTs: {
             gte: new Date(),
             lte: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
@@ -174,6 +104,7 @@ export class ContextBuilder {
       this.prisma.appointment.findMany({
         where: {
           patientId,
+          orgId,
           startTs: { lt: new Date() },
           status: { in: ['completed', 'checked_in', 'in_progress'] },
         },
@@ -197,8 +128,6 @@ export class ContextBuilder {
         include: { messagingUser: true },
       }),
     ]);
-
-    if (!patient) return '';
 
     // ─── بناء النص المنسق ───
     // SECURITY: Wrap patient data in clearly delimited tags to prevent prompt injection.
@@ -234,33 +163,6 @@ export class ContextBuilder {
       context += `- البريد: [محجوب]\n`;
     }
 
-    // الحساسيات
-    const allergies = memories.filter(m => m.memoryType === 'allergy');
-    if (allergies.length > 0) {
-      context += `\n### ⚠️ الحساسيات\n`;
-      allergies.forEach(a => {
-        context += `- ${a.memoryKey}: ${a.memoryValue}\n`;
-      });
-    }
-
-    // الحالات الصحية
-    const conditions = memories.filter(m => m.memoryType === 'condition');
-    if (conditions.length > 0) {
-      context += `\n### 🏥 الحالات الصحية\n`;
-      conditions.forEach(c => {
-        context += `- ${c.memoryKey}: ${c.memoryValue}\n`;
-      });
-    }
-
-    // الأدوية المسجلة (من الذاكرة)
-    const medicationMemories = memories.filter(m => m.memoryType === 'medication');
-    if (medicationMemories.length > 0) {
-      context += `\n### 💊 الأدوية (من المحادثات)\n`;
-      medicationMemories.forEach(m => {
-        context += `- ${m.memoryKey}: ${m.memoryValue}\n`;
-      });
-    }
-
     // التفضيلات
     const preferences = memories.filter(m => m.memoryType === 'preference');
     if (preferences.length > 0) {
@@ -270,39 +172,12 @@ export class ContextBuilder {
       });
     }
 
-    // معلومات عائلية
-    const familyInfo = memories.filter(m => m.memoryType === 'family_history');
-    if (familyInfo.length > 0) {
-      context += `\n### 👨‍👩‍👧 معلومات عائلية\n`;
-      familyInfo.forEach(f => {
-        context += `- ${f.memoryKey}: ${f.memoryValue}\n`;
-      });
-    }
-
-    // نمط الحياة
-    const lifestyle = memories.filter(m => m.memoryType === 'lifestyle');
-    if (lifestyle.length > 0) {
-      context += `\n### 🏃 نمط الحياة\n`;
-      lifestyle.forEach(l => {
-        context += `- ${l.memoryKey}: ${l.memoryValue}\n`;
-      });
-    }
-
     // اهتمامات بالخدمات
     const serviceInterests = memories.filter(m => m.memoryType === 'service_interest');
     if (serviceInterests.length > 0) {
       context += `\n### ✨ اهتمامات بالخدمات\n`;
       serviceInterests.forEach(si => {
         context += `- ${si.memoryKey}: ${si.memoryValue}\n`;
-      });
-    }
-
-    // اهتمامات عامة
-    const interests = memories.filter(m => m.memoryType === 'interest');
-    if (interests.length > 0) {
-      context += `\n### 💡 اهتمامات عامة\n`;
-      interests.forEach(i => {
-        context += `- ${i.memoryKey}: ${i.memoryValue}\n`;
       });
     }
 
@@ -383,301 +258,22 @@ export class ContextBuilder {
       context += `\n### 🌐 اللغة المفضلة: ${langPref.memoryValue}\n`;
     }
 
-    context += `\n---\nاستخدم هذا السياق لتخصيص ردودك. خاطب المريض باسمه. تجنب سؤاله عن معلومات متوفرة لديك. نبه من أي تعارض مع حساسياته أو أدويته.\n`;
+    context += `\n---\nاستخدم هذا السياق لتخصيص ردودك. خاطب المريض باسمه. تجنب سؤاله عن معلومات متوفرة لديك.\n`;
     context += `</patient_data>\n`;
 
     return context;
   }
 
   /**
-   * استخراج وحفظ الذكريات تلقائياً من المحادثة
-   * يستخدم regex أولاً (سريع) ثم LLM ثانياً (أعمق، غير حاجب)
+   * No-op kept for compatibility with callers in chat/voice routes.
+   * Auto-extraction has been disabled — patient profile data must be entered manually.
    */
   async extractMemories(
-    patientId: string,
-    conversationMessages: ConversationMessage[],
-    conversationId?: string,
+    _patientId: string,
+    _conversationMessages: ConversationMessage[],
+    _conversationId?: string,
   ): Promise<void> {
-    // 1. استخراج سريع بالأنماط
-    await this.extractMemoriesRegex(patientId, conversationMessages, conversationId);
-
-    // 2. استخراج ذكي بالنموذج اللغوي (غير حاجب)
-    this.extractMemoriesWithLLM(patientId, conversationMessages, conversationId)
-      .catch(err => console.error('[ContextBuilder] LLM memory extraction failed:', err));
-  }
-
-  /**
-   * استخراج الذكريات بالأنماط (regex) — سريع ومتزامن
-   */
-  private async extractMemoriesRegex(
-    patientId: string,
-    conversationMessages: ConversationMessage[],
-    conversationId?: string,
-  ): Promise<void> {
-    // نستخرج فقط من رسائل المريض (الواردة)
-    const patientMessages = conversationMessages
-      .filter(m => m.direction === 'in' && m.bodyText)
-      .map(m => m.bodyText!);
-
-    if (patientMessages.length === 0) return;
-
-    const fullText = patientMessages.join(' ');
-    const extracted: ExtractedMemory[] = [];
-
-    // استخراج الحساسيات
-    for (const pattern of ALLERGY_PATTERNS) {
-      const match = fullText.match(pattern);
-      if (match && match[1]) {
-        const value = match[1].trim();
-        if (value.length > 1 && value.length < 100) {
-          extracted.push({
-            memoryType: 'allergy',
-            memoryKey: value,
-            memoryValue: `حساسية من ${value}`,
-          });
-        }
-      }
-    }
-
-    // استخراج الحالات الصحية
-    for (const keyword of CONDITION_KEYWORDS_AR) {
-      if (fullText.includes(keyword)) {
-        extracted.push({
-          memoryType: 'condition',
-          memoryKey: keyword,
-          memoryValue: keyword,
-        });
-      }
-    }
-
-    for (const pattern of CONDITION_PATTERNS) {
-      const match = fullText.match(pattern);
-      if (match && match[1]) {
-        const value = match[1].trim();
-        // تجنب التكرار مع الكلمات المفتاحية المكتشفة أعلاه
-        const alreadyFound = extracted.some(
-          e => e.memoryType === 'condition' && value.includes(e.memoryKey),
-        );
-        if (!alreadyFound && value.length > 1 && value.length < 100) {
-          extracted.push({
-            memoryType: 'condition',
-            memoryKey: value,
-            memoryValue: value,
-          });
-        }
-      }
-    }
-
-    // استخراج الأدوية
-    for (const pattern of MEDICATION_PATTERNS) {
-      const match = fullText.match(pattern);
-      if (match && match[1]) {
-        const value = match[1].trim();
-        if (value.length > 1 && value.length < 100) {
-          extracted.push({
-            memoryType: 'medication',
-            memoryKey: value,
-            memoryValue: `يتناول ${value}`,
-          });
-        }
-      }
-    }
-
-    // استخراج تفضيلات الوقت
-    for (const pattern of PREFERENCE_TIME_PATTERNS) {
-      const match = fullText.match(pattern);
-      if (match) {
-        const timeValue = match[1] || match[0];
-        extracted.push({
-          memoryType: 'preference',
-          memoryKey: 'وقت_الموعد_المفضل',
-          memoryValue: timeValue.trim(),
-        });
-        break; // تفضيل وقت واحد فقط
-      }
-    }
-
-    // استخراج تفضيلات الطبيب
-    const doctorPrefPattern = /(?:أفضل|أبغى|أبي|أريد|أحب)\s*(?:دكتور|دكتورة|طبيب|طبيبة)\s+(.+?)(?:\.|،|$)/i;
-    const doctorMatch = fullText.match(doctorPrefPattern);
-    if (doctorMatch && doctorMatch[1]) {
-      const doctorName = doctorMatch[1].trim();
-      if (doctorName.length > 1 && doctorName.length < 80) {
-        extracted.push({
-          memoryType: 'preference',
-          memoryKey: 'الطبيب_المفضل',
-          memoryValue: doctorName,
-        });
-      }
-    }
-
-    // تفضيل طبيبة (أنثى)
-    if (/(?:أفضل|أبغى|أبي)\s*دكتورة/i.test(fullText)) {
-      extracted.push({
-        memoryType: 'preference',
-        memoryKey: 'جنس_الطبيب',
-        memoryValue: 'أنثى',
-      });
-    }
-
-    // استخراج معلومات عائلية
-    for (const pattern of FAMILY_PATTERNS) {
-      const match = fullText.match(pattern);
-      if (match && match[1]) {
-        const value = match[1].trim();
-        if (value.length > 1 && value.length < 150) {
-          // تحديد نوع العلاقة من النص
-          let relationship = 'فرد_عائلة';
-          if (/بنتي|ابنتي/.test(fullText)) relationship = 'ابنة';
-          else if (/ولدي|ابني/.test(fullText)) relationship = 'ابن';
-          else if (/زوجتي/.test(fullText)) relationship = 'زوجة';
-          else if (/زوجي/.test(fullText)) relationship = 'زوج';
-          else if (/أمي/.test(fullText)) relationship = 'أم';
-          else if (/أبوي|أبي/.test(fullText)) relationship = 'أب';
-
-          extracted.push({
-            memoryType: 'family_history',
-            memoryKey: relationship,
-            memoryValue: value,
-          });
-        }
-      }
-    }
-
-    // حفظ الذكريات المستخرجة (تجنب التكرار)
-    await this.upsertMemories(patientId, extracted, 0.8, conversationId);
-  }
-
-  /**
-   * استخراج ذكريات متقدمة باستخدام النموذج اللغوي (LLM)
-   * يركز على: اهتمامات بالخدمات، أنماط سلوكية، مؤشرات رضا
-   */
-  private async extractMemoriesWithLLM(
-    patientId: string,
-    conversationMessages: ConversationMessage[],
-    conversationId?: string,
-  ): Promise<void> {
-    // نحتاج 3 رسائل على الأقل من المريض لتبرير استدعاء LLM
-    const patientMsgCount = conversationMessages.filter(m => m.direction === 'in' && m.bodyText).length;
-    if (patientMsgCount < 3) return;
-
-    // بناء نص المحادثة
-    const conversationText = conversationMessages
-      .filter(m => m.bodyText)
-      .map(m => `${m.direction === 'in' ? 'المريض' : 'المساعد'}: ${m.bodyText}`)
-      .join('\n');
-
-    const systemPrompt = `أنت مساعد لاستخراج بيانات المرضى من المحادثات الطبية. استخرج فقط المعلومات التي ذكرها المريض صراحة أو ضمنياً.
-
-أرجع مصفوفة JSON فقط (بدون أي نص إضافي) بالشكل:
-[{"memoryType": "...", "memoryKey": "...", "memoryValue": "...", "confidence": 0.0-1.0}]
-
-الأنواع المسموحة لـ memoryType:
-- "service_interest" — خدمات يهتم بها المريض (مثال: تنظيف أسنان، جلدية، فحص شامل)
-- "interest" — اهتمامات عامة صحية (مثال: برامج وقائية، تغذية، رياضة)
-- "behavioral" — أنماط سلوكية (مثال: يفضل الصباح، يأتي كل سبت، يحجز مسبقاً)
-- "satisfaction" — مؤشرات رضا أو عدم رضا (مثال: أشاد بالدكتور أحمد، اشتكى من الانتظار)
-- "preference" — تفضيلات لم تُكتشف بالأنماط (مثال: يفضل التواصل بالواتساب)
-
-القواعد:
-- memoryKey يكون معرف قصير بالأحرف الصغيرة والشرطة السفلية (مثال: dental_cleaning, morning_preference)
-- memoryValue وصف واضح بلغة المريض
-- confidence: 0.9 للمذكور صراحة، 0.6 للمُستنتج
-- لا تستخرج التحيات أو الكلام العام
-- إذا لم تجد شيئاً أرجع مصفوفة فارغة []`;
-
-    try {
-      const llm = getLLMService();
-      const response = await llm.chat(
-        [{ role: 'user', content: conversationText }],
-        systemPrompt,
-      );
-
-      // استخراج JSON من الرد
-      const jsonMatch = response.match(/\[[\s\S]*\]/);
-      if (!jsonMatch) return;
-
-      const memories: Array<{
-        memoryType: string;
-        memoryKey: string;
-        memoryValue: string;
-        confidence?: number;
-      }> = JSON.parse(jsonMatch[0]);
-
-      if (!Array.isArray(memories) || memories.length === 0) return;
-
-      const validTypes: Set<string> = new Set([
-        'interest', 'service_interest', 'behavioral', 'satisfaction', 'preference',
-      ]);
-
-      const extracted: ExtractedMemory[] = [];
-      for (const mem of memories) {
-        if (!validTypes.has(mem.memoryType)) continue;
-        if (!mem.memoryKey || !mem.memoryValue) continue;
-
-        // تطبيع المفتاح: حروف صغيرة + شرطة سفلية
-        const normalizedKey = mem.memoryKey
-          .toLowerCase()
-          .replace(/\s+/g, '_')
-          .replace(/[^a-z0-9_\u0600-\u06FF]/g, '')
-          .slice(0, 100);
-
-        if (normalizedKey.length < 2) continue;
-
-        extracted.push({
-          memoryType: mem.memoryType as MemoryType,
-          memoryKey: normalizedKey,
-          memoryValue: mem.memoryValue.slice(0, 500),
-        });
-      }
-
-      await this.upsertMemories(patientId, extracted, 0.7, conversationId);
-    } catch (err) {
-      // صامت — لا نريد إيقاف أي شيء
-      console.error('[ContextBuilder] LLM extraction error:', err);
-    }
-  }
-
-  /**
-   * حفظ الذكريات المستخرجة في قاعدة البيانات
-   */
-  private async upsertMemories(
-    patientId: string,
-    memories: ExtractedMemory[],
-    defaultConfidence: number,
-    conversationId?: string,
-  ): Promise<void> {
-    for (const memory of memories) {
-      try {
-        const sanitizedValue = sanitizeMemoryValue(memory.memoryValue);
-        const sanitizedKey = sanitizeMemoryValue(memory.memoryKey);
-
-        await this.prisma.patientMemory.upsert({
-          where: {
-            patientId_memoryType_memoryKey: {
-              patientId,
-              memoryType: memory.memoryType,
-              memoryKey: sanitizedKey,
-            },
-          },
-          update: {
-            memoryValue: sanitizedValue,
-            updatedAt: new Date(),
-          },
-          create: {
-            patientId,
-            memoryType: memory.memoryType,
-            memoryKey: sanitizedKey,
-            memoryValue: sanitizedValue,
-            confidence: defaultConfidence,
-            sourceConversationId: conversationId || null,
-            isActive: true,
-          },
-        });
-      } catch (err) {
-        console.error('[ContextBuilder] خطأ في حفظ الذاكرة:', err);
-      }
-    }
+    return;
   }
 
   /**

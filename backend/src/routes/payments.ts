@@ -8,6 +8,7 @@ import {
   mapStatus,
   extractCardSnapshot,
   TapWebhookEvent,
+  TapApiError,
 } from '../services/tap.js';
 import { activateOrExtendSubscription } from '../services/billing/subscriptions.js';
 import { PLAN_PRICES, isPlanKey } from '../services/billing/plans.js';
@@ -62,6 +63,34 @@ export default async function paymentsRoutes(app: FastifyInstance) {
       const currency = (body.currency || 'SAR').toUpperCase();
       const amount = halalasToDecimal(amountHalalas, currency);
 
+      // Price-drift sanity check: warn (but allow) if the org has an active sub on the
+      // same plan being charged a different amount than its locked-in priceSnapshot.
+      // This catches accidental PLAN_PRICES edits without blocking legit upgrades/overrides.
+      if (planKey) {
+        const activeSub = await app.prisma.tawafudSubscription.findUnique({
+          where: { orgId: user.orgId },
+        });
+        const snapshot = (activeSub as any)?.priceSnapshot as number | null | undefined;
+        if (
+          activeSub &&
+          activeSub.status === 'active' &&
+          activeSub.plan === planKey &&
+          snapshot &&
+          snapshot > 0 &&
+          snapshot !== amountHalalas
+        ) {
+          app.log.warn(
+            {
+              orgId: user.orgId,
+              plan: planKey,
+              snapshotHalalas: snapshot,
+              chargeHalalas: amountHalalas,
+            },
+            '[payments/create] price drift vs subscription priceSnapshot — proceeding (admin override or upgrade)',
+          );
+        }
+      }
+
       // Dedupe identical (orgId, tokenId) submissions for 30 seconds.
       gcInflight();
       const dedupeKey = `${user.orgId}:${body.tokenId}`;
@@ -85,8 +114,8 @@ export default async function paymentsRoutes(app: FastifyInstance) {
 
         const redirectUrl =
           body.callbackUrl ||
-          `${process.env.FRONTEND_URL || 'http://localhost:5173'}/billing?payment=callback${planKey ? `&plan=${planKey}` : ''}`;
-        const webhookUrl = `${process.env.BASE_URL || process.env.BACKEND_URL || 'http://localhost:3003'}/api/payments/webhook`;
+          `${process.env.FRONTEND_URL}/billing?payment=callback${planKey ? `&plan=${planKey}` : ''}`;
+        const webhookUrl = `${process.env.BASE_URL || process.env.BACKEND_URL}/api/payments/webhook`;
 
         // Look up an existing customer id from a prior charge (so Tap reuses the customer).
         const lastPayment = await app.prisma.tawafudPayment.findFirst({
@@ -166,13 +195,35 @@ export default async function paymentsRoutes(app: FastifyInstance) {
         return reply.send(result);
       } catch (error: any) {
         inflightCharges.delete(dedupeKey);
+        // Full Tap payload stays in server logs for support; the client gets a
+        // typed error so the UI can localize the message.
         app.log.error({ err: error, details: error?.details }, '[payments/create]');
-        return reply.code(error?.statusCode && error.statusCode < 500 ? 400 : 500).send({
-          error: 'Payment creation failed',
-          message: error?.message,
-          details: error?.details,
+        const tapErr = error as TapApiError;
+        const isUserError = tapErr?.isUserError ?? (tapErr?.statusCode && tapErr.statusCode < 500);
+        const statusCode = isUserError ? 400 : 500;
+        return reply.code(statusCode).send({
+          error: 'payment_failed',
+          code: tapErr?.kind ?? 'unknown',
+          tapCode: tapErr?.code ?? null,
+          message: error?.message || 'Payment failed',
         });
       }
+    },
+  );
+
+  // GET /api/payments/config — lets the frontend check whether Tap is set up
+  // before rendering the card form. Does not leak the secret key.
+  app.get(
+    '/config',
+    async (_request, reply) => {
+      const publicKey = process.env.TAP_PUBLIC_KEY || '';
+      const merchantId = process.env.TAP_MERCHANT_ID || '';
+      const hasSecret = !!(process.env.TAP_SECRET_KEY && process.env.TAP_SECRET_KEY !== 'sk_test_CHANGE_ME');
+      return reply.send({
+        enabled: hasSecret && !!publicKey,
+        publicKey,
+        merchantId,
+      });
     },
   );
 
@@ -261,6 +312,27 @@ export default async function paymentsRoutes(app: FastifyInstance) {
         { chargeId: event.id, status: event.status, mapped },
         '[webhook] Tap event received',
       );
+
+      // Persistent idempotency: insert one row per (provider, eventId). A unique-constraint
+      // violation (P2002) means Tap is replaying an event we already processed — ack 200 and stop.
+      try {
+        await app.prisma.webhookEvent.create({
+          data: {
+            provider: 'tap',
+            eventId: event.id,
+            eventType: event.status ?? null,
+            signatureValid: true,
+            payload: event as any,
+          },
+        });
+      } catch (dedupeErr: any) {
+        if (dedupeErr?.code === 'P2002') {
+          app.log.info({ chargeId: event.id }, '[webhook] duplicate webhook — already processed');
+          return reply.send({ received: true, processed: false, reason: 'duplicate' });
+        }
+        app.log.error({ err: dedupeErr, chargeId: event.id }, '[webhook] failed to record event');
+        return reply.code(503).send({ error: 'Webhook processing failed', message: dedupeErr?.message });
+      }
 
       try {
         const payment = await app.prisma.tawafudPayment.findFirst({

@@ -1,20 +1,27 @@
 import { PrismaClient } from '@prisma/client';
-import type { Twilio } from 'twilio';
 import { getLLMService, ChatMessage } from '../llm.js';
-import { buildWhatsAppSystemPrompt } from '../systemPrompt.js';
+import { buildSlimWhatsAppPrompt, getToolCategoriesForState } from '../systemPrompt.js';
 import { GuardrailsService, ValidationContext } from '../ai/guardrails.js';
-import { ToolRegistry } from '../ai/toolRegistry.js';
+import { ToolRegistry, type SerializedToolRefs } from '../ai/toolRegistry.js';
 import { ConversationFlowManager, FlowContext } from '../ai/conversationFlow.js';
 import { SessionCompactor } from '../ai/sessionCompactor.js';
 import { redactPII } from '../security/piiRedactor.js';
-import { checkAndIncrement, AI_LIMIT_ERROR } from '../usage/aiUsageLimiter.js';
+import {
+  checkLimit,
+  recordUsage,
+  checkConversationCap,
+  incrementConversationTokens,
+  resolveOrgPlan,
+  AI_LIMIT_ERROR,
+  CONVERSATION_CAP_ERROR,
+} from '../usage/aiUsageLimiter.js';
 import { ContextBuilder } from '../patient/contextBuilder.js';
 import { OfferManager } from '../offers/offerManager.js';
 import { MarketingConsentService } from '../compliance/marketingConsent.js';
 
 // ─────────────────────────────────────────────────────────
 // WhatsApp Conversational AI Handler
-// Processes incoming WhatsApp messages via Twilio,
+// Processes incoming WhatsApp messages via Baileys,
 // generates AI responses with tool calling, conversation
 // flow control, and session compaction.
 // ─────────────────────────────────────────────────────────
@@ -53,7 +60,10 @@ function normalizeArabic(text: string): string {
 
 /**
  * Phase 5.1: Fuzzy keyword matching with Levenshtein distance.
- * Returns true if the message contains the keyword (exact or within edit distance 2).
+ * Returns true if the message contains the keyword (exact or within a
+ * length-scaled edit distance). The threshold scales with keyword length
+ * to avoid short-word false positives (e.g. "يوم" vs "رسوم" at lev=2,
+ * which would otherwise hijack day selections during booking).
  */
 function fuzzyMatch(message: string, keyword: string): boolean {
   const normalizedKw = normalizeArabic(keyword);
@@ -64,16 +74,23 @@ function fuzzyMatch(message: string, keyword: string): boolean {
   // For short keywords (<=3 chars), only allow exact match
   if (normalizedKw.length <= 3) return false;
 
+  // Scale edit-distance threshold with keyword length:
+  //   4-5 chars → 1 edit max, 6-7 → 2, 8+ → 2
+  const wordThreshold = normalizedKw.length <= 5 ? 1 : 2;
+
   // Check words in message against keyword with Levenshtein distance
   const words = message.split(/\s+/);
   for (const word of words) {
-    if (levenshtein(word, normalizedKw) <= 2) return true;
+    if (levenshtein(word, normalizedKw) <= wordThreshold) return true;
   }
 
-  // Check sliding window of keyword length across message
-  for (let i = 0; i <= message.length - normalizedKw.length; i++) {
-    const substr = message.slice(i, i + normalizedKw.length);
-    if (levenshtein(substr, normalizedKw) <= 1) return true;
+  // Sliding window only for longer keywords (≥6 chars) — otherwise too
+  // many false positives inside common Arabic phrases.
+  if (normalizedKw.length >= 6) {
+    for (let i = 0; i <= message.length - normalizedKw.length; i++) {
+      const substr = message.slice(i, i + normalizedKw.length);
+      if (levenshtein(substr, normalizedKw) <= 1) return true;
+    }
   }
 
   return false;
@@ -106,10 +123,14 @@ export class WhatsAppHandler {
   private flowManager: ConversationFlowManager;
   private compactor: SessionCompactor;
 
+  // Per-(org+phone) mutex: serializes concurrent messages from the same patient
+  // so that loadContext → process → saveContext sequences cannot interleave.
+  // Without this, two messages 200ms apart can corrupt FlowContext (booking
+  // state lost) and create duplicate Conversation rows.
+  private static conversationLocks = new Map<string, Promise<unknown>>();
+
   constructor(
     private prisma: PrismaClient,
-    private twilioClient: Twilio | null,
-    private twilioPhoneNumber?: string,
     private log?: { info: Function; warn: Function; error: Function },
   ) {
     this.flowManager = new ConversationFlowManager(prisma);
@@ -118,8 +139,8 @@ export class WhatsAppHandler {
 
   /**
    * Process an incoming WhatsApp message end-to-end.
-   * Returns the AI response text.
-   * @param skipSend If true, skip sending the reply (caller handles it — e.g. Baileys).
+   * Wraps the actual processing in a per-conversation mutex so concurrent
+   * messages from the same patient run serially.
    */
   async handleIncoming(
     from: string,
@@ -130,25 +151,54 @@ export class WhatsAppHandler {
     aiAutoReply = true,
   ): Promise<string> {
     const phone = normalizePhone(from);
+    const lockKey = `${orgId}:${phone}`;
 
+    const previous = WhatsAppHandler.conversationLocks.get(lockKey) ?? Promise.resolve();
+    const current = previous.then(
+      () => this._processMessage(phone, body, messageSid, orgId, skipSend, aiAutoReply),
+      () => this._processMessage(phone, body, messageSid, orgId, skipSend, aiAutoReply),
+    );
+    WhatsAppHandler.conversationLocks.set(lockKey, current);
+
+    // Auto-cleanup: drop the lock entry once this turn settles, so the Map
+    // doesn't grow unbounded across thousands of distinct phones.
+    current.finally(() => {
+      if (WhatsAppHandler.conversationLocks.get(lockKey) === current) {
+        WhatsAppHandler.conversationLocks.delete(lockKey);
+      }
+    }).catch(() => { /* swallow — error already returned via current */ });
+
+    return current as Promise<string>;
+  }
+
+  /**
+   * The actual message processing pipeline (formerly handleIncoming body).
+   * @param skipSend If true, skip sending the reply (caller handles it — e.g. Baileys).
+   */
+  private async _processMessage(
+    phone: string,
+    body: string,
+    messageSid: string,
+    orgId: string,
+    skipSend: boolean,
+    aiAutoReply: boolean,
+  ): Promise<string> {
     this.log?.info({ phone: redactPII(phone).redactedText, messageSid }, 'WhatsApp incoming message');
 
-    // 1. Find or create MessagingUser
-    let messagingUser = await this.prisma.messagingUser.findFirst({
-      where: { orgId, channel: 'whatsapp', phoneE164: phone },
+    // 1. Find or create MessagingUser (upsert is atomic — prevents race on concurrent messages)
+    const messagingUser = await this.prisma.messagingUser.upsert({
+      where: {
+        orgId_channel_externalUserId: { orgId, channel: 'whatsapp', externalUserId: phone },
+      },
+      create: {
+        orgId,
+        channel: 'whatsapp',
+        externalUserId: phone,
+        phoneE164: phone,
+        displayName: phone,
+      },
+      update: {},
     });
-
-    if (!messagingUser) {
-      messagingUser = await this.prisma.messagingUser.create({
-        data: {
-          orgId,
-          channel: 'whatsapp',
-          externalUserId: phone,
-          phoneE164: phone,
-          displayName: phone,
-        },
-      });
-    }
 
     // 2. Find patient by phone (via PatientContact)
     const patient = await this.findPatientByPhone(phone, orgId);
@@ -162,20 +212,48 @@ export class WhatsAppHandler {
     );
     const conversationId = conversation.conversationId;
 
-    // 4. Save incoming message (PII-redacted bodyText)
+    // 4. Save incoming message (PII-redacted bodyText).
+    // Idempotency: upsert on (conversationId, platformMessageId) so a duplicate
+    // delivery from Baileys (e.g. retransmit on reconnect) doesn't double-process
+    // the same message. If the row already existed, skip AI work and return early.
     let redactedBody = body;
     try {
       redactedBody = redactPII(body).redactedText;
     } catch (_) { /* keep original if redaction fails */ }
 
-    await this.prisma.conversationMessage.create({
-      data: {
+    const existingInbound = await this.prisma.conversationMessage.findUnique({
+      where: {
+        conversationId_platformMessageId: {
+          conversationId,
+          platformMessageId: messageSid,
+        },
+      },
+      select: { messageId: true },
+    });
+
+    if (existingInbound) {
+      this.log?.info(
+        { phone: redactPII(phone).redactedText, messageSid, conversationId },
+        'WhatsApp duplicate inbound — skipping AI processing',
+      );
+      return '';
+    }
+
+    await this.prisma.conversationMessage.upsert({
+      where: {
+        conversationId_platformMessageId: {
+          conversationId,
+          platformMessageId: messageSid,
+        },
+      },
+      create: {
         conversationId,
         platformMessageId: messageSid,
         direction: 'in',
         bodyText: redactedBody,
-        payload: { source: 'whatsapp', twilioSid: messageSid },
+        payload: { source: 'whatsapp', messageId: messageSid },
       },
+      update: {},
     });
 
     // AI auto-reply check — message is stored, but skip AI processing if disabled
@@ -188,28 +266,11 @@ export class WhatsAppHandler {
       return '';
     }
 
-    // 4b. Check pre-built WhatsApp templates (fast-path – no LLM needed)
-    const templateResponse = await this.matchTemplate(body, orgId);
-    if (templateResponse) {
-      if (!skipSend) await this.sendMessage(phone, templateResponse);
-      await this.prisma.conversationMessage.create({
-        data: {
-          conversationId,
-          direction: 'out',
-          bodyText: templateResponse,
-          payload: { source: 'whatsapp_template' },
-        },
-      });
-      await this.prisma.conversation.update({
-        where: { conversationId },
-        data: { lastActivityAt: new Date() },
-      });
-      return templateResponse;
-    }
-
-    // ─── Enhanced AI Pipeline ─────────────────────────────
-
-    // 5. Load conversation flow context (with session resumption)
+    // 4b. Load conversation flow context (with session resumption).
+    // Moved ahead of the template check so active task flows (booking,
+    // cancelling, rescheduling, confirming) can bypass templates — their
+    // short user replies ("يوم الاحد", "الصباح") must not be intercepted
+    // as new intent matches.
     let flowCtx = await this.flowManager.loadContext(conversationId);
     let resumeSummary = '';
     if (!flowCtx) {
@@ -230,6 +291,37 @@ export class WhatsAppHandler {
       }
     }
     flowCtx.patientIdentified = !!patient;
+
+    const inActiveTaskFlow =
+      flowCtx.state === 'booking' ||
+      flowCtx.state === 'cancelling' ||
+      flowCtx.state === 'rescheduling' ||
+      flowCtx.state === 'confirming';
+
+    // 4c. Check pre-built WhatsApp templates (fast-path – no LLM needed).
+    // Skipped during active task flows because short contextual replies
+    // can falsely match generic keywords (e.g. "يوم" ≈ "رسوم" at lev=2).
+    if (!inActiveTaskFlow) {
+      const templateResponse = await this.matchTemplate(body, orgId);
+      if (templateResponse) {
+        if (!skipSend) await this.sendMessage(phone, templateResponse);
+        await this.prisma.conversationMessage.create({
+          data: {
+            conversationId,
+            direction: 'out',
+            bodyText: templateResponse,
+            payload: { source: 'whatsapp_template' },
+          },
+        });
+        await this.prisma.conversation.update({
+          where: { conversationId },
+          data: { lastActivityAt: new Date() },
+        });
+        return templateResponse;
+      }
+    }
+
+    // ─── Enhanced AI Pipeline ─────────────────────────────
 
     // 6. Check turn budget
     if (this.flowManager.isBudgetExceeded(flowCtx)) {
@@ -294,13 +386,18 @@ export class WhatsAppHandler {
       }
     }
 
-    // 9. Initialize tool registry with conversation context
+    // 9. Initialize tool registry with conversation context. Hydrate the per-
+    // conversation tool ref maps (provider/service/appointment numbered refs)
+    // from previous turns so "[طبيب 1]" said by the LLM in turn N still resolves
+    // to a real UUID in turn N+1.
     const permissionLevel = patient ? 'identified' : 'anonymous';
+    const persistedRefs = await this.loadToolRefs(conversationId);
     const toolRegistry = new ToolRegistry(
       this.prisma,
       orgId,
       patient?.patientId ?? null,
       conversationId,
+      persistedRefs,
     );
     toolRegistry.setPermissionLevel(permissionLevel);
     toolRegistry.setChannel('whatsapp');
@@ -309,14 +406,38 @@ export class WhatsAppHandler {
     if (isEnglish) {
       toolRegistry.setPatientLanguage('en');
     }
-    const tools = toolRegistry.getToolDefinitions(permissionLevel);
+    // State-aware tool selection — only load tool schemas relevant to the
+    // current conversation phase. Cuts per-turn token cost ~1,000-1,500.
+    const toolCategories = getToolCategoriesForState(flowCtx.state);
+    const tools = toolCategories.length > 0
+      ? toolRegistry.getToolsByCategory(toolCategories, permissionLevel)
+      : [];
 
-    // 10. AI usage limit check
-    const usageCheck = await checkAndIncrement(this.prisma, orgId);
-    if (!usageCheck.allowed) {
+    // 10a. Monthly token budget check (per-org, plan-aware).
+    // resolveOrgPlan gives trialing orgs the Professional budget instead of
+    // falling through to Starter when they have no subscription row yet.
+    const plan = await resolveOrgPlan(this.prisma, orgId);
+    const budgetCheck = await checkLimit(this.prisma, orgId, plan);
+    if (!budgetCheck.allowed) {
       const limitMsg = `${AI_LIMIT_ERROR.ar}\n\n${AI_LIMIT_ERROR.en}`;
-      await this.sendMessage(phone, limitMsg);
+      if (!skipSend) await this.sendMessage(phone, limitMsg);
+      await this.saveOutgoingMessage(conversationId, limitMsg, { source: 'token_limit' });
       return limitMsg;
+    }
+
+    // 10b. Per-conversation cap check — prevents runaway sessions
+    const convCap = await checkConversationCap(this.prisma, conversationId);
+    if (!convCap.allowed) {
+      const handoffMsg = `${CONVERSATION_CAP_ERROR.ar}\n\n${CONVERSATION_CAP_ERROR.en}`;
+      if (!skipSend) await this.sendMessage(phone, handoffMsg);
+      await this.saveOutgoingMessage(conversationId, handoffMsg, { source: 'conversation_cap' });
+      await this.prisma.conversation.update({
+        where: { conversationId },
+        data: { humanHandoff: true, lastActivityAt: new Date() },
+      });
+      flowCtx.state = 'handoff';
+      await this.flowManager.saveContext(conversationId, flowCtx);
+      return handoffMsg;
     }
 
     // 11. Call LLM with tools (agentic loop)
@@ -327,7 +448,7 @@ export class WhatsAppHandler {
       tools,
       (name, args) => toolRegistry.executeTool(name, args),
       {
-        maxIterations: 6,
+        maxIterations: 3,
         onToolCall: (name, _args) => {
           this.log?.info({ conversationId, tool: name }, 'AI calling tool');
         },
@@ -335,6 +456,14 @@ export class WhatsAppHandler {
     );
 
     let response = llmResult.response;
+
+    // 11a. Record actual token usage (per-org monthly + per-conversation running total)
+    try {
+      await recordUsage(this.prisma, orgId, llmResult.usage);
+      await incrementConversationTokens(this.prisma, conversationId, llmResult.usage.totalTokens);
+    } catch (err) {
+      this.log?.warn({ err }, 'Failed to record AI token usage — non-fatal');
+    }
 
     // 11. Update conversation flow based on tool calls and message
     const toolCallNames = llmResult.toolCalls.map(tc => tc.toolName);
@@ -353,11 +482,17 @@ export class WhatsAppHandler {
     );
 
     // If guest booking just completed, upgrade permission for remaining conversation
+    // and link the new patient to this conversation in DB so future turns + analytics
+    // see the relationship (in-memory flowCtx alone is lost on server restart).
     if (toolCallNames.includes('book_appointment_guest') && !patient) {
       const newPatient = await this.findPatientByPhone(phone, orgId);
       if (newPatient) {
         toolRegistry.setPermissionLevel('identified');
         flowCtx.patientIdentified = true;
+        await this.prisma.conversation.update({
+          where: { conversationId },
+          data: { patientId: newPatient.patientId },
+        }).catch(err => this.log?.warn({ err, conversationId }, 'Failed to link patient to conversation'));
       }
     }
 
@@ -404,10 +539,10 @@ export class WhatsAppHandler {
     // 13. Send response via WhatsApp
     if (!skipSend) await this.sendMessage(phone, response);
 
-    // 14. Save AI response message with tool call metadata
+    // 14. Save AI response message with tool call metadata + per-turn token counts
     await this.saveOutgoingMessage(conversationId, response, {
       source: 'whatsapp',
-      model: process.env.LLM_MODEL || 'gpt-4-turbo-preview',
+      model: process.env.LLM_MODEL || 'gemini-2.5-flash',
       confidence: guardrailResult?.confidence ?? null,
       guardrailFlags: guardrailResult?.flags?.map((f) => f.type) ?? [],
       toolCalls: llmResult.toolCalls.map(tc => ({
@@ -416,6 +551,7 @@ export class WhatsAppHandler {
       })),
       iterations: llmResult.totalIterations,
       conversationState: flowCtx.state,
+      tokens: llmResult.usage,
     });
 
     // 15. Update conversation metadata
@@ -427,54 +563,61 @@ export class WhatsAppHandler {
     // 16. Persist flow context
     await this.flowManager.saveContext(conversationId, flowCtx);
 
+    // 17. Persist tool reference maps so the next turn can resolve "[طبيب 1]"
+    // back to the same UUID. Without this the LLM hallucinates ref numbers and
+    // booking tools fail with "providerId required".
+    await this.saveToolRefs(conversationId, toolRegistry.getRefs())
+      .catch(err => this.log?.warn({ err, conversationId }, 'Failed to persist tool refs'));
+
     return response;
   }
 
   /**
-   * Send a WhatsApp message via Twilio.
-   * Splits long messages at paragraph boundaries (WhatsApp limit ~4096 chars).
+   * Load persisted tool reference maps from Conversation.context.toolRefs.
+   * Returns undefined if none exist yet (first turn).
    */
-  async sendMessage(to: string, body: string): Promise<void> {
-    if (!this.twilioClient) {
-      this.log?.warn('Twilio not configured — WhatsApp message not sent (dev mode)');
-      return;
+  private async loadToolRefs(conversationId: string): Promise<SerializedToolRefs | undefined> {
+    try {
+      const conv = await this.prisma.conversation.findUnique({
+        where: { conversationId },
+        select: { context: true },
+      });
+      const ctx = conv?.context as Record<string, unknown> | null;
+      const refs = ctx?.toolRefs as SerializedToolRefs | undefined;
+      return refs;
+    } catch (err) {
+      this.log?.warn({ err, conversationId }, 'Failed to load tool refs');
+      return undefined;
     }
-
-    const MAX_WA_LENGTH = 4000; // Leave margin from 4096 limit
-    if (body.length <= MAX_WA_LENGTH) {
-      await this.sendSingle(to, body);
-      return;
-    }
-
-    // Split at paragraph boundaries for long messages
-    const paragraphs = body.split('\n\n');
-    let current = '';
-    for (const para of paragraphs) {
-      if ((current + '\n\n' + para).length > MAX_WA_LENGTH && current) {
-        await this.sendSingle(to, current.trim());
-        current = para;
-      } else {
-        current += (current ? '\n\n' : '') + para;
-      }
-    }
-    if (current) await this.sendSingle(to, current.trim());
   }
 
-  /** Send a single WhatsApp message via Twilio */
-  private async sendSingle(to: string, body: string): Promise<void> {
-    const fromNumber = this.twilioPhoneNumber;
-    if (!fromNumber) {
-      throw new Error('TWILIO_PHONE_NUMBER not configured');
-    }
-
-    const toFormatted = to.startsWith('whatsapp:') ? to : `whatsapp:${to}`;
-    const fromFormatted = `whatsapp:${fromNumber}`;
-
-    await this.twilioClient!.messages.create({
-      from: fromFormatted,
-      to: toFormatted,
-      body,
+  /**
+   * Persist the current tool ref maps under Conversation.context.toolRefs.
+   * Read-modify-write is safe here because it's wrapped in the per-conversation
+   * mutex from handleIncoming.
+   */
+  private async saveToolRefs(conversationId: string, refs: SerializedToolRefs): Promise<void> {
+    const conv = await this.prisma.conversation.findUnique({
+      where: { conversationId },
+      select: { context: true },
     });
+    const existingContext = (conv?.context as Record<string, unknown>) ?? {};
+    await this.prisma.conversation.update({
+      where: { conversationId },
+      data: {
+        context: { ...existingContext, toolRefs: refs as unknown as Record<string, unknown> } as any,
+      },
+    });
+  }
+
+  /**
+   * Stub send — Baileys callers always pass `skipSend=true` and send via the
+   * BaileysManager themselves. The internal early-return paths (rate-limit,
+   * budget exceeded) call this only when `!skipSend`, which is never true in
+   * the Baileys flow. Kept as a safety no-op so those branches don't crash.
+   */
+  async sendMessage(_to: string, _body: string): Promise<void> {
+    this.log?.warn('WhatsAppHandler.sendMessage called without skipSend — Baileys is the sole transport, this is a no-op');
   }
 
   /**
@@ -743,12 +886,7 @@ export class WhatsAppHandler {
       ? result
       : `تمام ${firstName}! ثواني وأحجز لك الموعد...\n\n${result}`;
 
-    // Save the user message
-    await this.prisma.conversationMessage.create({
-      data: { conversationId, direction: 'in', bodyText: userMessage, payload: { source: 'whatsapp' } },
-    });
-
-    // Send response
+    // Send response (user message already saved by handleIncoming caller)
     if (!skipSend) await this.sendMessage(phone, response);
 
     // Save AI response
@@ -762,9 +900,16 @@ export class WhatsAppHandler {
     flowCtx.booking = undefined;
     flowCtx.lastCompletedAction = 'booking';
     await this.flowManager.saveContext(conversationId, flowCtx);
+
+    // Link the new patient to this conversation if booking succeeded
+    const conversationUpdate: Record<string, unknown> = { lastActivityAt: new Date() };
+    if (isSuccess) {
+      const newPatient = await this.findPatientByPhone(phone, orgId);
+      if (newPatient) conversationUpdate.patientId = newPatient.patientId;
+    }
     await this.prisma.conversation.update({
       where: { conversationId },
-      data: { lastActivityAt: new Date() },
+      data: conversationUpdate,
     });
 
     return response;
@@ -781,18 +926,16 @@ export class WhatsAppHandler {
     flowCtx: FlowContext,
     whatsappPhone?: string,
   ): Promise<string> {
-    let prompt = await buildWhatsAppSystemPrompt(this.prisma, orgId);
-
-    // Fetch org name for greeting context
-    const org = await this.prisma.org.findUnique({
+    // Fetch org name first so the slim builder has orgName available
+    const orgForName = await this.prisma.org.findUnique({
       where: { orgId },
       select: { name: true },
     });
-    flowCtx.orgName = org?.name ?? undefined;
+    flowCtx.orgName = orgForName?.name ?? undefined;
+    let prompt = await buildSlimWhatsAppPrompt(this.prisma, orgId, flowCtx);
 
     // Add patient-specific context if we know who they are
     if (patientId) {
-      // Use comprehensive ContextBuilder (includes allergies, conditions, preferences, etc.)
       try {
         const ctxBuilder = new ContextBuilder(this.prisma);
         const patientContext = await ctxBuilder.buildPatientContext(patientId);
@@ -852,6 +995,12 @@ export class WhatsAppHandler {
       redactedText = redactPII(text).redactedText;
     } catch (_) { /* keep original */ }
 
+    // Extract token usage from payload (if LLM generated this turn) into
+    // the dedicated ConversationMessage columns for easy aggregation.
+    const tokens = payload.tokens as
+      | { promptTokens?: number; completionTokens?: number; totalTokens?: number }
+      | undefined;
+
     // Cast payload for Prisma JSON compatibility
     const safePayload = JSON.parse(JSON.stringify(payload));
 
@@ -861,6 +1010,9 @@ export class WhatsAppHandler {
         direction: 'out',
         bodyText: redactedText,
         payload: safePayload,
+        promptTokens: tokens?.promptTokens ?? null,
+        completionTokens: tokens?.completionTokens ?? null,
+        totalTokens: tokens?.totalTokens ?? null,
       },
     });
   }
@@ -973,7 +1125,7 @@ export class WhatsAppHandler {
     // ── Promo code detection ──────────────────────────────────────────────
     const promoCodeMatch = body.trim().toUpperCase().match(/^(NM[A-Z0-9]{4,6})$/);
     if (promoCodeMatch) {
-      const offerManager = new OfferManager(this.prisma, null);
+      const offerManager = new OfferManager(this.prisma);
       const patient = await this.findPatientByPhone(normalizePhone(''), orgId);
       const result = await offerManager.validatePromoCode(promoCodeMatch[1], patient?.patientId);
 

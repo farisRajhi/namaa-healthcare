@@ -162,8 +162,14 @@ export class ServiceCyclePredictor {
       // Skip if patient already has a future appointment for this service
       if (bookedServiceIds.has(serviceId)) continue;
 
-      // Calculate due date and overdue days
-      const dueAt = new Date(lastCompleted.getTime() + service.repeatCycleDays * 24 * 60 * 60 * 1000);
+      // Calculate due date using patient's own visit rhythm when sane (2-24 months),
+      // else fall back to the service's default repeat cycle.
+      const patientInterval = scoreData.avgVisitIntervalDays;
+      const cycleDaysForPatient =
+        patientInterval && patientInterval >= 60 && patientInterval <= 720
+          ? patientInterval
+          : service.repeatCycleDays;
+      const dueAt = new Date(lastCompleted.getTime() + cycleDaysForPatient * 24 * 60 * 60 * 1000);
       const overdueDays = Math.max(0, Math.floor((now.getTime() - dueAt.getTime()) / (1000 * 60 * 60 * 24)));
 
       // Only suggest if due within 14 days or overdue

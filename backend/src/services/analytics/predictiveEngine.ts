@@ -36,8 +36,6 @@ export interface CareGapCondition {
   maxAge?: number;
   /** Patient sex (for gender-specific screenings) */
   sex?: string;
-  /** Patient has specific conditions (PatientMemory type=condition) */
-  hasConditions?: string[];
   /** Patient has had specific services (by name or ID) */
   previousServices?: string[];
   /** Service not received in N days */
@@ -206,25 +204,6 @@ export class PredictiveEngine {
     });
     totalScore += visitPoints;
 
-    // --- Factor 3: Chronic conditions ---
-    const conditions = await this.prisma.patientMemory.findMany({
-      where: {
-        patientId,
-        memoryType: 'condition',
-        isActive: true,
-      },
-    });
-
-    // Each condition adds points, capped at 20
-    const conditionPoints = Math.min(20, conditions.length * 5);
-    factors.push({
-      factor: 'chronic_conditions',
-      weight: 20,
-      value: conditions.length,
-      contribution: conditionPoints,
-    });
-    totalScore += conditionPoints;
-
     // --- Factor 4: Age-based risk ---
     let agePoints = 0;
     if (patient.dateOfBirth) {
@@ -245,30 +224,6 @@ export class PredictiveEngine {
       });
     }
     totalScore += agePoints;
-
-    // --- Factor 5: Medication adherence ---
-    const medications = await this.prisma.patientMemory.findMany({
-      where: {
-        patientId,
-        memoryType: 'medication',
-        isActive: true,
-      },
-    });
-
-    // More medications without recent visits = higher risk
-    const medPoints = Math.min(
-      15,
-      medications.length > 0 && daysSinceVisit > 90
-        ? Math.round(medications.length * 3)
-        : 0,
-    );
-    factors.push({
-      factor: 'medication_adherence',
-      weight: 15,
-      value: medications.length,
-      contribution: medPoints,
-    });
-    totalScore += medPoints;
 
     return {
       patientId,
@@ -569,24 +524,6 @@ export class PredictiveEngine {
     });
 
     if (patients.length === 0) return [];
-
-    // Condition: has specific conditions
-    if (condition.hasConditions && condition.hasConditions.length > 0) {
-      const patientsWithConditions = await this.prisma.patientMemory.findMany({
-        where: {
-          patientId: { in: patients.map((p) => p.patientId) },
-          memoryType: 'condition',
-          memoryKey: { in: condition.hasConditions },
-          isActive: true,
-        },
-        select: { patientId: true },
-        distinct: ['patientId'],
-      });
-      const conditionIds = new Set(
-        patientsWithConditions.map((p) => p.patientId),
-      );
-      patients = patients.filter((p) => conditionIds.has(p.patientId));
-    }
 
     // Condition: last visit > N days ago
     if (condition.lastVisitDaysAgo !== undefined) {

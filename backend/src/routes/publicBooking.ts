@@ -265,60 +265,68 @@ export default async function publicBookingRoutes(app: FastifyInstance) {
     const startTs = new Date(body.startTs);
     const endTs = new Date(startTs.getTime() + service.durationMin * 60000);
 
-    // Prevent double-booking: check if the slot is still available
-    const conflict = await app.prisma.appointment.findFirst({
-      where: {
-        providerId: body.providerId,
-        status: { in: ['held', 'booked', 'confirmed', 'checked_in', 'in_progress'] },
-        startTs: { lt: endTs },
-        endTs: { gt: startTs },
-      },
-    });
-    if (conflict) {
-      return reply.code(409).send({ error: 'هذا الموعد لم يعد متاحاً', errorEn: 'This time slot is no longer available' });
-    }
-
-    const appointment = await app.prisma.appointment.create({
-      data: {
-        orgId: facility.orgId,
-        facilityId: facility.facilityId,
-        providerId: body.providerId,
-        patientId: patient.patientId,
-        serviceId: body.serviceId,
-        startTs,
-        endTs,
-        status: 'booked',
-        bookedVia: 'web',
-        reason: body.reason,
-        notes: body.notes,
-        statusHistory: {
-          create: {
-            newStatus: 'booked',
-            changedBy: 'patient_self_booking',
+    // Atomic conflict check + create wrapped in a Serializable transaction.
+    // Prevents two patients from racing past the conflict check and double-booking the same slot.
+    // Retry once on Prisma P2034 (transaction serialization failure).
+    const runBooking = async () => {
+      return app.prisma.$transaction(async (tx) => {
+        const conflict = await tx.appointment.findFirst({
+          where: {
+            providerId: body.providerId,
+            status: { in: ['held', 'booked', 'confirmed', 'checked_in', 'in_progress'] },
+            startTs: { lt: endTs },
+            endTs: { gt: startTs },
           },
-        },
-      },
-      include: { provider: true, service: true },
-    });
-
-    // Send confirmation SMS
-    if (app.twilio) {
-      const dateStr = startTs.toLocaleDateString('ar-SA', {
-        weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-      });
-      const timeStr = startTs.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
-      try {
-        await app.twilio.messages.create({
-          to: body.phone,
-          from: process.env.TWILIO_PHONE_NUMBER!,
-          body:
-            `تم تأكيد موعدك مع ${appointment.provider.displayName} ` +
-            `بتاريخ ${dateStr} الساعة ${timeStr}. ` +
-            `للإلغاء أرسل "إلغاء ${appointment.appointmentId}"`,
         });
+        if (conflict) {
+          throw new Error('SLOT_CONFLICT');
+        }
+
+        return tx.appointment.create({
+          data: {
+            orgId: facility.orgId,
+            facilityId: facility.facilityId,
+            providerId: body.providerId,
+            patientId: patient.patientId,
+            serviceId: body.serviceId,
+            startTs,
+            endTs,
+            status: 'booked',
+            bookedVia: 'web',
+            reason: body.reason,
+            notes: body.notes,
+            statusHistory: {
+              create: {
+                newStatus: 'booked',
+                changedBy: 'patient_self_booking',
+              },
+            },
+          },
+          include: { provider: true, service: true },
+        });
+      }, { isolationLevel: 'Serializable' });
+    };
+
+    let appointment;
+    try {
+      try {
+        appointment = await runBooking();
       } catch (err: any) {
-        app.log.warn(`Booking SMS failed: ${err?.message}`);
+        // Retry once on Prisma serialization failure (P2034)
+        if (err && err.code === 'P2034') {
+          appointment = await runBooking();
+        } else {
+          throw err;
+        }
       }
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message === 'SLOT_CONFLICT') {
+        return reply.code(409).send({
+          error: 'هذا الموعد لم يعد متاحاً',
+          errorEn: 'Slot was just booked, please choose another time',
+        });
+      }
+      throw err;
     }
 
     return {

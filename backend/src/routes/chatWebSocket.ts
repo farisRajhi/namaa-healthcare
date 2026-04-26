@@ -8,7 +8,19 @@ import { ConversationFlowManager, FlowContext } from '../services/ai/conversatio
 import { SessionCompactor } from '../services/ai/sessionCompactor.js';
 import { redactPII } from '../services/security/piiRedactor.js';
 import { getContextBuilder } from '../services/patient/contextBuilder.js';
-import { checkAndIncrement, AI_LIMIT_ERROR } from '../services/usage/aiUsageLimiter.js';
+import {
+  assertWithinLimits,
+  checkConversationCap,
+  computeWarning,
+  incrementConversationTokens,
+  PlanLimitReachedError,
+  recordConversation,
+  recordUsage,
+  resolveOrgPlan,
+  AI_LIMIT_ERROR,
+  CONVERSATION_LIMIT_ERROR,
+  CONVERSATION_CAP_ERROR,
+} from '../services/usage/aiUsageLimiter.js';
 
 // ─────────────────────────────────────────────────────────
 // Chat WebSocket with Typed Stream Events
@@ -125,6 +137,36 @@ export default async function chatWebSocketRoutes(app: FastifyInstance) {
       return;
     }
 
+    // ── 2b. Verify active subscription or trial ──
+    // Mirrors the subscriptionGuard preHandler used on HTTP routes.
+    // WebSocket upgrade skips Fastify preHandlers, so the check is inline.
+    {
+      const now = new Date();
+      const org = await app.prisma.org.findUnique({
+        where: { orgId: user.orgId },
+        select: { status: true, trialEndsAt: true } as any,
+      });
+      if (!org || (org as any).status !== 'active') {
+        safeSend(ws, { type: 'error', code: 'ORG_SUSPENDED', message: 'Organization suspended' });
+        ws.close();
+        return;
+      }
+      const trialEndsAt: Date | null = (org as any).trialEndsAt ?? null;
+      const isTrialing = !!trialEndsAt && trialEndsAt.getTime() > now.getTime();
+      const subscription = await app.prisma.tawafudSubscription.findFirst({
+        where: {
+          orgId: user.orgId,
+          status: { in: ['active', 'past_due'] },
+          endDate: { gte: now },
+        },
+      });
+      if (!subscription && !isTrialing) {
+        safeSend(ws, { type: 'error', code: 'SUBSCRIPTION_REQUIRED', message: 'Active subscription required' });
+        ws.close();
+        return;
+      }
+    }
+
     const { orgId, userId, email } = user;
     app.log.info({ orgId, userId }, 'Chat WebSocket opened');
 
@@ -137,6 +179,9 @@ export default async function chatWebSocketRoutes(app: FastifyInstance) {
         data: { orgId, channel: 'web', externalUserId: userId, displayName: email },
       });
     }
+
+    // Resolve org plan once per WS connection — used for limit + warning checks.
+    const plan = await resolveOrgPlan(app.prisma, orgId);
 
     let conversationId: string;
 
@@ -151,6 +196,24 @@ export default async function chatWebSocketRoutes(app: FastifyInstance) {
       }
       conversationId = existing.conversationId;
     } else {
+      // Block at the plan's monthly conversation cap before persisting a new row.
+      try {
+        await assertWithinLimits(app.prisma, orgId, plan, 'conversation');
+      } catch (err) {
+        if (err instanceof PlanLimitReachedError) {
+          safeSend(ws, {
+            type: 'error',
+            code: 'PLAN_LIMIT_REACHED',
+            kind: 'conversation',
+            message: CONVERSATION_LIMIT_ERROR,
+            usage: { used: err.used, limit: err.limit },
+          });
+          ws.close();
+          return;
+        }
+        throw err;
+      }
+
       const conv = await app.prisma.conversation.create({
         data: {
           orgId,
@@ -173,6 +236,13 @@ export default async function chatWebSocketRoutes(app: FastifyInstance) {
         },
       });
       conversationId = conv.conversationId;
+
+      // Best-effort: bump the org's monthly conversation counter. Non-fatal.
+      try {
+        await recordConversation(app.prisma, orgId);
+      } catch (err) {
+        app.log.warn({ err, orgId }, 'WS: failed to increment conversation counter');
+      }
     }
 
     // Track connection
@@ -359,14 +429,31 @@ export default async function chatWebSocketRoutes(app: FastifyInstance) {
         toolRegistry.setChannel('web');
         const tools = toolRegistry.getToolDefinitions(permissionLevel);
 
-        // ── AI usage limit check ──
-        const usageCheck = await checkAndIncrement(app.prisma, orgId);
-        if (!usageCheck.allowed) {
+        // ── AI usage limit check (plan-aware token budget) ──
+        try {
+          await assertWithinLimits(app.prisma, orgId, plan, 'tokens');
+        } catch (err) {
+          if (err instanceof PlanLimitReachedError) {
+            ws.send(JSON.stringify({
+              type: 'error',
+              code: 'PLAN_LIMIT_REACHED',
+              kind: err.kind,
+              message: AI_LIMIT_ERROR,
+              usage: { used: err.used, limit: err.limit, remaining: 0 },
+            }));
+            return;
+          }
+          throw err;
+        }
+
+        // Per-conversation cap: a single chat can't drain the monthly budget.
+        const convCap = await checkConversationCap(app.prisma, conversationId);
+        if (!convCap.allowed) {
           ws.send(JSON.stringify({
             type: 'error',
-            code: 'AI_LIMIT_EXCEEDED',
-            message: AI_LIMIT_ERROR,
-            usage: { current: usageCheck.current, limit: usageCheck.limit, remaining: 0 },
+            code: 'CONVERSATION_CAP_REACHED',
+            message: CONVERSATION_CAP_ERROR,
+            usage: { used: convCap.used, limit: convCap.limit },
           }));
           return;
         }
@@ -379,7 +466,9 @@ export default async function chatWebSocketRoutes(app: FastifyInstance) {
           tools,
           (name, args) => toolRegistry.executeTool(name, args),
           {
-            maxIterations: 6,
+            // Capped at 3 to match the WhatsApp path; chatWithTools enforces a
+            // 25s wall-clock timeout and routes around mid-loop failures.
+            maxIterations: 3,
             onToolCall: (toolName, args) => {
               const desc = TOOL_DESCRIPTIONS[toolName];
               emitEvent(ws, conversationId, {
@@ -401,6 +490,35 @@ export default async function chatWebSocketRoutes(app: FastifyInstance) {
         );
 
         let response = llmResult.response;
+
+        // ── 5g.1. Record actual token usage (per-org monthly + per-conversation running total) ──
+        try {
+          await recordUsage(app.prisma, orgId, llmResult.usage);
+          await incrementConversationTokens(app.prisma, conversationId, llmResult.usage.totalTokens);
+        } catch (err) {
+          app.log.warn({ err }, 'WS: failed to record AI token usage — non-fatal');
+        }
+
+        // ── 5g.2. Soft-warning at 80% of any plan limit ──
+        try {
+          const [tokenWarning, conversationWarning] = await Promise.all([
+            computeWarning(app.prisma, orgId, plan, 'tokens'),
+            computeWarning(app.prisma, orgId, plan, 'conversation'),
+          ]);
+          const warning = tokenWarning ?? conversationWarning;
+          if (warning) {
+            emitEvent(ws, conversationId, {
+              type: 'budget_warning',
+              kind: warning.kind,
+              used: warning.used,
+              limit: warning.limit,
+              percentage: warning.percentage,
+              message: warning.message,
+            });
+          }
+        } catch (err) {
+          app.log.warn({ err }, 'WS: warning computation failed — non-fatal');
+        }
 
         // ── 5h. Update conversation flow ──
         const toolCallNames = llmResult.toolCalls.map(tc => tc.toolName);
@@ -453,7 +571,7 @@ export default async function chatWebSocketRoutes(app: FastifyInstance) {
             direction: 'out',
             bodyText: redactedResponse,
             payload: {
-              model: process.env.LLM_MODEL || 'gpt-4-turbo-preview',
+              model: process.env.LLM_MODEL || 'gemini-2.5-flash',
               confidence: guardrailResult?.confidence ?? null,
               guardrailFlags: guardrailResult?.flags?.map((f) => f.type) ?? [],
               toolCalls: llmResult.toolCalls.map(tc => ({

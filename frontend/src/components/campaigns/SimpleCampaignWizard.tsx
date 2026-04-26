@@ -15,6 +15,7 @@ import TemplatePicker from './TemplatePicker'
 import AudiencePresetCard from './AudiencePresetCard'
 import AudiencePreviewBadge from './AudiencePreviewBadge'
 import MessageComposer from '../marketing/MessageComposer'
+import AdCreativeStep from './AdCreativeStep'
 
 interface Props {
   onClose: () => void
@@ -71,6 +72,8 @@ export default function SimpleCampaignWizard({ onClose, onSuccess }: Props) {
   const [sendNow, setSendNow] = useState(true)
   const [scheduleDate, setScheduleDate] = useState('')
   const [scheduleTime, setScheduleTime] = useState('09:00')
+  const [adImageId, setAdImageId] = useState<string | null>(null)
+  const [adImageUrl, setAdImageUrl] = useState<string | null>(null)
 
   // Save draft on changes
   const saveDraft = () => {
@@ -118,11 +121,14 @@ export default function SimpleCampaignWizard({ onClose, onSuccess }: Props) {
   })
 
   // Validation per step
+  // 0=Message, 1=Image (optional), 2=Audience, 3=Send
   const canNext = step === 0
     ? type && (scriptAr || scriptEn)
     : step === 1
-      ? !!presetKey
-      : true
+      ? true
+      : step === 2
+        ? !!presetKey
+        : true
 
   const handleSubmit = () => {
     const startDate = sendNow ? new Date().toISOString() : `${scheduleDate}T${scheduleTime}:00`
@@ -135,6 +141,7 @@ export default function SimpleCampaignWizard({ onClose, onSuccess }: Props) {
         scriptAr,
         scriptEn,
         startDate,
+        adImageId: adImageId ?? undefined,
       },
       sendNow,
     })
@@ -142,6 +149,7 @@ export default function SimpleCampaignWizard({ onClose, onSuccess }: Props) {
 
   const steps = [
     { en: 'Message', ar: 'الرسالة' },
+    { en: 'Image', ar: 'الصورة' },
     { en: 'Audience', ar: 'الجمهور' },
     { en: 'Send', ar: 'الإرسال' },
   ]
@@ -226,6 +234,18 @@ export default function SimpleCampaignWizard({ onClose, onSuccess }: Props) {
         )}
 
         {step === 1 && (
+          <AdCreativeStep
+            isAr={isAr}
+            adImageId={adImageId}
+            adImageUrl={adImageUrl}
+            onChange={(img) => {
+              setAdImageId(img?.adImageId ?? null)
+              setAdImageUrl(img?.url ?? null)
+            }}
+          />
+        )}
+
+        {step === 2 && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-semibold text-gray-800">
@@ -263,7 +283,7 @@ export default function SimpleCampaignWizard({ onClose, onSuccess }: Props) {
           </div>
         )}
 
-        {step === 2 && (
+        {step === 3 && (
           <div className="space-y-6">
             <h3 className="text-sm font-semibold text-gray-800">
               {isAr ? 'متى ترسل؟' : 'When to send?'}
@@ -377,7 +397,7 @@ export default function SimpleCampaignWizard({ onClose, onSuccess }: Props) {
           {step === 0 ? (isAr ? 'إلغاء' : 'Cancel') : (isAr ? 'السابق' : 'Back')}
         </button>
 
-        {step < 2 ? (
+        {step < 3 ? (
           <button
             onClick={() => { saveDraft(); setStep(step + 1) }}
             disabled={!canNext}

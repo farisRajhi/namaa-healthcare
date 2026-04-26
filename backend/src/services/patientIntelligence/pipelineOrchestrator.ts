@@ -14,11 +14,11 @@ import { parseCsvBuffer, getSample, formatSampleForPrompt } from './csvParser.js
 import { analyzeDataStructure } from './dataUnderstanding.js';
 import { analyzeBatch, type NormalizedPatient } from './patientAnalyzer.js';
 import { generateCampaigns, type SegmentSummary } from './campaignGenerator.js';
+import { checkLimit, recordUsage, resolveOrgPlan, AI_LIMIT_ERROR } from '../usage/aiUsageLimiter.js';
 import { matchPatientsByPhone } from './patientMatcher.js';
 import { collectContactHistory, type ContactHistorySummary } from './feedbackCollector.js';
 import { loadSkillsForClinicType } from './skillLoader.js';
 import { normalizePatientRow, daysSince, calculateAge } from './normalizers.js';
-import type { GeminiConfig } from './geminiClient.js';
 import { computeServiceGaps } from './serviceCycleMap.js';
 
 // ── Batch size for patient analysis ──────────────────────────────────
@@ -53,14 +53,14 @@ async function updateProgress(
  * after a CSV upload. It updates the ExternalAnalysis record's progress
  * at each step so the frontend can poll for status.
  *
+ * LLM provider for each step is resolved via llmRouter (env-configurable).
+ *
  * @param prisma       - Prisma client instance
- * @param geminiConfig - Gemini API configuration
  * @param analysisId   - The ExternalAnalysis record ID
  * @param csvBuffer    - Raw CSV file contents
  */
 export async function runPipeline(
   prisma: PrismaClient,
-  geminiConfig: GeminiConfig,
   analysisId: string,
   csvBuffer: Buffer,
 ): Promise<void> {
@@ -73,6 +73,25 @@ export async function runPipeline(
       where: { analysisId },
     });
     const { orgId } = analysis;
+
+    // ── Subscription token budget guard ───────────────────────────
+    // A full pipeline run can easily consume tens of thousands of tokens
+    // across the 3 AI steps. If the org is already over budget for the
+    // month, abort early with a clear error. resolveOrgPlan maps trialing
+    // orgs to Professional so they get their promised 100M budget.
+    const plan = await resolveOrgPlan(prisma, orgId);
+    const budgetCheck = await checkLimit(prisma, orgId, plan);
+    if (!budgetCheck.allowed) {
+      await prisma.externalAnalysis.update({
+        where: { analysisId },
+        data: {
+          status: 'failed',
+          currentStep: AI_LIMIT_ERROR.en,
+          progress: 0,
+        },
+      });
+      return;
+    }
 
     // ── Step 1: Parse CSV (0→5%) ──────────────────────────────────
     await updateProgress(prisma, analysisId, 'parsing', 0, 'Parsing CSV file');
@@ -88,12 +107,16 @@ export async function runPipeline(
 
     // ── Step 2: AI Data Understanding (5→15%) ─────────────────────
     const sample = getSample(parsed, 5);
-    const understanding = await analyzeDataStructure(geminiConfig, parsed.headers, sample);
+    const understanding = await analyzeDataStructure(parsed.headers, sample);
     aiCalls++;
-
-    // Track tokens if available from the OpenAI response
-    // (analyzeDataStructure doesn't return usage, so we estimate)
-    tokensUsed += 500; // Rough estimate for data understanding call
+    tokensUsed += understanding.tokensUsed;
+    if (understanding.tokensUsed > 0) {
+      await recordUsage(prisma, orgId, {
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: understanding.tokensUsed,
+      });
+    }
 
     await prisma.externalAnalysis.update({
       where: { analysisId },
@@ -119,9 +142,12 @@ export async function runPipeline(
       };
     });
 
-    // Batch insert with createMany (Prisma handles chunking internally)
+    // Batch insert with createMany (Prisma handles chunking internally).
+    // skipDuplicates lets the pipeline be safely re-run after a partial-failure crash —
+    // already-inserted rows are ignored on retry instead of throwing P2002.
     await prisma.externalPatient.createMany({
       data: normalizedRows,
+      skipDuplicates: true,
     });
 
     const totalPatients = normalizedRows.length;
@@ -145,7 +171,8 @@ export async function runPipeline(
 
     const matches = await matchPatientsByPhone(prisma, orgId, matchInput);
 
-    // Update matched patients
+    // Update matched patients in a single transaction so a partial failure can't leave
+    // some patients flagged as matched while others are dropped.
     const matchUpdates = Array.from(matches.entries()).map(([extId, match]) =>
       prisma.externalPatient.update({
         where: { externalPatientId: extId },
@@ -156,7 +183,7 @@ export async function runPipeline(
       }),
     );
     if (matchUpdates.length > 0) {
-      await Promise.all(matchUpdates);
+      await prisma.$transaction(matchUpdates);
     }
 
     await updateProgress(prisma, analysisId, 'analyzing', 30, `${matches.size} patients matched — collecting contact history`);
@@ -261,18 +288,22 @@ export async function runPipeline(
         }
       }
 
-      // Call the AI analyzer (5 args: openai, patients, skillContent, contactHistory, clinicType)
-      const batchResults = await analyzeBatch(
-        geminiConfig,
+      // Call the AI analyzer
+      const { results: batchResults, tokensUsed: batchTokens } = await analyzeBatch(
         normalizedBatch,
         skills.content,
         batchContactHistory,
         understanding.clinicType,
       );
       aiCalls++;
-
-      // Estimate token usage for this batch (~50 tokens per patient input + output)
-      tokensUsed += batch.length * 50;
+      tokensUsed += batchTokens;
+      if (batchTokens > 0) {
+        await recordUsage(prisma, orgId, {
+          promptTokens: 0,
+          completionTokens: 0,
+          totalTokens: batchTokens,
+        });
+      }
 
       // Update ExternalPatient records with AI results
       const batchUpdates = batchResults.map((result) => {
@@ -367,9 +398,16 @@ export async function runPipeline(
 
     await updateProgress(prisma, analysisId, 'generating', 80, `Generating campaigns for ${segments.length} segments`);
 
-    const campaigns = await generateCampaigns(geminiConfig, segments, skills.content, understanding.clinicType);
+    const { campaigns, tokensUsed: campaignTokens } = await generateCampaigns(segments, skills.content, understanding.clinicType);
     aiCalls++;
-    tokensUsed += 800; // Estimate for campaign generation
+    tokensUsed += campaignTokens;
+    if (campaignTokens > 0) {
+      await recordUsage(prisma, orgId, {
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: campaignTokens,
+      });
+    }
 
     await updateProgress(prisma, analysisId, 'saving', 90, 'Saving campaign suggestions');
 

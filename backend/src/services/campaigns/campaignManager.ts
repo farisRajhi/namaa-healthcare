@@ -1,15 +1,14 @@
 /**
  * Campaign Management Service
  *
- * Full lifecycle campaign management: create → configure → launch → monitor → complete.
- * Supports multi-wave outreach (voice → SMS → WhatsApp), audience targeting via
- * patient filters, batch execution, A/B testing with multiple scripts, and
- * detailed results tracking.
+ * Lifecycle: create → configure → launch (resolve targets) → monitor → complete.
+ * Supports patient audience targeting via filters, A/B testing variants, and
+ * results tracking. Outbound delivery is handled separately via Baileys WhatsApp
+ * (`/api/baileys-whatsapp/send`); the campaign data model tracks targets,
+ * channels, and outcomes but no longer dials/sends from this service.
  */
 import { PrismaClient, Prisma } from '@prisma/client';
-import { OutboundCaller, getOutboundCaller } from '../outbound/outboundCaller.js';
 import { MarketingConsentService } from '../compliance/marketingConsent.js';
-import type { Twilio } from 'twilio';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -24,53 +23,37 @@ export interface CampaignCreateInput {
   channelSequence: string[];
   scriptEn?: string;
   scriptAr?: string;
-  /** For A/B testing — variant scripts */
   scriptVariants?: ScriptVariant[];
   maxCallsPerHour?: number;
   startDate?: Date;
   endDate?: Date;
   /** Only execute this campaign on salary days (25th-27th of month) */
   salaryDayOnly?: boolean;
+  adImageId?: string;
 }
 
 export interface ScriptVariant {
   name: string;
   scriptEn?: string;
   scriptAr?: string;
-  weight: number; // 0-100, sum of all variants should be 100
+  weight: number;
 }
 
 export interface PatientFilter {
-  /** Age range */
   minAge?: number;
   maxAge?: number;
-  /** Sex filter */
   sex?: string;
-  /** Patient has specific condition (memory type = 'condition') */
-  conditions?: string[];
-  /** Days since last visit */
   lastVisitDaysAgo?: number;
-  /** Days since last appointment (any status) */
   noAppointmentDays?: number;
-  /** Specific service IDs patient has had */
   previousServiceIds?: string[];
-  /** Exclude patients with upcoming appointments */
   excludeWithUpcoming?: boolean;
-  /** Specific patient IDs (manual override) */
   patientIds?: string[];
-  /** Knowledge Base: patients with ANY of these tags */
   tags?: string[];
-  /** Knowledge Base: patients with service_interest memory matching these keys */
   serviceInterests?: string[];
-  /** Knowledge Base: minimum engagement score (0-100) */
   minEngagementScore?: number;
-  /** Knowledge Base: maximum engagement score (0-100) */
   maxEngagementScore?: number;
-  /** Return likelihood: minimum score (0-100) */
   minReturnLikelihood?: number;
-  /** Return likelihood: maximum score (0-100) */
   maxReturnLikelihood?: number;
-  /** Knowledge Base: preferred channel */
   channelPreference?: string;
 }
 
@@ -98,23 +81,12 @@ export interface WaveProgress {
 // ---------------------------------------------------------------------------
 
 export class CampaignManager {
-  private prisma: PrismaClient;
-  private twilio: Twilio | null;
-  private outboundCaller: OutboundCaller;
-
-  constructor(prisma: PrismaClient, twilio: Twilio | null) {
-    this.prisma = prisma;
-    this.twilio = twilio;
-    this.outboundCaller = getOutboundCaller(prisma, twilio);
-  }
+  constructor(private prisma: PrismaClient) {}
 
   // -----------------------------------------------------------------------
   // CRUD
   // -----------------------------------------------------------------------
 
-  /**
-   * Create a new campaign in draft status.
-   */
   async createCampaign(input: CampaignCreateInput) {
     const campaign = await this.prisma.campaign.create({
       data: {
@@ -131,15 +103,13 @@ export class CampaignManager {
         startDate: input.startDate,
         endDate: input.endDate,
         salaryDayOnly: input.salaryDayOnly ?? false,
+        adImageId: input.adImageId,
       },
     });
 
     return campaign;
   }
 
-  /**
-   * Get campaign by ID.
-   */
   async getCampaign(campaignId: string) {
     return this.prisma.campaign.findUnique({
       where: { campaignId },
@@ -153,9 +123,6 @@ export class CampaignManager {
     });
   }
 
-  /**
-   * List campaigns for an org.
-   */
   async listCampaigns(
     orgId: string,
     options?: { status?: string; page?: number; limit?: number },
@@ -193,9 +160,6 @@ export class CampaignManager {
     };
   }
 
-  /**
-   * Update a draft campaign.
-   */
   async updateCampaign(
     campaignId: string,
     data: Partial<Omit<CampaignCreateInput, 'orgId'>>,
@@ -227,6 +191,7 @@ export class CampaignManager {
         }),
         ...(data.startDate !== undefined && { startDate: data.startDate }),
         ...(data.endDate !== undefined && { endDate: data.endDate }),
+        ...(data.adImageId !== undefined && { adImageId: data.adImageId }),
       },
     });
   }
@@ -235,12 +200,6 @@ export class CampaignManager {
   // Lifecycle: start / pause / complete
   // -----------------------------------------------------------------------
 
-  /**
-   * Start (activate) a campaign.
-   * 1. Resolve target audience based on filter
-   * 2. Create CampaignTarget records
-   * 3. Set status = 'active'
-   */
   async startCampaign(campaignId: string): Promise<{
     campaign: any;
     targetsCreated: number;
@@ -253,13 +212,11 @@ export class CampaignManager {
       throw new Error(`Cannot start campaign in ${campaign.status} status`);
     }
 
-    // If draft → resolve targets. If paused → resume with existing targets.
     let targetsCreated = 0;
     if (campaign.status === 'draft') {
       targetsCreated = await this.resolveTargets(campaignId, campaign.orgId, campaign.targetFilter as PatientFilter);
     }
 
-    // Activate
     const updated = await this.prisma.campaign.update({
       where: { campaignId },
       data: {
@@ -271,9 +228,6 @@ export class CampaignManager {
     return { campaign: updated, targetsCreated };
   }
 
-  /**
-   * Pause an active campaign. Removes queued calls.
-   */
   async pauseCampaign(campaignId: string) {
     const campaign = await this.prisma.campaign.findUnique({
       where: { campaignId },
@@ -283,21 +237,13 @@ export class CampaignManager {
       throw new Error('Can only pause active campaigns');
     }
 
-    // Clear outbound call queue for this campaign
-    this.outboundCaller.clearCampaignQueue(campaignId);
-
     return this.prisma.campaign.update({
       where: { campaignId },
       data: { status: 'paused' },
     });
   }
 
-  /**
-   * Mark a campaign as completed.
-   */
   async completeCampaign(campaignId: string) {
-    this.outboundCaller.clearCampaignQueue(campaignId);
-
     return this.prisma.campaign.update({
       where: { campaignId },
       data: {
@@ -308,93 +254,15 @@ export class CampaignManager {
   }
 
   // -----------------------------------------------------------------------
-  // Execution engine
-  // -----------------------------------------------------------------------
-
-  /**
-   * Process an active campaign — enqueue pending targets to the outbound caller
-   * and start processing. Call this from a cron job or manually.
-   */
-  async executeCampaign(campaignId: string): Promise<{
-    enqueued: number;
-    processed: number;
-  }> {
-    const campaign = await this.prisma.campaign.findUnique({
-      where: { campaignId },
-    });
-    if (!campaign || campaign.status !== 'active') {
-      return { enqueued: 0, processed: 0 };
-    }
-
-    // Check if campaign has ended
-    if (campaign.endDate && new Date() > campaign.endDate) {
-      await this.completeCampaign(campaignId);
-      return { enqueued: 0, processed: 0 };
-    }
-
-    // Enqueue targets
-    const enqueued = await this.outboundCaller.enqueueCampaignTargets(campaignId);
-
-    // Process queue
-    const outcomes = await this.outboundCaller.processQueue();
-
-    // Check if all targets are done
-    const pendingCount = await this.prisma.campaignTarget.count({
-      where: {
-        campaignId,
-        status: { in: ['pending', 'calling', 'no_answer'] },
-      },
-    });
-    if (pendingCount === 0) {
-      await this.completeCampaign(campaignId);
-    }
-
-    return { enqueued, processed: outcomes.length };
-  }
-
-  /**
-   * Execute all active campaigns. Main cron entry point.
-   * Salary-day campaigns (salaryDayOnly=true) are skipped unless
-   * today is the 25th-27th of the month (Saudi salary days).
-   */
-  async executeAllActiveCampaigns(): Promise<
-    Array<{ campaignId: string; enqueued: number; processed: number }>
-  > {
-    const activeCampaigns = await this.prisma.campaign.findMany({
-      where: { status: 'active' },
-    });
-
-    // Check if today is a salary day (25th-27th) in Riyadh timezone
-    const riyadhNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Riyadh' }));
-    const dayOfMonth = riyadhNow.getDate();
-    const isSalaryDay = dayOfMonth >= 25 && dayOfMonth <= 27;
-
-    const results = [];
-    for (const campaign of activeCampaigns) {
-      // Skip salary-day-only campaigns outside the 25th-27th window
-      if (campaign.salaryDayOnly && !isSalaryDay) continue;
-
-      const result = await this.executeCampaign(campaign.campaignId);
-      results.push({ campaignId: campaign.campaignId, ...result });
-    }
-
-    return results;
-  }
-
-  // -----------------------------------------------------------------------
   // Results & Analytics
   // -----------------------------------------------------------------------
 
-  /**
-   * Get campaign results/analytics.
-   */
   async getCampaignResults(campaignId: string): Promise<CampaignResults> {
     const campaign = await this.prisma.campaign.findUnique({
       where: { campaignId },
     });
     if (!campaign) throw new Error('Campaign not found');
 
-    // Count targets by status
     const statusCounts = await this.prisma.campaignTarget.groupBy({
       by: ['status'],
       where: { campaignId },
@@ -408,7 +276,6 @@ export class CampaignManager {
       totalTargets += sc._count.status;
     }
 
-    // Channel breakdown (last channel used)
     const channelCounts = await this.prisma.campaignTarget.groupBy({
       by: ['lastChannel'],
       where: { campaignId, lastChannel: { not: null } },
@@ -422,11 +289,9 @@ export class CampaignManager {
       }
     }
 
-    // Conversion rate = booked / total
     const booked = byStatus['booked'] || 0;
     const conversionRate = totalTargets > 0 ? booked / totalTargets : 0;
 
-    // Wave progress — for each channel in sequence, how many targets used it
     const channelSeq = campaign.channelSequence as string[];
     const waveProgress: WaveProgress[] = channelSeq.map((channel) => ({
       channel,
@@ -448,9 +313,6 @@ export class CampaignManager {
     };
   }
 
-  /**
-   * List targets for a campaign with pagination and optional status filter.
-   */
   async listTargets(
     campaignId: string,
     options?: { status?: string; page?: number; limit?: number },
@@ -474,7 +336,6 @@ export class CampaignManager {
       this.prisma.campaignTarget.count({ where }),
     ]);
 
-    // Enrich with patient info
     const enriched = await Promise.all(
       targets.map(async (target) => {
         const patient = await this.prisma.patient.findUnique({
@@ -505,14 +366,9 @@ export class CampaignManager {
   // A/B Testing
   // -----------------------------------------------------------------------
 
-  /**
-   * Select a script variant for a target based on weights.
-   * Used during call/message to personalize the script.
-   */
   selectScriptVariant(variants: ScriptVariant[]): ScriptVariant | null {
     if (!variants || variants.length === 0) return null;
 
-    // Weighted random selection
     const totalWeight = variants.reduce((sum, v) => sum + v.weight, 0);
     let random = Math.random() * totalWeight;
 
@@ -529,23 +385,32 @@ export class CampaignManager {
   // -----------------------------------------------------------------------
 
   /**
-   * Resolve patients matching the target filter and create CampaignTarget records.
+   * Public entry point used by callers that have already atomically claimed
+   * the campaign (e.g. the salary-day cron flipping draft → active via
+   * updateMany) and now need to perform audience enrollment without going
+   * through startCampaign's status-flip path. Idempotent at the DB level
+   * because resolveTargets uses skipDuplicates: true on createMany.
    */
+  async enrollCampaignTargets(campaignId: string): Promise<number> {
+    const campaign = await this.prisma.campaign.findUnique({
+      where: { campaignId },
+    });
+    if (!campaign) throw new Error('Campaign not found');
+    return this.resolveTargets(campaignId, campaign.orgId, campaign.targetFilter as PatientFilter);
+  }
+
   private async resolveTargets(
     campaignId: string,
     orgId: string,
     filter: PatientFilter,
   ): Promise<number> {
-    // Build the patient query
     let patients = await this.queryPatientsByFilter(orgId, filter);
 
-    // For promotional campaigns, enforce marketing consent
     const campaign = await this.prisma.campaign.findUnique({ where: { campaignId } });
     if (campaign && campaign.type === 'promotional') {
       patients = await this.filterByMarketingConsent(patients, orgId, 'whatsapp');
     }
 
-    // Batch create targets
     let created = 0;
     const batchSize = 100;
     for (let i = 0; i < patients.length; i += batchSize) {
@@ -567,26 +432,20 @@ export class CampaignManager {
     return created;
   }
 
-  /**
-   * Query patients matching the given filter criteria.
-   */
   async queryPatientsByFilter(
     orgId: string,
     filter: PatientFilter,
   ): Promise<Array<{ patientId: string }>> {
-    // If explicit patient IDs given, use them directly
     if (filter.patientIds && filter.patientIds.length > 0) {
       return filter.patientIds.map((id) => ({ patientId: id }));
     }
 
     const where: Prisma.PatientWhereInput = { orgId };
 
-    // Sex filter
     if (filter.sex) {
       where.sex = filter.sex;
     }
 
-    // Age filter (based on dateOfBirth)
     if (filter.minAge !== undefined || filter.maxAge !== undefined) {
       const now = new Date();
       if (filter.maxAge !== undefined) {
@@ -612,25 +471,6 @@ export class CampaignManager {
       select: { patientId: true },
     });
 
-    // Filter by conditions (PatientMemory)
-    if (filter.conditions && filter.conditions.length > 0) {
-      const patientsWithConditions = await this.prisma.patientMemory.findMany({
-        where: {
-          patientId: { in: patients.map((p) => p.patientId) },
-          memoryType: 'condition',
-          memoryKey: { in: filter.conditions },
-          isActive: true,
-        },
-        select: { patientId: true },
-        distinct: ['patientId'],
-      });
-      const conditionPatientIds = new Set(
-        patientsWithConditions.map((p) => p.patientId),
-      );
-      patients = patients.filter((p) => conditionPatientIds.has(p.patientId));
-    }
-
-    // Filter by last visit (no completed appointment in N days)
     if (filter.lastVisitDaysAgo !== undefined) {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - filter.lastVisitDaysAgo);
@@ -647,11 +487,9 @@ export class CampaignManager {
       const recentVisitIds = new Set(
         patientsWithRecentVisit.map((p) => p.patientId!),
       );
-      // Keep patients who have NOT visited recently
       patients = patients.filter((p) => !recentVisitIds.has(p.patientId));
     }
 
-    // Filter by no appointment in N days
     if (filter.noAppointmentDays !== undefined) {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - filter.noAppointmentDays);
@@ -668,7 +506,6 @@ export class CampaignManager {
       patients = patients.filter((p) => !apptIds.has(p.patientId));
     }
 
-    // Exclude patients with upcoming appointments
     if (filter.excludeWithUpcoming) {
       const patientsWithUpcoming = await this.prisma.appointment.findMany({
         where: {
@@ -685,7 +522,6 @@ export class CampaignManager {
       patients = patients.filter((p) => !upcomingIds.has(p.patientId));
     }
 
-    // Filter by previous services
     if (filter.previousServiceIds && filter.previousServiceIds.length > 0) {
       const patientsWithServices = await this.prisma.appointment.findMany({
         where: {
@@ -702,7 +538,6 @@ export class CampaignManager {
       patients = patients.filter((p) => servicePatientIds.has(p.patientId));
     }
 
-    // Filter by tags (Knowledge Base)
     if (filter.tags && filter.tags.length > 0) {
       const patientsWithTags = await this.prisma.patientTag.findMany({
         where: {
@@ -716,7 +551,6 @@ export class CampaignManager {
       patients = patients.filter((p) => tagPatientIds.has(p.patientId));
     }
 
-    // Filter by service interests (Knowledge Base)
     if (filter.serviceInterests && filter.serviceInterests.length > 0) {
       const patientsWithInterests = await this.prisma.patientMemory.findMany({
         where: {
@@ -732,7 +566,6 @@ export class CampaignManager {
       patients = patients.filter((p) => interestPatientIds.has(p.patientId));
     }
 
-    // Filter by engagement score (Knowledge Base)
     if (filter.minEngagementScore !== undefined || filter.maxEngagementScore !== undefined) {
       const scoreWhere: any = {
         patientId: { in: patients.map((p) => p.patientId) },
@@ -751,7 +584,6 @@ export class CampaignManager {
       patients = patients.filter((p) => scorePatientIds.has(p.patientId));
     }
 
-    // Filter by return likelihood score
     if (filter.minReturnLikelihood !== undefined || filter.maxReturnLikelihood !== undefined) {
       const rlWhere: any = {
         patientId: { in: patients.map((p) => p.patientId) },
@@ -770,7 +602,6 @@ export class CampaignManager {
       patients = patients.filter((p) => rlPatientIds.has(p.patientId));
     }
 
-    // Filter by channel preference (Knowledge Base)
     if (filter.channelPreference) {
       const patientsWithChannel = await this.prisma.patientInsight.findMany({
         where: {
@@ -786,10 +617,6 @@ export class CampaignManager {
     return patients;
   }
 
-  /**
-   * Filter patients by marketing consent (for promotional campaigns).
-   * Returns only patients who have opted in for the specified channel.
-   */
   async filterByMarketingConsent(
     patients: Array<{ patientId: string }>,
     orgId: string,
@@ -813,12 +640,9 @@ export class CampaignManager {
 
 let _instance: CampaignManager | null = null;
 
-export function getCampaignManager(
-  prisma: PrismaClient,
-  twilio: Twilio | null,
-): CampaignManager {
+export function getCampaignManager(prisma: PrismaClient): CampaignManager {
   if (!_instance) {
-    _instance = new CampaignManager(prisma, twilio);
+    _instance = new CampaignManager(prisma);
   }
   return _instance;
 }

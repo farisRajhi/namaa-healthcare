@@ -55,15 +55,6 @@ async function main() {
     { firstName: 'فيصل', lastName: 'العمري', sex: 'M', dob: '1992-06-28', phone: '+966565556677', conditions: [], lastVisitDaysAgo: 500 },
   ];
 
-  const conditionMemories: Record<string, string> = {
-    hypertension: 'ضغط دم مرتفع - متابعة دورية',
-    diabetes: 'سكري نوع ٢',
-    heart_disease: 'مرض قلبي - متابعة مستمرة',
-    asthma: 'ربو - يستخدم بخاخ',
-    obesity: 'سمنة - برنامج تغذية',
-    allergy: 'حساسية موسمية',
-  };
-
   let created = 0;
   for (const p of patientsData) {
     const mrn = `MRN-${String(mrnCounter++).padStart(3, '0')}`;
@@ -92,18 +83,6 @@ async function main() {
     await prisma.patientContact.create({
       data: { patientId: patient.patientId, contactType: 'phone', contactValue: p.phone, isPrimary: true },
     });
-
-    // Condition memories
-    for (const condition of p.conditions) {
-      await prisma.patientMemory.create({
-        data: {
-          patientId: patient.patientId,
-          memoryType: 'condition',
-          memoryKey: condition,
-          memoryValue: conditionMemories[condition] || condition,
-        },
-      });
-    }
 
     // Create a past appointment to establish "last visit" date
     if (p.lastVisitDaysAgo > 0) {

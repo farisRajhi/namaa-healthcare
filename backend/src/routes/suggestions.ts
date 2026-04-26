@@ -11,6 +11,14 @@
 import { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { getServiceCyclePredictor } from '../services/patient/serviceCyclePredictor.js';
+import { getExternalRecallRows } from '../services/patient/externalRecallQuery.js';
+
+const RECALL_STATUSES = ['contacted', 'booked', 'not_interested', 'unreachable'] as const;
+type RecallStatus = typeof RECALL_STATUSES[number];
+
+const statusUpdateSchema = z.object({
+  status: z.enum(RECALL_STATUSES),
+});
 
 // ---------------------------------------------------------------------------
 // Validation schemas
@@ -40,9 +48,11 @@ const sendSchema = z.object({
 
 export default async function suggestionsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
+  app.addHook('preHandler', app.requireSubscription);
+  app.addHook('preHandler', app.requirePlan('professional'));
 
   // -----------------------------------------------------------------------
-  // GET /:orgId — List suggestions sorted by score
+  // GET /:orgId — Unified recall list (native + external, ranked by overdueDays)
   // -----------------------------------------------------------------------
   app.get<{ Params: { orgId: string } }>(
     '/:orgId',
@@ -51,20 +61,19 @@ export default async function suggestionsRoutes(app: FastifyInstance) {
       if (request.user.orgId !== orgId) return { error: 'Unauthorized' };
 
       const query = listQuerySchema.parse(request.query);
-      const skip = (query.page - 1) * query.limit;
+      const statusFilter = query.status || 'pending';
+      const includeExternal = statusFilter === 'pending';
 
-      const where: any = {
+      const nativeWhere: any = {
         orgId,
-        status: query.status || 'pending',
+        status: statusFilter,
         ...(query.type && { suggestionType: query.type }),
       };
 
-      const [suggestions, total] = await Promise.all([
+      const [nativeSuggestions, externalRows] = await Promise.all([
         app.prisma.serviceCycleSuggestion.findMany({
-          where,
-          skip,
-          take: query.limit,
-          orderBy: { score: 'desc' },
+          where: nativeWhere,
+          orderBy: [{ overdueDays: 'desc' }, { score: 'desc' }],
           include: {
             patient: {
               select: {
@@ -89,33 +98,95 @@ export default async function suggestionsRoutes(app: FastifyInstance) {
             },
           },
         }),
-        app.prisma.serviceCycleSuggestion.count({ where }),
+        includeExternal ? getExternalRecallRows(app.prisma, orgId) : Promise.resolve([]),
       ]);
 
-      // Flatten patient phone into the response
-      const data = suggestions.map(s => ({
-        ...s,
-        patientName: `${s.patient.firstName} ${s.patient.lastName}`,
-        phoneNumber: s.patient.contacts[0]?.contactValue || null,
-        serviceName: s.service.name,
-        serviceNameEn: s.service.nameEn,
-        serviceCategory: s.service.category,
+      // Batch-fetch PatientInsight for reliability signals
+      const patientIds = [...new Set(nativeSuggestions.map(s => s.patientId))];
+      const insights = patientIds.length
+        ? await app.prisma.patientInsight.findMany({
+            where: { patientId: { in: patientIds } },
+            select: {
+              patientId: true,
+              completedAppointments: true,
+              completionRate: true,
+              noShowCount: true,
+            },
+          })
+        : [];
+      const insightMap = new Map(insights.map(i => [i.patientId, i]));
+
+      const nativeRows = nativeSuggestions.map(s => {
+        const insight = insightMap.get(s.patientId);
+        return {
+          source: 'native' as const,
+          id: s.suggestionId,
+          suggestionId: s.suggestionId,
+          patientId: s.patientId,
+          serviceId: s.serviceId,
+          patientName: `${s.patient.firstName} ${s.patient.lastName}`.trim(),
+          phoneNumber: s.patient.contacts[0]?.contactValue || null,
+          serviceName: s.service.name,
+          serviceNameEn: s.service.nameEn,
+          serviceCategory: s.service.category,
+          lastCompletedAt: s.lastCompletedAt,
+          dueAt: s.dueAt,
+          overdueDays: s.overdueDays,
+          score: s.score,
+          suggestionType: s.suggestionType,
+          messageAr: s.messageAr,
+          messageEn: s.messageEn,
+          status: s.status,
+          sentAt: s.sentAt,
+          sentBy: s.sentBy,
+          reliability: {
+            totalVisits: insight?.completedAppointments ?? 0,
+            completionRate: insight?.completionRate ?? null,
+            noShowCount: insight?.noShowCount ?? 0,
+          },
+        };
+      });
+
+      const externalAsUnified = externalRows.map(r => ({
+        source: 'external' as const,
+        id: r.id,
+        externalPatientId: r.id,
+        patientName: r.patientName,
+        phoneNumber: r.phone,
+        serviceName: r.serviceName,
+        serviceNameEn: r.serviceNameEn,
+        serviceCategory: null,
+        lastCompletedAt: r.lastCompletedAt,
+        dueAt: r.dueAt,
+        overdueDays: r.overdueDays,
+        score: r.score,
+        status: r.status,
+        reliability: r.reliability,
       }));
 
+      const allRows = [...nativeRows, ...externalAsUnified];
+      allRows.sort((a, b) => {
+        if (a.overdueDays !== b.overdueDays) return b.overdueDays - a.overdueDays;
+        return b.score - a.score;
+      });
+
+      const skip = (query.page - 1) * query.limit;
+      const paged = allRows.slice(skip, skip + query.limit);
+
       return {
-        data,
+        data: paged,
         pagination: {
           page: query.page,
           limit: query.limit,
-          total,
-          totalPages: Math.ceil(total / query.limit),
+          total: allRows.length,
+          totalPages: Math.ceil(allRows.length / query.limit),
         },
       };
     },
   );
 
   // -----------------------------------------------------------------------
-  // GET /:orgId/stats — Dashboard stats
+  // GET /:orgId/stats — Dashboard stats (native + external combined)
   // -----------------------------------------------------------------------
   app.get<{ Params: { orgId: string } }>(
     '/:orgId/stats',
@@ -126,7 +197,7 @@ export default async function suggestionsRoutes(app: FastifyInstance) {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
-      const [totalPending, reminders, offers, sentToday] = await Promise.all([
+      const [nativePending, reminders, offers, sentToday, externalRows] = await Promise.all([
         app.prisma.serviceCycleSuggestion.count({
           where: { orgId, status: 'pending' },
         }),
@@ -137,11 +208,27 @@ export default async function suggestionsRoutes(app: FastifyInstance) {
           where: { orgId, status: 'pending', suggestionType: 'offer' },
         }),
         app.prisma.serviceCycleSuggestion.count({
-          where: { orgId, status: 'sent', sentAt: { gte: today } },
+          where: {
+            orgId,
+            OR: [
+              { status: 'sent', sentAt: { gte: today } },
+              { status: 'contacted', sentAt: { gte: today } },
+            ],
+          },
         }),
+        getExternalRecallRows(app.prisma, orgId),
       ]);
 
-      return { totalPending, reminders, offers, sentToday };
+      const externalPending = externalRows.length;
+
+      return {
+        totalPending: nativePending + externalPending,
+        nativePending,
+        externalPending,
+        reminders,
+        offers,
+        sentToday,
+      };
     },
   );
 
@@ -292,6 +379,71 @@ export default async function suggestionsRoutes(app: FastifyInstance) {
       });
 
       return { success: true, suggestion: updated };
+    },
+  );
+
+  // -----------------------------------------------------------------------
+  // PATCH /:id/status — Owner marks recall status on a native suggestion
+  // -----------------------------------------------------------------------
+  app.patch<{ Params: { id: string } }>(
+    '/:id/status',
+    async (request, reply) => {
+      const { id } = request.params;
+      const body = statusUpdateSchema.parse(request.body);
+
+      const suggestion = await app.prisma.serviceCycleSuggestion.findUnique({
+        where: { suggestionId: id },
+      });
+
+      if (!suggestion || suggestion.orgId !== request.user.orgId) {
+        return reply.code(404).send({ error: 'Suggestion not found' });
+      }
+
+      const data: { status: RecallStatus; sentAt?: Date; sentBy?: string } = {
+        status: body.status,
+      };
+      if (body.status === 'contacted') {
+        data.sentAt = new Date();
+        data.sentBy = request.user.userId;
+      }
+
+      const updated = await app.prisma.serviceCycleSuggestion.update({
+        where: { suggestionId: id },
+        data,
+      });
+
+      return { success: true, suggestion: updated };
+    },
+  );
+
+  // -----------------------------------------------------------------------
+  // PATCH /external/:externalId/status — Owner marks recall status on an external patient
+  // -----------------------------------------------------------------------
+  app.patch<{ Params: { externalId: string } }>(
+    '/external/:externalId/status',
+    async (request, reply) => {
+      const { externalId } = request.params;
+      const body = statusUpdateSchema.parse(request.body);
+
+      const external = await app.prisma.externalPatient.findUnique({
+        where: { externalPatientId: externalId },
+        select: { externalPatientId: true, orgId: true },
+      });
+
+      if (!external || external.orgId !== request.user.orgId) {
+        return reply.code(404).send({ error: 'External patient not found' });
+      }
+
+      const updated = await app.prisma.externalPatient.update({
+        where: { externalPatientId: externalId },
+        data: {
+          recallStatus: body.status,
+          recallStatusAt: new Date(),
+          recallStatusBy: request.user.userId,
+        },
+      });
+
+      return { success: true, externalPatient: updated };
     },
   );
 }

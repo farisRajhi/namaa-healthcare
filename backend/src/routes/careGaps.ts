@@ -27,7 +27,6 @@ const createRuleSchema = z.object({
     minAge: z.number().optional(),
     maxAge: z.number().optional(),
     sex: z.string().optional(),
-    hasConditions: z.array(z.string()).optional(),
     previousServices: z.array(z.string()).optional(),
     serviceNotReceivedDays: z.number().optional(),
     missedAppointmentsMin: z.number().optional(),

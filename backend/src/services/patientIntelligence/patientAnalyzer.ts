@@ -10,7 +10,7 @@
  * Contact history from the feedback collector is injected so the AI
  * avoids re-recommending recently contacted or DNC patients.
  */
-import { geminiJsonChat, type GeminiConfig } from './geminiClient.js';
+import { llmJsonChat } from './llmRouter.js';
 import type { ContactHistorySummary } from './feedbackCollector.js';
 import type { ServiceGap } from './serviceCycleMap.js';
 
@@ -236,29 +236,34 @@ function defaultResult(patientIndex: number): PatientAnalysisResult {
 // ── Main function ────────────────────────────────────────────────────
 
 /**
- * Analyze a batch of up to 25 patients using Gemini.
+ * Analyze a batch of up to 25 patients using the configured LLM provider.
  *
- * @param geminiConfig   - Gemini API configuration
+ * Provider is resolved via llmRouter (env-configurable per pipeline step).
+ *
  * @param patients       - Normalized patient records with index references
  * @param skillContent   - Domain knowledge text from skill loader
  * @param contactHistory - Campaign/contact history keyed by patient index
  * @param clinicType     - Detected clinic specialty
  * @returns Analysis results for each patient in the batch
  */
+export interface AnalyzeBatchResult {
+  results: PatientAnalysisResult[];
+  tokensUsed: number;
+}
+
 export async function analyzeBatch(
-  geminiConfig: GeminiConfig,
   patients: NormalizedPatient[],
   skillContent: string,
   contactHistory: Map<number, ContactHistorySummary | null>,
   clinicType: string,
-): Promise<PatientAnalysisResult[]> {
-  if (patients.length === 0) return [];
+): Promise<AnalyzeBatchResult> {
+  if (patients.length === 0) return { results: [], tokensUsed: 0 };
 
   const systemPrompt = buildSystemPrompt(clinicType, skillContent);
   const userPrompt = buildUserPrompt(patients, contactHistory);
 
   try {
-    const content = await geminiJsonChat(geminiConfig, {
+    const { text: content, usage } = await llmJsonChat('patient-analysis', {
       systemPrompt,
       userPrompt,
       temperature: 0.2,
@@ -312,11 +317,12 @@ export async function analyzeBatch(
     }
 
     // Ensure every input patient has a result (fill gaps with defaults)
-    return patients.map((p) => resultMap.get(p.index) || defaultResult(p.index));
+    const results = patients.map((p) => resultMap.get(p.index) || defaultResult(p.index));
+    return { results, tokensUsed: usage.totalTokens };
   } catch (error) {
-    console.error('[PatientAnalyzer] Gemini batch analysis failed:', error);
+    console.error('[PatientAnalyzer] LLM batch analysis failed:', error);
 
     // Return safe defaults for all patients in the batch
-    return patients.map((p) => defaultResult(p.index));
+    return { results: patients.map((p) => defaultResult(p.index)), tokensUsed: 0 };
   }
 }

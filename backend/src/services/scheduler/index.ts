@@ -16,7 +16,7 @@
 import cron from 'node-cron';
 import { PrismaClient } from '@prisma/client';
 import { AppointmentReminderService } from '../reminders/appointmentReminder.js';
-import { CampaignManager, getCampaignManager } from '../campaigns/campaignManager.js';
+import { getCampaignManager } from '../campaigns/campaignManager.js';
 import { PredictiveEngine } from '../analytics/predictiveEngine.js';
 import { CareGapCampaignPipeline } from '../pipelines/careGapCampaign.js';
 import { getInsightBuilder } from '../patient/insightBuilder.js';
@@ -258,25 +258,12 @@ export class TaskScheduler {
       {
         name: 'appointment-reminders',
         schedule: '*/5 * * * *',
-        description: 'Check for upcoming appointments and send reminders (48h, 24h, 2h before)',
+        description: 'Mark due appointment reminders as sent (WhatsApp dispatch handled separately via Baileys)',
         enabled: true,
         handler: async () => {
-          const reminderService = new AppointmentReminderService(this.prisma, null);
+          const reminderService = new AppointmentReminderService(this.prisma);
           const result = await reminderService.processDueReminders();
-          console.log(`[Scheduler]   → Sent ${result.sent} reminders, ${result.failed} failed`);
-        },
-      },
-
-      // 2. Campaign Executor — every 10 minutes
-      {
-        name: 'campaign-executor',
-        schedule: '*/10 * * * *',
-        description: 'Process active campaigns and execute next batch of outreach targets',
-        enabled: true,
-        handler: async () => {
-          const campaignManager = new CampaignManager(this.prisma, null);
-          const results = await campaignManager.executeAllActiveCampaigns();
-          console.log(`[Scheduler]   → Processed ${results.length} active campaigns`);
+          console.log(`[Scheduler]   → Marked ${result.sent} reminders as sent, ${result.skipped} skipped`);
         },
       },
 
@@ -350,94 +337,6 @@ export class TaskScheduler {
         },
       },
 
-      // 9. Daily SMS Appointment Reminders — every day at 9:00 AM AST
-      {
-        name: 'daily-sms-reminders',
-        schedule: '0 9 * * *',
-        description: 'Send SMS reminders for all confirmed appointments scheduled for tomorrow',
-        enabled: true,
-        timezone: 'Asia/Riyadh',
-        handler: async () => {
-          const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Riyadh' }));
-          const tomorrow = new Date(now);
-          tomorrow.setDate(tomorrow.getDate() + 1);
-
-          const startOfTomorrow = new Date(tomorrow);
-          startOfTomorrow.setHours(0, 0, 0, 0);
-          const endOfTomorrow = new Date(tomorrow);
-          endOfTomorrow.setHours(23, 59, 59, 999);
-
-          const appointments = await this.prisma.appointment.findMany({
-            where: {
-              startTs: { gte: startOfTomorrow, lt: endOfTomorrow },
-              status: { in: ['booked', 'confirmed'] },
-            },
-            include: {
-              provider: { select: { displayName: true } },
-              patient: {
-                include: {
-                  contacts: {
-                    where: { contactType: 'phone', isPrimary: true },
-                    take: 1,
-                  },
-                },
-              },
-            },
-          });
-
-          let sent = 0;
-          let skipped = 0;
-
-          // SECURITY: Instantiate Twilio client once outside the loop; fail fast if creds missing
-          const accountSid = process.env.TWILIO_ACCOUNT_SID;
-          const authToken = process.env.TWILIO_AUTH_TOKEN;
-          const fromNumber = process.env.TWILIO_PHONE_NUMBER;
-          if (!accountSid || !authToken || !fromNumber) {
-            throw new Error('Twilio credentials not configured for SMS reminders');
-          }
-          const twilioClient = (await import('twilio')).default(accountSid, authToken);
-
-          for (const apt of appointments) {
-            try {
-              const phone = apt.patient?.contacts?.[0]?.contactValue;
-              if (!phone) { skipped++; continue; }
-
-              const timeStr = apt.startTs.toLocaleTimeString('ar-SA', {
-                hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Riyadh',
-              });
-              const body =
-                `تذكير: لديك موعد غداً مع ${apt.provider.displayName} الساعة ${timeStr}. ` +
-                `للتأكيد أرسل 1، للإلغاء أرسل 2`;
-
-              await twilioClient.messages.create({
-                to: phone,
-                from: fromNumber,
-                body,
-              });
-
-              await this.prisma.smsLog.create({
-                data: {
-                  orgId: apt.orgId,
-                  patientId: apt.patientId ?? undefined,
-                  phone,
-                  channel: 'sms',
-                  body,
-                  status: 'sent',
-                  triggeredBy: 'daily-sms-reminders-cron',
-                },
-              });
-
-              sent++;
-            } catch (err: any) {
-              skipped++;
-              console.error(`[Scheduler]   ✗ SMS reminder failed for apt ${apt.appointmentId}:`, err?.message);
-            }
-          }
-
-          console.log(`[Scheduler]   ✓ Daily SMS reminders: ${sent} sent, ${skipped} skipped (of ${appointments.length} tomorrow's appointments)`);
-        },
-      },
-
       // 10. Offer Expiry — daily at midnight AST
       {
         name: 'offer-expiry',
@@ -446,7 +345,7 @@ export class TaskScheduler {
         enabled: true,
         timezone: 'Asia/Riyadh',
         handler: async () => {
-          const offerManager = new OfferManager(this.prisma, null);
+          const offerManager = new OfferManager(this.prisma);
           const expired = await offerManager.expireOverdueOffers();
           if (expired > 0) {
             console.log(`[Scheduler]   → Expired ${expired} overdue offers`);
@@ -493,27 +392,24 @@ export class TaskScheduler {
           let started = 0;
           for (const campaign of draftCampaigns) {
             try {
-              const cm = getCampaignManager(this.prisma, null);
-              await cm.startCampaign(campaign.campaignId);
+              // Atomic claim: only one scheduler instance flips draft → active.
+              // Prevents double audience-enrollment during rolling deploys
+              // where two schedulers may briefly run in parallel.
+              const claimed = await this.prisma.campaign.updateMany({
+                where: { campaignId: campaign.campaignId, status: 'draft' },
+                data: { status: 'active', startDate: new Date() },
+              });
+              if (claimed.count === 0) continue; // another instance won the race
+
+              const cm = getCampaignManager(this.prisma);
+              await cm.enrollCampaignTargets(campaign.campaignId);
               started++;
             } catch (err: any) {
               console.error(`[Scheduler]   → Failed to start salary-day campaign ${campaign.name}:`, err?.message);
             }
           }
 
-          // Execute active salary-day campaigns
-          const cm = getCampaignManager(this.prisma, null);
-          const results = await cm.executeAllActiveCampaigns();
-          const salaryResults = results.filter(r => r.enqueued > 0 || r.processed > 0);
-
-          // Auto-complete salary-day campaigns on the 28th
-          const riyadhNow = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Riyadh' }));
-          if (riyadhNow.getDate() === 27) {
-            // Last salary day — campaigns will be completed by normal execution flow
-            // or on next campaign-executor run when endDate passes
-          }
-
-          console.log(`[Scheduler]   ✓ Salary day: ${started} campaigns started, ${salaryResults.length} campaigns processed`);
+          console.log(`[Scheduler]   ✓ Salary day: ${started} campaigns started (dispatch via Baileys WhatsApp)`);
         },
       },
 

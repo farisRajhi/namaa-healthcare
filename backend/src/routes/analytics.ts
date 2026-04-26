@@ -118,6 +118,7 @@ async function getChannelsData(app: FastifyInstance, orgId: string) {
 
 export default async function analyticsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
+  app.addHook('preHandler', app.requireSubscription);
 
   // ── Org-scoped routes: GET /api/analytics/:orgId/overview etc. ──────────
 

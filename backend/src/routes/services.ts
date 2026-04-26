@@ -11,6 +11,10 @@ const createServiceSchema = z.object({
   category: z.string().optional(),
   repeatCycleDays: z.number().int().min(1).optional(),
   isRepeating: z.boolean().default(false),
+  priceSar: z.number().int().min(0).max(100000).nullable().optional(),
+  priceNote: z.string().max(200).nullable().optional(),
+  priceNoteEn: z.string().max(200).nullable().optional(),
+  showPrice: z.boolean().default(false),
 });
 
 export default async function servicesRoutes(app: FastifyInstance) {
@@ -77,6 +81,10 @@ export default async function servicesRoutes(app: FastifyInstance) {
         category: body.category,
         repeatCycleDays: body.repeatCycleDays,
         isRepeating: body.isRepeating,
+        priceSar: body.priceSar ?? null,
+        priceNote: body.priceNote ?? null,
+        priceNoteEn: body.priceNoteEn ?? null,
+        showPrice: body.showPrice,
       },
     });
 

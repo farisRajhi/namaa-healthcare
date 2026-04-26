@@ -82,7 +82,7 @@ export default function ApprovalDialog({
             <Users className="h-5 w-5 text-primary-600" />
             <div>
               <span className="text-sm font-semibold text-primary-700">
-                {suggestion.patientCount.toLocaleString()}
+                {(suggestion.patientCount ?? 0).toLocaleString()}
               </span>
               <span className="text-sm text-primary-600 ms-1">
                 {isAr ? 'مريض سيتم التواصل معهم' : 'patients will be contacted'}

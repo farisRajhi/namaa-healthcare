@@ -63,25 +63,10 @@ services:
       
       # Google Gemini
       GEMINI_API_KEY: ${GEMINI_API_KEY}
-      USE_GEMINI_VOICE: ${USE_GEMINI_VOICE:-true}
-      
-      # Twilio
-      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID}
-      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN}
-      TWILIO_PHONE_NUMBER: ${TWILIO_PHONE_NUMBER}
-      
-      # ElevenLabs
-      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY}
-      
-      # Voice Settings
-      VOICE_DEFAULT_DIALECT: ${VOICE_DEFAULT_DIALECT:-msa}
-      VOICE_MAX_CALL_DURATION_SEC: ${VOICE_MAX_CALL_DURATION_SEC:-600}
-      VOICE_SILENCE_TIMEOUT_MS: ${VOICE_SILENCE_TIMEOUT_MS:-1500}
-      
+
       # URLs
       BASE_URL: ${BASE_URL}
-      VOICE_WS_URL: ${VOICE_WS_URL}
-      
+
       # Organization
       DEFAULT_ORG_ID: ${DEFAULT_ORG_ID}
     volumes:
@@ -106,7 +91,6 @@ services:
       dockerfile: Dockerfile
       args:
         VITE_API_URL: ${BASE_URL}/api
-        VITE_WS_URL: ${VOICE_WS_URL}
         VITE_APP_NAME: Tawafud
     container_name: tawafud-frontend
     restart: unless-stopped

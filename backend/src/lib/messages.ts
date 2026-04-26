@@ -1,6 +1,6 @@
-type Lang = 'ar' | 'en'
+export type Lang = 'ar' | 'en'
 
-interface BilingualMessage {
+export interface BilingualMessage {
   ar: string
   en: string
 }
@@ -37,6 +37,28 @@ export const messages = {
   providers: {
     notFound: { ar: 'الطبيب غير موجود', en: 'Provider not found' } as BilingualMessage,
     noAvailability: { ar: 'لا توجد أوقات متاحة', en: 'No availability found' } as BilingualMessage,
+  },
+  plan: {
+    limitReachedConversations: {
+      ar: 'تم بلوغ الحد الشهري للمحادثات في خطتك الحالية. يرجى الترقية للاستمرار.',
+      en: 'You have reached your plan\'s monthly conversation limit. Please upgrade to continue.',
+    } as BilingualMessage,
+    limitReachedTokens: {
+      ar: 'تم بلوغ الحد الشهري لاستهلاك الذكاء الاصطناعي. يرجى الترقية للاستمرار.',
+      en: 'You have reached your plan\'s monthly AI token limit. Please upgrade to continue.',
+    } as BilingualMessage,
+    limitReachedProviders: {
+      ar: 'تم بلوغ الحد الأقصى للأطباء في خطتك الحالية. يرجى الترقية لإضافة المزيد.',
+      en: 'You have reached your plan\'s active provider limit. Please upgrade to add more.',
+    } as BilingualMessage,
+    approachingLimitConversations: {
+      ar: 'اقتربت من الحد الشهري للمحادثات. يُرجى التفكير في ترقية الخطة.',
+      en: 'You are approaching your monthly conversation limit. Consider upgrading.',
+    } as BilingualMessage,
+    approachingLimitTokens: {
+      ar: 'اقتربت من الحد الشهري لاستهلاك الذكاء الاصطناعي. يُرجى التفكير في ترقية الخطة.',
+      en: 'You are approaching your monthly AI token limit. Consider upgrading.',
+    } as BilingualMessage,
   },
 }
 

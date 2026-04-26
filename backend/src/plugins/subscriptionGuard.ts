@@ -3,9 +3,23 @@ import fp from 'fastify-plugin';
 
 /**
  * Subscription Guard Middleware
- * Checks if the org has an active Tawafud subscription before allowing access.
- * Decorates fastify with `requireSubscription` hook.
+ *
+ * Allows access if the org has:
+ *   (a) an active paid subscription (status 'active', endDate in future), OR
+ *   (b) an active 14-day trial (org.trialEndsAt > now).
+ *
+ * Decorates Fastify with `requireSubscription`.
+ * Attaches `{ plan, isTrialing, endDate, trialEndsAt }` to `request.subscription`
+ * so downstream handlers (and the plan guard) can inspect tier without re-querying.
  */
+
+interface SubscriptionRequestState {
+  plan: string;
+  isTrialing: boolean;
+  endDate: Date | null;
+  trialEndsAt: Date | null;
+}
+
 const subscriptionGuardPlugin: FastifyPluginAsync = async (fastify) => {
   fastify.decorate(
     'requireSubscription',
@@ -20,7 +34,7 @@ const subscriptionGuardPlugin: FastifyPluginAsync = async (fastify) => {
         // Short-circuit on org suspension (belt-and-suspenders with auth plugin).
         const org = await fastify.prisma.org.findUnique({
           where: { orgId: user.orgId },
-          select: { status: true },
+          select: { status: true, trialEndsAt: true },
         });
         if (!org || org.status !== 'active') {
           return reply.code(403).send({
@@ -30,25 +44,39 @@ const subscriptionGuardPlugin: FastifyPluginAsync = async (fastify) => {
           });
         }
 
+        const now = new Date();
+        const trialEndsAt: Date | null = org.trialEndsAt ?? null;
+        const isTrialing = !!trialEndsAt && trialEndsAt.getTime() > now.getTime();
+
+        // Accept 'active' and 'past_due' so orgs in dunning grace keep access.
+        // Consistent with auth.ts hasPaidActive and dunning.ts retry flow.
+        // `endDate >= now` still blocks fully-expired subs.
         const subscription = await fastify.prisma.tawafudSubscription.findFirst({
           where: {
             orgId: user.orgId,
-            status: 'active',
-            endDate: { gte: new Date() },
+            status: { in: ['active', 'past_due'] },
+            endDate: { gte: now },
           },
         });
 
-        if (!subscription) {
+        if (!subscription && !isTrialing) {
           return reply.code(402).send({
             error: 'Subscription Required',
             message: 'An active Tawafud subscription is required to access this feature.',
             code: 'SUBSCRIPTION_REQUIRED',
-            upgradeUrl: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/pricing`,
+            upgradeUrl: `${process.env.FRONTEND_URL}/billing?tab=plans`,
           });
         }
 
-        // Attach subscription info to request for downstream use
-        (request as any).subscription = subscription;
+        const state: SubscriptionRequestState = {
+          // Trial is treated as "professional" for tier checks (see planGuard).
+          plan: subscription?.plan ?? 'professional',
+          isTrialing,
+          endDate: subscription?.endDate ?? null,
+          trialEndsAt,
+        };
+
+        (request as any).subscription = state;
       } catch (error) {
         fastify.log.error(`[subscriptionGuard] ${error}`);
         return reply.code(500).send({ error: 'Failed to verify subscription' });
@@ -63,6 +91,9 @@ declare module 'fastify' {
       request: FastifyRequest,
       reply: FastifyReply,
     ) => Promise<void>;
+  }
+  interface FastifyRequest {
+    subscription?: SubscriptionRequestState;
   }
 }
 

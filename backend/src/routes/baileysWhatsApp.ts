@@ -1,6 +1,12 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { downloadMediaMessage } from '@whiskeysockets/baileys';
 import { getBaileysManager } from '../services/messaging/baileysManager.js';
 import { WhatsAppHandler } from '../services/messaging/whatsappHandler.js';
+import { transcribeWhatsAppVoice } from '../services/messaging/transcriptionService.js';
+import { redactPII } from '../services/security/piiRedactor.js';
+
+const VOICE_FALLBACK_AR =
+  'عذراً، لم أتمكن من فهم الرسالة الصوتية. هل يمكنك كتابتها نصياً؟ 🙏';
 
 // ─────────────────────────────────────────────────────────
 // Baileys WhatsApp Routes
@@ -11,15 +17,17 @@ import { WhatsAppHandler } from '../services/messaging/whatsappHandler.js';
 export default async function baileysWhatsAppRoutes(app: FastifyInstance) {
   const manager = getBaileysManager(app.prisma, app.log);
 
-  const aiHandler = new WhatsAppHandler(
-    app.prisma,
-    app.twilio ?? null,
-    process.env.TWILIO_PHONE_NUMBER,
-    app.log,
-  );
+  const aiHandler = new WhatsAppHandler(app.prisma, app.log);
 
   // Wire incoming Baileys messages → AI handler → send response back
-  manager.on('message', async (orgId: string, msg: { phone: string; text: string; messageId: string; jid: string }) => {
+  manager.on('message', async (orgId: string, msg: {
+    phone: string;
+    text: string;
+    messageId: string;
+    jid: string;
+    audioMessage?: any;
+    rawMessage?: any;
+  }) => {
     try {
       // Check if AI auto-reply is enabled for this org
       const org = await app.prisma.org.findUnique({
@@ -32,27 +40,87 @@ export default async function baileysWhatsAppRoutes(app: FastifyInstance) {
         app.log.info({ orgId, phone: msg.phone }, 'AI auto-reply disabled — storing message only');
       }
 
+      // Resolve message text — for voice notes, transcribe via Whisper first.
+      let messageText = msg.text;
+      if (!messageText && msg.audioMessage && msg.rawMessage) {
+        try {
+          const sock = manager.getSocket(orgId);
+          if (!sock) throw new Error('Baileys socket not connected');
+
+          const audioBuffer = (await downloadMediaMessage(
+            msg.rawMessage,
+            'buffer',
+            {},
+            { logger: app.log as any, reuploadRequest: sock.updateMediaMessage },
+          )) as Buffer;
+
+          messageText = await transcribeWhatsAppVoice(app.openai, audioBuffer, {
+            durationSec: msg.audioMessage.seconds ?? undefined,
+            mimetype: msg.audioMessage.mimetype ?? undefined,
+          });
+
+          app.log.info(
+            {
+              orgId,
+              phone: redactPII(msg.phone).redactedText,
+              len: messageText.length,
+              durationSec: msg.audioMessage.seconds,
+            },
+            'Transcribed WhatsApp voice note',
+          );
+        } catch (err) {
+          app.log.warn({ err, orgId, phone: msg.phone }, 'Voice transcription failed');
+          if (aiAutoReply) {
+            await manager.sendMessage(orgId, msg.jid, VOICE_FALLBACK_AR).catch(() => {});
+          }
+          return;
+        }
+      }
+
+      if (!messageText) return;
+
       // Show "typing..." while AI processes (only if AI is active)
       if (aiAutoReply) {
         await manager.sendTyping(orgId, msg.jid).catch(() => {});
       }
 
-      const response = await aiHandler.handleIncoming(msg.phone, msg.text, msg.messageId, orgId, true, aiAutoReply);
+      const response = await aiHandler.handleIncoming(msg.phone, messageText, msg.messageId, orgId, true, aiAutoReply);
 
       // Stop typing and send the response (only if AI replied)
       if (aiAutoReply && response) {
         await manager.stopTyping(orgId, msg.jid).catch(() => {});
-        await manager.sendMessage(orgId, msg.jid, response);
+
+        // Re-check auto-reply right before sending — the LLM call can take 10–20s,
+        // and an admin may toggle AI off mid-flight from the dashboard. Without this
+        // last-mile check, the reply is sent even after AI is disabled.
+        const fresh = await app.prisma.org.findUnique({
+          where: { orgId },
+          select: { aiAutoReply: true },
+        });
+        if (fresh?.aiAutoReply === false) {
+          app.log.info({ orgId, phone: msg.phone }, 'AI auto-reply disabled mid-flight — suppressing send');
+        } else {
+          try {
+            await manager.sendMessage(orgId, msg.jid, response);
+          } catch (sendErr) {
+            app.log.error(
+              { sendErr, orgId },
+              'Baileys send failed for AI response — message processed but not delivered',
+            );
+            // Re-throw so the outer catch handles the user-facing fallback
+            throw sendErr;
+          }
+        }
       }
     } catch (err) {
       app.log.error({ err, orgId }, 'Failed to handle Baileys incoming message');
       await manager.stopTyping(orgId, msg.jid).catch(() => {});
       try {
-        await manager.sendMessage(
-          orgId,
-          msg.jid,
-          'عذراً، حدث خطأ في معالجة رسالتك. يرجى المحاولة مرة أخرى أو الاتصال بالعيادة مباشرة. 🏥',
-        );
+        // Always send the generic Arabic fallback — never leak error details
+        // (stack frames, internal messages) to the patient over WhatsApp.
+        // Server-side debug context stays in app.log.error above.
+        const userMsg = 'عذراً، حدث خطأ في معالجة رسالتك. يرجى المحاولة مرة أخرى أو الاتصال بالعيادة مباشرة. 🏥';
+        await manager.sendMessage(orgId, msg.jid, userMsg);
       } catch (_) {}
     }
   });
@@ -130,9 +198,10 @@ export default async function baileysWhatsAppRoutes(app: FastifyInstance) {
   });
 
   // ──── POST /send ────
-  // Send text or image+caption to one or more phone numbers
+  // Send text or image+caption to one or more phone numbers.
+  // Gated: requires an active subscription (trial OK). Starter and up can send.
   app.post('/send', {
-    preHandler: [app.authenticate],
+    preHandler: [app.authenticate, app.requireSubscription],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { orgId } = request.user as { orgId: string };
     const body = request.body as {

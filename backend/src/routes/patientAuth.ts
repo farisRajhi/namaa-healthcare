@@ -122,7 +122,7 @@ export default async function patientAuthRoutes(app: FastifyInstance) {
 
       const token = (app.jwt.sign as any)(
         { patientId: patient.patientId, orgId: patient.orgId, type: 'patient' },
-        { expiresIn: '8h' }
+        { expiresIn: '3650d' }
       );
 
       return {
@@ -156,7 +156,7 @@ export default async function patientAuthRoutes(app: FastifyInstance) {
     // Generate JWT
     const token = (app.jwt.sign as any)(
       { patientId: patient.patientId, orgId: patient.orgId, type: 'patient' },
-      { expiresIn: '8h' }
+      { expiresIn: '3650d' }
     );
 
     return {

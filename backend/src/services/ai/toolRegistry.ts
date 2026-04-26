@@ -2,7 +2,9 @@ import { PrismaClient } from '@prisma/client';
 import type { ChatCompletionTool } from 'openai/resources/chat/completions.js';
 import { ToolHookRunner, READ_ONLY_TOOLS } from './toolHooks.js';
 import type { HookContext } from './toolHooks.js';
+import { validateToolArgs } from './toolSchemas.js';
 import { riyadhNow, riyadhToUtc, riyadhMidnight, riyadhDateWithTime, riyadhDayOfWeek, utcToRiyadhDateStr, RIYADH_TZ } from '../../utils/riyadhTime.js';
+import { validatePatientName } from '../security/nameValidator.js';
 
 // ─────────────────────────────────────────────────────────
 // AI Tool Registry — Declarative Actions Catalog
@@ -26,6 +28,20 @@ export interface ToolDefinition {
   parameters: Record<string, unknown>;
   permissionLevel: PermissionLevel;
   category: 'booking' | 'inquiry' | 'general' | 'escalation';
+}
+
+/**
+ * Serialized form of the per-conversation reference maps.
+ * Persisted in `Conversation.context.toolRefs` between turns so that
+ * "[طبيب 1]" generated in turn N can still resolve to a UUID in turn N+1.
+ */
+export interface SerializedToolRefs {
+  provider?: Record<string, string>;
+  service?: Record<string, string>;
+  appointment?: Record<string, string>;
+  nextProvider?: number;
+  nextService?: number;
+  nextAppointment?: number;
 }
 
 // ── Tool Definitions (OpenAI function calling format) ──────
@@ -258,6 +274,15 @@ const TOOL_DEFINITIONS: ToolDefinition[] = [
   },
 ];
 
+/**
+ * Allowlist of registered tool names. Used by the LLM service to filter out
+ * any synthesized tool calls (e.g. from Gemini emitting `default_api.foo(...)`
+ * code blocks) that aren't backed by a real handler.
+ */
+export const REGISTERED_TOOL_NAMES: ReadonlySet<string> = new Set(
+  TOOL_DEFINITIONS.map(t => t.name),
+);
+
 // ── Arabic day/time helpers ──────────────────────────────
 
 const DAYS_AR: Record<number, string> = {
@@ -297,10 +322,13 @@ export class ToolRegistry {
   private channel: string = 'web';
   private patientLanguage: 'ar' | 'en' | 'auto' = 'auto';
 
-  // Phase 1.4: UUID-to-number mapping so patients never see raw UUIDs
-  private providerRefMap = new Map<number, string>();  // ref# → providerId
-  private serviceRefMap = new Map<number, string>();   // ref# → serviceId
-  private appointmentRefMap = new Map<number, string>(); // ref# → appointmentId
+  // Phase 1.4: UUID-to-number mapping so patients never see raw UUIDs.
+  // These maps are PER-INSTANCE and lost between turns unless seeded with
+  // initialRefs from Conversation.context.refs — otherwise the LLM cannot
+  // resolve "[طبيب 1]" from a previous turn back to a real UUID.
+  private providerRefMap = new Map<number, string>();
+  private serviceRefMap = new Map<number, string>();
+  private appointmentRefMap = new Map<number, string>();
   private nextProviderRef = 1;
   private nextServiceRef = 1;
   private nextAppointmentRef = 1;
@@ -310,8 +338,52 @@ export class ToolRegistry {
     private orgId: string,
     private patientId: string | null = null,
     private conversationId: string | null = null,
+    initialRefs?: SerializedToolRefs,
   ) {
     this.hookRunner = new ToolHookRunner(prisma);
+    if (initialRefs) this.loadRefs(initialRefs);
+  }
+
+  /** Hydrate ref maps from a previous turn's persisted state */
+  private loadRefs(refs: SerializedToolRefs): void {
+    if (refs.provider) {
+      for (const [k, v] of Object.entries(refs.provider)) {
+        const n = Number(k);
+        if (!isNaN(n)) this.providerRefMap.set(n, v);
+      }
+      this.nextProviderRef = (refs.nextProvider ?? this.providerRefMap.size + 1);
+    }
+    if (refs.service) {
+      for (const [k, v] of Object.entries(refs.service)) {
+        const n = Number(k);
+        if (!isNaN(n)) this.serviceRefMap.set(n, v);
+      }
+      this.nextServiceRef = (refs.nextService ?? this.serviceRefMap.size + 1);
+    }
+    if (refs.appointment) {
+      for (const [k, v] of Object.entries(refs.appointment)) {
+        const n = Number(k);
+        if (!isNaN(n)) this.appointmentRefMap.set(n, v);
+      }
+      this.nextAppointmentRef = (refs.nextAppointment ?? this.appointmentRefMap.size + 1);
+    }
+  }
+
+  /** Snapshot ref maps for persistence between turns */
+  getRefs(): SerializedToolRefs {
+    const toObj = (m: Map<number, string>): Record<string, string> => {
+      const o: Record<string, string> = {};
+      for (const [k, v] of m) o[String(k)] = v;
+      return o;
+    };
+    return {
+      provider: toObj(this.providerRefMap),
+      service: toObj(this.serviceRefMap),
+      appointment: toObj(this.appointmentRefMap),
+      nextProvider: this.nextProviderRef,
+      nextService: this.nextServiceRef,
+      nextAppointment: this.nextAppointmentRef,
+    };
   }
 
   /** Set the current permission level (for hook enforcement) */
@@ -463,7 +535,7 @@ export class ToolRegistry {
     if (!preResult.allow) {
       return preResult.reason ?? this.formatError('عذراً، لا يمكن تنفيذ هذا الإجراء.', 'Action not permitted.');
     }
-    const effectiveArgs = preResult.modifiedArgs ?? args;
+    let effectiveArgs = preResult.modifiedArgs ?? args;
 
     // Resolve reference numbers → UUIDs (WhatsApp hides UUIDs, LLM only sees [طبيب 1])
     if (typeof effectiveArgs.providerId === 'string') {
@@ -478,6 +550,29 @@ export class ToolRegistry {
     if (typeof effectiveArgs.holdAppointmentId === 'string') {
       effectiveArgs.holdAppointmentId = this.resolveRef('appointment', effectiveArgs.holdAppointmentId);
     }
+
+    // Fail-open UUID guard: if ref resolution didn't produce a UUID (e.g. LLM
+    // sent "[خدمة 1]" before any list was shown, or hallucinated a name), drop
+    // the field so downstream Prisma doesn't crash with "Error creating UUID".
+    // Required fields will be re-rejected by Zod below with a recoverable message;
+    // optional filter fields (browse_available_dates.serviceId, etc.) just widen
+    // the search instead of failing the whole call.
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    for (const key of ['providerId', 'serviceId', 'departmentId', 'appointmentId', 'holdAppointmentId']) {
+      const val = effectiveArgs[key];
+      if (typeof val === 'string' && val.length > 0 && !UUID_RE.test(val)) {
+        delete effectiveArgs[key];
+      }
+    }
+
+    // Validate args against the per-tool Zod schema (booking tools only for now).
+    // On failure, return a bilingual LLM-recoverable error instead of crashing
+    // deep inside a DB query. Skips tools without a registered schema.
+    const validated = validateToolArgs(name, effectiveArgs);
+    if (!validated.ok) {
+      return validated.message;
+    }
+    effectiveArgs = validated.data;
 
     // Check cache for read-only tools
     if (READ_ONLY_TOOLS.has(name)) {
@@ -650,23 +745,26 @@ export class ToolRegistry {
       ? requestedService.durationMin + requestedService.bufferBeforeMin + requestedService.bufferAfterMin
       : null; // will fall back to rule.slotIntervalMin per provider
 
-    // Build availability response
-    const lines: string[] = [`${this.label('المواعيد المتاحة', 'Available appointments')} — ${this.useArabic ? formatDateAr(targetDate) : dateStr}:`];
+    // Build availability response — WhatsApp-friendly numbered list.
+    // Slots get a globally-unique number so the patient can reply "2" or "رقم 2"
+    // and the LLM maps that back to a specific provider + time.
+    const header = `📅 ${this.label('المواعيد المتاحة', 'Available appointments')} — ${this.useArabic ? formatDateAr(targetDate) : dateStr}`;
+    const lines: string[] = [header, ''];
+    let slotCounter = 1;
+    type SlotEntry = { n: number; providerName: string; providerId: string; serviceId: string | null; time: string };
+    const slotIndex: SlotEntry[] = [];
 
     for (const provider of availableProviders) {
       const providerRanges = bookedRanges.get(provider.providerId) || [];
 
       for (const rule of provider.availabilityRules) {
-        // Use getUTCHours/Minutes because Prisma maps @db.Time(6) to UTC-anchored Date
         const startH = rule.startLocal.getUTCHours();
         const startM = rule.startLocal.getUTCMinutes();
         const endH = rule.endLocal.getUTCHours();
         const endM = rule.endLocal.getUTCMinutes();
 
-        // Phase 0.2: Use service-based slot sizing or rule's slotIntervalMin
-        const slotStepMin = Math.max(effectiveSlotMin ?? rule.slotIntervalMin ?? 30, 5); // Min 5 min to prevent infinite loop
+        const slotStepMin = Math.max(effectiveSlotMin ?? rule.slotIntervalMin ?? 30, 5);
         const slotDurationMin = requestedService ? Math.max(requestedService.durationMin, 5) : slotStepMin;
-        // Buffered window for conflict detection (clinical time + before/after buffers)
         const bufferBeforeMs = requestedService ? (requestedService.bufferBeforeMin ?? 0) * 60 * 1000 : 0;
         const bufferAfterMs = requestedService ? (requestedService.bufferAfterMin ?? 0) * 60 * 1000 : 0;
 
@@ -676,11 +774,9 @@ export class ToolRegistry {
           const slotStart = riyadhDateWithTime(dateStr, h, m);
           const slotEnd = new Date(slotStart.getTime() + slotDurationMin * 60 * 1000);
 
-          // Check slot doesn't exceed provider's availability window
           const windowEnd = riyadhDateWithTime(dateStr, endH, endM);
           if (slotEnd > windowEnd) break;
 
-          // Check for overlap using full buffered window (clinical time + buffers)
           const conflictStart = new Date(slotStart.getTime() - bufferBeforeMs);
           const conflictEnd = new Date(slotEnd.getTime() + bufferAfterMs);
           const hasConflict = providerRanges.some(
@@ -697,22 +793,42 @@ export class ToolRegistry {
 
         if (slots.length > 0) {
           const dept = provider.department?.name ?? '';
-          const serviceNames = provider.services.map(s => s.service.name).join('، ');
-          const ref = this.providerRef(provider.providerId);
-          lines.push(`\n🩺 [${this.label('طبيب', 'Dr.')} ${ref}] ${provider.displayName} ${dept ? `(${dept})` : ''}`);
-          lines.push(`   ref: ${ref} (providerId: ${provider.providerId})`);
-          if (serviceNames) {
-            lines.push(`   ${this.label('الخدمات', 'Services')}: ${serviceNames}`);
-            lines.push(`   serviceIds: ${provider.services.map(s => `${s.service.name}=${s.serviceId}`).join(', ')}`);
+          const firstServiceId = requestedService && args.serviceId
+            ? (args.serviceId as string)
+            : (provider.services[0]?.serviceId ?? null);
+
+          lines.push(`👨‍⚕️ *${provider.displayName}*${dept ? ` — ${dept}` : ''}`);
+          for (const timeStr of slots) {
+            lines.push(`   ${slotCounter}. ${timeStr}`);
+            slotIndex.push({
+              n: slotCounter,
+              providerName: provider.displayName,
+              providerId: provider.providerId,
+              serviceId: firstServiceId,
+              time: timeStr,
+            });
+            slotCounter++;
           }
-          lines.push(`   ${this.label('المواعيد المتاحة', 'Available slots')}: ${slots.join(' | ')}`);
+          lines.push('');
         }
       }
     }
 
-    if (lines.length === 1) {
+    if (slotIndex.length === 0) {
       return this.formatResponse(`جميع المواعيد محجوزة في ${formatDateAr(targetDate)}.`, `All slots booked on ${dateStr}.`);
     }
+
+    // Footer guidance for the patient
+    lines.push(this.label('💡 اختر رقم الوقت المناسب (مثال: "رقم 2" أو "2")', '💡 Reply with the slot number (e.g. "2")'));
+    // Internal-only mapping for the LLM — so it can resolve a number to providerId/serviceId/time.
+    // Not intended for the patient; the LLM should use it to call book_appointment/hold_appointment.
+    lines.push('');
+    lines.push('<!-- SLOT_MAP (for tool routing, do not repeat to user):');
+    for (const s of slotIndex) {
+      const sid = s.serviceId ? ` serviceId=${s.serviceId}` : '';
+      lines.push(`${s.n}: providerId=${s.providerId}${sid} time=${s.time} (${s.providerName})`);
+    }
+    lines.push('-->');
 
     return lines.join('\n');
   }
@@ -915,6 +1031,14 @@ export class ToolRegistry {
       return this.formatError('الاسم الأول والأخير ورقم الجوال مطلوبة.', 'First name, last name, and phone are required.');
     }
 
+    const nameCheck = validatePatientName(firstName, lastName);
+    if (!nameCheck.ok) {
+      return this.formatError(
+        'الاسم اللي وصلني يبدو تحية مو اسم. ممكن تكتبين اسمك الكامل (الأول والعائلة)؟',
+        'That looks like a greeting, not a name. Could you send your full name (first and last)?'
+      );
+    }
+
     // Validate phone format (Saudi +966 or international)
     const phoneNormalized = phone.startsWith('+') ? phone : `+${phone}`;
     if (!/^\+\d{10,15}$/.test(phoneNormalized)) {
@@ -975,9 +1099,9 @@ export class ToolRegistry {
               orgId: this.orgId,
               firstName,
               lastName,
-              dateOfBirth: new Date('1990-01-01'), // Placeholder — patient can update later
+              dateOfBirth: null,
               contacts: {
-                create: { contactType: 'phone', contactValue: phoneNormalized },
+                create: { contactType: 'phone', contactValue: phoneNormalized, isPrimary: true },
               },
             },
           });
@@ -1138,9 +1262,37 @@ export class ToolRegistry {
       return this.formatError('المريض غير محدد.', 'Patient not identified.');
     }
 
-    const appointmentId = args.appointmentId as string;
+    let appointmentId = args.appointmentId as string | undefined;
     // Sanitize reason to prevent LLM-generated injection into audit trail
     const reason = ((args.reason as string) || 'Cancelled via AI chat').slice(0, 200).replace(/[<>]/g, '');
+
+    // Structural fail-safe: if the LLM forgot/skipped the appointmentId AND
+    // the patient has exactly one upcoming appointment, auto-resolve to that
+    // one. Prevents the "نسيت رقم الموعد" loop where the LLM keeps asking
+    // patients for a UUID they don't have.
+    if (!appointmentId) {
+      const upcoming = await this.prisma.appointment.findMany({
+        where: {
+          patientId: this.patientId,
+          orgId: this.orgId,
+          status: { in: ['booked', 'confirmed'] },
+          startTs: { gte: new Date() },
+        },
+        orderBy: { startTs: 'asc' },
+        select: { appointmentId: true },
+        take: 2,
+      });
+      if (upcoming.length === 1) {
+        appointmentId = upcoming[0].appointmentId;
+      } else if (upcoming.length === 0) {
+        return this.formatError('لا توجد مواعيد قادمة لإلغائها.', 'No upcoming appointments to cancel.');
+      } else {
+        return this.formatError(
+          'فيه أكثر من موعد قادم — استدعي list_patient_appointments لعرضها واطلبي من المريض يحدد أيهم بالتاريخ.',
+          'Multiple upcoming appointments — call list_patient_appointments and ask the patient which one by date.',
+        );
+      }
+    }
 
     const appointment = await this.prisma.appointment.findFirst({
       where: {
@@ -1159,8 +1311,11 @@ export class ToolRegistry {
       return this.formatError('الموعد غير موجود أو لا يمكن إلغاؤه.', 'Appointment not found or cannot be cancelled.');
     }
 
-    await this.prisma.appointment.update({
-      where: { appointmentId },
+    // Defense-in-depth: scope the write by orgId even though the preceding
+    // findFirst already verified org ownership. updateMany is required because
+    // Prisma's `update` only accepts unique-constraint where clauses.
+    await this.prisma.appointment.updateMany({
+      where: { appointmentId, orgId: this.orgId },
       data: {
         status: 'cancelled',
       },
@@ -1413,7 +1568,19 @@ export class ToolRegistry {
       bookedByDateProvider.set(key, ranges);
     }
 
-    const lines: string[] = [`📅 ${this.label('المواعيد المتاحة خلال الأيام القادمة', 'Available appointments in the coming days')}:\n`];
+    // Compressed working-hours header (e.g. "من الأحد إلى الخميس من 06:00 إلى 18:00").
+    // Uses the shared clinicSchedule helper so the same text appears in the
+    // greeting prompt and here — consistent patient-facing wording.
+    const { getClinicSchedule } = await import('./clinicSchedule.js');
+    const schedule = await getClinicSchedule(this.prisma, this.orgId);
+    const workingDaysHeader = schedule.workingHoursAr
+      ? `🕒 وقت العمل: ${schedule.workingHoursAr}\n`
+      : '';
+
+    const lines: string[] = [
+      `📅 ${this.label('المواعيد المتاحة خلال الأيام القادمة', 'Available appointments in the coming days')}:`,
+      workingDaysHeader,
+    ];
     let hasAnySlots = false;
 
     // Iterate over Riyadh dates (use UTC-aligned base so toISOString gives correct date)
@@ -1617,9 +1784,34 @@ export class ToolRegistry {
       return this.formatError('المريض غير محدد.', 'Patient not identified.');
     }
 
-    const { appointmentId, newDate, newTime } = args as {
-      appointmentId: string; newDate: string; newTime: string;
-    };
+    let { appointmentId } = args as { appointmentId?: string };
+    const { newDate, newTime } = args as { newDate: string; newTime: string };
+
+    // Structural fail-safe (same as cancel): auto-resolve when the LLM didn't
+    // pass appointmentId but the patient has exactly one upcoming appointment.
+    if (!appointmentId) {
+      const upcoming = await this.prisma.appointment.findMany({
+        where: {
+          patientId: this.patientId,
+          orgId: this.orgId,
+          status: { in: ['booked', 'confirmed'] },
+          startTs: { gte: new Date() },
+        },
+        orderBy: { startTs: 'asc' },
+        select: { appointmentId: true },
+        take: 2,
+      });
+      if (upcoming.length === 1) {
+        appointmentId = upcoming[0].appointmentId;
+      } else if (upcoming.length === 0) {
+        return this.formatError('لا توجد مواعيد قادمة لإعادة جدولتها.', 'No upcoming appointments to reschedule.');
+      } else {
+        return this.formatError(
+          'فيه أكثر من موعد قادم — استدعي list_patient_appointments لعرضها واطلبي من المريض يحدد أيهم بالتاريخ.',
+          'Multiple upcoming appointments — call list_patient_appointments and ask the patient which one by date.',
+        );
+      }
+    }
 
     const appointment = await this.prisma.appointment.findFirst({
       where: {

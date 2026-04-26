@@ -282,8 +282,7 @@ export default async function waitlistRoutes(app: FastifyInstance) {
       },
     });
 
-    // NOTE: In a full implementation this would trigger an SMS/WhatsApp via Twilio.
-    // For now we return the phone so the caller can trigger messaging separately.
+    // Caller should trigger WhatsApp messaging separately using the returned phone.
 
     return {
       success: true,

@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next'
 import { cn } from '../../lib/utils'
 import LoadingSpinner from './LoadingSpinner'
 import EmptyState from './EmptyState'
@@ -35,7 +36,7 @@ export default function DataTable<T>({
   data,
   isLoading,
   emptyIcon,
-  emptyTitle = 'No data found',
+  emptyTitle,
   emptyDescription,
   emptyAction,
   onRowClick,
@@ -43,6 +44,8 @@ export default function DataTable<T>({
   pagination,
   className,
 }: DataTableProps<T>) {
+  const { t } = useTranslation()
+  const resolvedEmptyTitle = emptyTitle ?? t('common.noData', { defaultValue: 'No data found' })
   if (isLoading) {
     return (
       <div className={cn('table-container', className)}>
@@ -58,7 +61,7 @@ export default function DataTable<T>({
       <div className={cn('table-container', className)}>
         <EmptyState
           icon={emptyIcon}
-          title={emptyTitle}
+          title={resolvedEmptyTitle}
           description={emptyDescription}
           action={emptyAction}
         />
@@ -100,9 +103,12 @@ export default function DataTable<T>({
       {pagination && pagination.totalPages > 1 && (
         <div className="px-5 py-4 border-t border-healthcare-border/20 flex items-center justify-between">
           <p className="text-sm text-healthcare-muted">
-            عرض {(pagination.page - 1) * pagination.limit + 1} إلى{' '}
-            {Math.min(pagination.page * pagination.limit, pagination.total)} من{' '}
-            {pagination.total}
+            {t('common.showing', {
+              from: (pagination.page - 1) * pagination.limit + 1,
+              to: Math.min(pagination.page * pagination.limit, pagination.total),
+              total: pagination.total,
+              defaultValue: 'Showing {{from}} to {{to}} of {{total}}',
+            })}
           </p>
           <div className="flex gap-2">
             <button

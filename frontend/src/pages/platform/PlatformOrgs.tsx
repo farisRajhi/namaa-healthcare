@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
+import { Search, X } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { platformApi } from '../../lib/platformApi'
 import { getErrorMessage } from '../../lib/api'
@@ -26,10 +27,10 @@ interface ListResponse {
   pageSize: number
 }
 
-const STATUS_STYLES: Record<OrgStatus, string> = {
-  active: 'bg-green-100 text-green-800',
-  suspended: 'bg-amber-100 text-amber-800',
-  deleted: 'bg-slate-200 text-slate-600',
+const STATUS_BADGE: Record<OrgStatus, string> = {
+  active: 'bg-success-50 text-success-700 border-success-200',
+  suspended: 'bg-warning-50 text-warning-700 border-warning-200',
+  deleted: 'bg-healthcare-bg text-healthcare-muted border-healthcare-border',
 }
 
 export default function PlatformOrgs() {
@@ -95,31 +96,33 @@ export default function PlatformOrgs() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-slate-900">{t('platform.orgs.title')}</h1>
-        <div className="text-sm text-slate-500">
+        <h1 className="font-heading text-2xl font-semibold text-healthcare-text">
+          {t('platform.orgs.title')}
+        </h1>
+        <div className="text-sm text-healthcare-muted">
           {data ? t('platform.orgs.total', { n: data.total }) : '...'}
         </div>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 flex-wrap">
         <form
           onSubmit={(e) => {
             e.preventDefault()
             setSearch(searchInput.trim())
             setPage(1)
           }}
-          className="flex-1 flex gap-2"
+          className="flex-1 flex gap-2 min-w-[240px]"
         >
-          <input
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder={t('platform.orgs.search')}
-            className="flex-1 border border-slate-300 rounded px-3 py-2 text-sm"
-          />
-          <button
-            type="submit"
-            className="px-3 py-2 bg-slate-900 text-white text-sm rounded hover:bg-slate-800"
-          >
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 text-healthcare-muted absolute top-1/2 -translate-y-1/2 start-3 pointer-events-none" />
+            <input
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder={t('platform.orgs.search')}
+              className="w-full bg-white border border-healthcare-border rounded-lg ps-9 pe-3 py-2 text-sm text-healthcare-text focus:outline-none focus:ring-[3px] focus:ring-primary-400 focus:border-primary-500 transition-colors"
+            />
+          </div>
+          <button type="submit" className="btn-primary btn-sm">
             {t('platform.orgs.searchBtn')}
           </button>
         </form>
@@ -129,7 +132,7 @@ export default function PlatformOrgs() {
             setStatus(e.target.value as OrgStatus | '')
             setPage(1)
           }}
-          className="border border-slate-300 rounded px-3 py-2 text-sm"
+          className="bg-white border border-healthcare-border rounded-lg px-3 py-2 text-sm text-healthcare-text focus:outline-none focus:ring-[3px] focus:ring-primary-400 focus:border-primary-500"
         >
           <option value="">{t('platform.orgs.allStatuses')}</option>
           <option value="active">Active</option>
@@ -138,9 +141,9 @@ export default function PlatformOrgs() {
         </select>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
+      <div className="card overflow-hidden">
         <table className="w-full text-sm">
-          <thead className="bg-slate-50 text-slate-500 text-xs uppercase tracking-widest">
+          <thead className="bg-healthcare-bg text-healthcare-muted text-[11px] uppercase tracking-widest font-semibold">
             <tr>
               <th className="text-start px-4 py-3">{t('platform.orgs.name')}</th>
               <th className="text-start px-4 py-3">{t('platform.orgs.status')}</th>
@@ -153,45 +156,57 @@ export default function PlatformOrgs() {
           <tbody>
             {listQuery.isLoading && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-healthcare-muted">
                   {t('platform.orgs.loading')}
                 </td>
               </tr>
             )}
             {!listQuery.isLoading && data?.data.length === 0 && (
               <tr>
-                <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                <td colSpan={6} className="px-4 py-8 text-center text-healthcare-muted">
                   {t('platform.orgs.noMatch')}
                 </td>
               </tr>
             )}
             {data?.data.map((o) => (
-              <tr key={o.orgId} className="border-t border-slate-100 hover:bg-slate-50">
+              <tr
+                key={o.orgId}
+                className="border-t border-healthcare-border/40 hover:bg-healthcare-bg/60 transition-colors"
+              >
                 <td className="px-4 py-3">
-                  <Link to={`/platform/orgs/${o.orgId}`} className="text-slate-900 hover:underline">
+                  <Link
+                    to={`/platform/orgs/${o.orgId}`}
+                    className="text-healthcare-text hover:text-primary-600 font-medium transition-colors"
+                  >
                     {o.name}
                   </Link>
                 </td>
                 <td className="px-4 py-3">
-                  <span className={`inline-block text-xs font-medium rounded px-2 py-0.5 ${STATUS_STYLES[o.status]}`}>
+                  <span
+                    className={`inline-block text-xs font-semibold border rounded-full px-2.5 py-0.5 ${STATUS_BADGE[o.status]}`}
+                  >
                     {o.status}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-slate-600 capitalize">{o.subscription?.plan ?? '—'}</td>
-                <td className="px-4 py-3 text-slate-600">{o.userCount}</td>
-                <td className="px-4 py-3 text-slate-500">{new Date(o.createdAt).toLocaleDateString()}</td>
+                <td className="px-4 py-3 text-healthcare-muted capitalize">
+                  {o.subscription?.plan ?? '—'}
+                </td>
+                <td className="px-4 py-3 text-healthcare-text tabular-nums">{o.userCount}</td>
+                <td className="px-4 py-3 text-healthcare-muted tabular-nums">
+                  {new Date(o.createdAt).toLocaleDateString()}
+                </td>
                 <td className="px-4 py-3 text-end">
                   {o.status === 'active' ? (
                     <button
                       onClick={() => openModal(o, 'suspend')}
-                      className="text-xs text-amber-700 hover:text-amber-900"
+                      className="text-xs font-semibold text-warning-700 hover:text-warning-800 transition-colors"
                     >
                       {t('platform.orgs.suspend')}
                     </button>
                   ) : o.status === 'suspended' ? (
                     <button
                       onClick={() => openModal(o, 'reactivate')}
-                      className="text-xs text-green-700 hover:text-green-900"
+                      className="text-xs font-semibold text-success-700 hover:text-success-800 transition-colors"
                     >
                       {t('platform.orgs.reactivate')}
                     </button>
@@ -207,17 +222,17 @@ export default function PlatformOrgs() {
         <button
           onClick={() => setPage((p) => Math.max(1, p - 1))}
           disabled={page === 1}
-          className="px-3 py-1.5 text-sm border border-slate-300 rounded disabled:opacity-40"
+          className="btn-outline btn-sm"
         >
           {t('common.previous')}
         </button>
-        <div className="text-sm text-slate-500">
+        <div className="text-sm text-healthcare-muted tabular-nums">
           {t('platform.orgs.page', { page, total: totalPages })}
         </div>
         <button
           onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
           disabled={page >= totalPages}
-          className="px-3 py-1.5 text-sm border border-slate-300 rounded disabled:opacity-40"
+          className="btn-outline btn-sm"
         >
           {t('common.next')}
         </button>
@@ -225,45 +240,50 @@ export default function PlatformOrgs() {
 
       {modalOrg && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          className="fixed inset-0 bg-healthcare-text/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in"
           onClick={() => setModalOrg(null)}
         >
           <div
-            className="bg-white rounded-lg p-6 max-w-md w-full"
+            className="bg-white rounded-2xl border border-healthcare-border/40 shadow-modal p-6 max-w-md w-full animate-scale-in"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-lg font-semibold text-slate-900">
-              {modalAction === 'suspend' ? t('platform.orgs.suspend') : t('platform.orgs.reactivate')} {modalOrg.name}
-            </h2>
-            <label className="block mt-4 text-sm font-medium text-slate-700">
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <h2 className="font-heading text-lg font-semibold text-healthcare-text">
+                {modalAction === 'suspend'
+                  ? t('platform.orgs.suspend')
+                  : t('platform.orgs.reactivate')}{' '}
+                — {modalOrg.name}
+              </h2>
+              <button
+                onClick={() => setModalOrg(null)}
+                className="text-healthcare-muted hover:text-healthcare-text p-1 rounded-md hover:bg-healthcare-bg transition-colors"
+                aria-label="Close"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <label className="block mt-3 text-sm font-medium text-healthcare-text">
               {t('platform.orgDetail.statusReason')}
             </label>
             <textarea
               value={modalReason}
               onChange={(e) => setModalReason(e.target.value)}
               rows={3}
-              className="mt-1 w-full border border-slate-300 rounded px-3 py-2 text-sm"
+              className="mt-1 w-full bg-white border border-healthcare-border rounded-lg px-3 py-2 text-sm text-healthcare-text focus:outline-none focus:ring-[3px] focus:ring-primary-400 focus:border-primary-500 resize-none"
             />
             {modalError && (
-              <div className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
+              <div className="mt-3 text-sm text-danger-700 bg-danger-50 border border-danger-200 rounded-lg px-3 py-2">
                 {modalError}
               </div>
             )}
             <div className="mt-5 flex gap-2 justify-end">
-              <button
-                onClick={() => setModalOrg(null)}
-                className="px-3 py-2 text-sm border border-slate-300 rounded hover:bg-slate-50"
-              >
+              <button onClick={() => setModalOrg(null)} className="btn-outline btn-sm">
                 {t('common.cancel')}
               </button>
               <button
                 onClick={confirmModal}
                 disabled={statusMutation.isPending}
-                className={`px-3 py-2 text-sm text-white rounded disabled:opacity-60 ${
-                  modalAction === 'suspend'
-                    ? 'bg-amber-600 hover:bg-amber-700'
-                    : 'bg-green-700 hover:bg-green-800'
-                }`}
+                className={modalAction === 'suspend' ? 'btn-warning btn-sm' : 'btn-success btn-sm'}
               >
                 {statusMutation.isPending
                   ? t('platform.orgDetail.saving')

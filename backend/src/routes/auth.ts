@@ -23,9 +23,10 @@ const registerSchema = z.object({
 });
 
 export default async function authRoutes(app: FastifyInstance) {
-  // Rate-limit auth endpoints: max 10 attempts per minute per IP
+  // Rate-limit auth endpoints: lenient in dev, strict (10/min) in production
+  const isProd = process.env.NODE_ENV === 'production';
   await app.register(rateLimit, {
-    max: 10,
+    max: isProd ? 10 : 200,
     timeWindow: '1 minute',
     keyGenerator: (request: FastifyRequest) => request.ip,
     errorResponseBuilder: (_request: FastifyRequest, context: { after: string }) => ({
@@ -57,12 +58,15 @@ export default async function authRoutes(app: FastifyInstance) {
     // Hash password
     const hashedPassword = await bcrypt.hash(body.password, 12);
 
-    // Create org first
+    // Create org first — grant a 14-day trial so the new signup can use paid
+    // features immediately while they evaluate.
+    const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
     const org = await app.prisma.org.create({
       data: {
         name: body.orgName,
         defaultTimezone: 'Asia/Riyadh',
-      },
+        trialEndsAt,
+      } as any,
     });
 
     // Auto-deploy default AI customization flow for the new org
@@ -168,11 +172,12 @@ export default async function authRoutes(app: FastifyInstance) {
     return { token };
   });
 
-  // Get current user
+  // Get current user — includes subscription/trial state so the frontend can gate
+  // features without an additional round-trip.
   app.get('/me', {
     preHandler: [app.authenticate],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const { userId, orgId } = request.user;
+    const { userId } = request.user;
 
     const user = await app.prisma.user.findUnique({
       where: { userId },
@@ -187,12 +192,48 @@ export default async function authRoutes(app: FastifyInstance) {
       where: { orgId: user.orgId },
     });
 
+    const subscription = await app.prisma.tawafudSubscription.findUnique({
+      where: { orgId: user.orgId },
+    });
+
+    const now = Date.now();
+    const trialEndsAt = (org as any)?.trialEndsAt as Date | null | undefined;
+    const trialMs = trialEndsAt ? new Date(trialEndsAt).getTime() - now : 0;
+    const isTrialing = !!trialEndsAt && trialMs > 0;
+
+    const hasPaidActive =
+      !!subscription &&
+      ['active', 'past_due'].includes(subscription.status) &&
+      subscription.endDate.getTime() > now;
+
+    const isActive = hasPaidActive || isTrialing;
+
+    // Days remaining against the relevant clock: paid endDate takes precedence,
+    // otherwise the trial clock.
+    const endMs = hasPaidActive
+      ? subscription!.endDate.getTime()
+      : trialEndsAt
+      ? new Date(trialEndsAt).getTime()
+      : null;
+    const daysRemaining =
+      endMs !== null ? Math.max(0, Math.ceil((endMs - now) / 86_400_000)) : null;
+
     return {
       userId: user.userId,
       email: user.email,
       name: user.name,
       nameAr: user.nameAr,
       org: org ? { id: org.orgId, name: org.name } : null,
+      subscription: {
+        plan: subscription?.plan ?? null,
+        status: subscription?.status ?? null,
+        endDate: subscription?.endDate ?? null,
+        trialEndsAt: trialEndsAt ?? null,
+        isActive,
+        isTrialing,
+        hasPaidActive,
+        daysRemaining,
+      },
     };
   });
 

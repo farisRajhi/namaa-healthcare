@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { usePatientAuth, patientApi } from '../../context/PatientAuthContext'
-import { User, Phone, Mail, Calendar, Edit3, Check, X, Heart, AlertTriangle } from 'lucide-react'
+import { User, Phone, Mail, Calendar, Edit3, Check, X } from 'lucide-react'
 
 export default function PatientProfile() {
   const { t } = useTranslation()
@@ -50,9 +50,6 @@ export default function PatientProfile() {
     setEditing(false)
   }
 
-  const allergies = patient.memories.filter((m) => m.type === 'allergy')
-  const conditions = patient.memories.filter((m) => m.type === 'condition')
-  const medications = patient.memories.filter((m) => m.type === 'medication')
   const preferences = patient.memories.filter((m) => m.type === 'preference')
 
   return (
@@ -198,77 +195,6 @@ export default function PatientProfile() {
           )}
         </div>
       </div>
-
-      {/* Medical Info — Read-only */}
-      {(allergies.length > 0 || conditions.length > 0 || medications.length > 0) && (
-        <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-          <div className="bg-slate-50 px-4 py-2.5 border-b border-slate-100">
-            <p className="text-xs font-bold text-slate-600">{t('portal.profile.medicalInfo')}</p>
-            <p className="text-[10px] text-slate-400">{t('portal.profile.readOnly')}</p>
-          </div>
-          <div className="p-4 space-y-4">
-            {/* Allergies */}
-            {allergies.length > 0 && (
-              <div>
-                <p className="text-xs font-medium text-red-600 flex items-center gap-1 mb-2">
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                  {t('portal.profile.allergies')}
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {allergies.map((a) => (
-                    <span
-                      key={a.key}
-                      className="text-[10px] bg-red-50 text-red-700 px-2.5 py-1 rounded-full"
-                    >
-                      {a.value}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Conditions */}
-            {conditions.length > 0 && (
-              <div>
-                <p className="text-xs font-medium text-blue-600 flex items-center gap-1 mb-2">
-                  <Heart className="w-3.5 h-3.5" />
-                  {t('portal.profile.conditions')}
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {conditions.map((c) => (
-                    <span
-                      key={c.key}
-                      className="text-[10px] bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full"
-                    >
-                      {c.value}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Medications */}
-            {medications.length > 0 && (
-              <div>
-                <p className="text-xs font-medium text-purple-600 flex items-center gap-1 mb-2">
-                  <Heart className="w-3.5 h-3.5" />
-                  {t('portal.profile.medications')}
-                </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {medications.map((m) => (
-                    <span
-                      key={m.key}
-                      className="text-[10px] bg-purple-50 text-purple-700 px-2.5 py-1 rounded-full"
-                    >
-                      {m.value}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
 
       {/* Preferences */}
       {preferences.length > 0 && (

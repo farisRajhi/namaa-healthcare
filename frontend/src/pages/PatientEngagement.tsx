@@ -30,7 +30,7 @@ export default function PatientEngagement() {
         </div>
         <div className={`flex-1 text-${isAr ? 'right' : 'left'}`}>
           <p className="font-semibold text-purple-900">
-            {isAr ? 'ذكاء المرضى' : 'Patient Intelligence'}
+            {isAr ? 'حملات ذكية' : 'Smart Campaigns'}
           </p>
           <p className="text-sm text-purple-600">
             {isAr

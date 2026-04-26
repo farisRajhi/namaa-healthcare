@@ -7,6 +7,9 @@ import PortalLayout from './components/portal/PortalLayout'
 import Landing from './pages/Landing'
 import Pricing from './pages/Pricing'
 import Billing from './pages/Billing'
+import BillingCheckout from './pages/BillingCheckout'
+import RequiresSubscription from './components/subscription/RequiresSubscription'
+import SubscriptionRequiredListener from './components/subscription/SubscriptionRequiredListener'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
@@ -15,6 +18,7 @@ import PatientDetail from './pages/PatientDetail'
 import Appointments from './pages/Appointments'
 import Management from './pages/Management'
 import Settings from './pages/Settings'
+import BrandIdentity from './pages/BrandIdentity'
 import FAQ from './pages/FAQ'
 import Campaigns from './pages/Campaigns'
 import Reminders from './pages/Reminders'
@@ -103,7 +107,9 @@ function ProtectedPlatformRoute({ children }: { children: React.ReactNode }) {
 
 function App() {
   return (
-    <Routes>
+    <>
+      <SubscriptionRequiredListener />
+      <Routes>
       {/* Public routes */}
       <Route path="/" element={<Landing />} />
       <Route path="/pricing" element={<Pricing />} />
@@ -116,6 +122,14 @@ function App() {
         element={
           <ProtectedRoute>
             <Billing />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/billing/checkout/:planId"
+        element={
+          <ProtectedRoute>
+            <BillingCheckout />
           </ProtectedRoute>
         }
       />
@@ -135,19 +149,29 @@ function App() {
         <Route path="appointments" element={<Appointments />} />
         <Route path="management" element={<Management />} />
         <Route path="settings" element={<Settings />} />
+        <Route path="settings/branding" element={<BrandIdentity />} />
         <Route path="faq" element={<FAQ />} />
-        <Route path="patient-engagement" element={<PatientEngagement />} />
-        <Route path="patient-suggestions" element={<PatientSuggestions />} />
-        <Route path="campaigns" element={<Campaigns />} />
-        <Route path="reminders" element={<Reminders />} />
-        <Route path="analytics-dashboard" element={<AnalyticsDashboard />} />
-        <Route path="analytics" element={<AnalyticsDashboard />} />
-        <Route path="integrations" element={<Integrations />} />
-        <Route path="agent-builder" element={<AgentBuilderList />} />
-        <Route path="agent-builder/:id" element={<AgentBuilder />} />
-        <Route path="reports" element={<Reports />} />
         <Route path="knowledge-base" element={<KnowledgeBase />} />
-        <Route path="patient-intelligence" element={<PatientIntelligence />} />
+        {/* Billing alias inside the dashboard shell for sidebar nav */}
+        <Route path="billing" element={<Billing />} />
+
+        {/* Gated: any active plan (Starter and up) */}
+        <Route path="patient-intelligence" element={<RequiresSubscription feature="patientIntelligence"><PatientIntelligence /></RequiresSubscription>} />
+        <Route path="reminders" element={<RequiresSubscription feature="reminders"><Reminders /></RequiresSubscription>} />
+        <Route path="analytics-dashboard" element={<RequiresSubscription feature="analytics"><AnalyticsDashboard /></RequiresSubscription>} />
+        <Route path="analytics" element={<RequiresSubscription feature="analytics"><AnalyticsDashboard /></RequiresSubscription>} />
+
+        {/* Gated: Professional and up */}
+        <Route path="patient-engagement" element={<RequiresSubscription feature="patientEngagement"><PatientEngagement /></RequiresSubscription>} />
+        <Route path="patient-suggestions" element={<RequiresSubscription feature="patientSuggestions"><PatientSuggestions /></RequiresSubscription>} />
+        <Route path="campaigns" element={<RequiresSubscription feature="campaigns"><Campaigns /></RequiresSubscription>} />
+        <Route path="agent-builder" element={<RequiresSubscription feature="agentBuilder"><AgentBuilderList /></RequiresSubscription>} />
+        <Route path="agent-builder/:id" element={<RequiresSubscription feature="agentBuilder"><AgentBuilder /></RequiresSubscription>} />
+        <Route path="reports" element={<RequiresSubscription feature="reports"><Reports /></RequiresSubscription>} />
+
+        {/* Gated: Enterprise only */}
+        <Route path="integrations" element={<RequiresSubscription feature="ehrIntegration"><Integrations /></RequiresSubscription>} />
+
         {/* Redirects: old marketing pages → Patient Engagement */}
         <Route path="marketing" element={<Navigate to="/dashboard/patient-engagement" replace />} />
         <Route path="sms-templates" element={<Navigate to="/dashboard/patient-engagement" replace />} />
@@ -218,6 +242,7 @@ function App() {
       {/* Catch all — proper 404 page */}
       <Route path="*" element={<NotFound />} />
     </Routes>
+    </>
   )
 }
 

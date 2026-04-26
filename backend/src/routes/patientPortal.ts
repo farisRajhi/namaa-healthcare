@@ -208,13 +208,17 @@ export default async function patientPortalRoutes(app: FastifyInstance) {
       });
     }
 
-    const updated = await app.prisma.appointment.update({
-      where: { appointmentId: id },
+    const updateResult = await app.prisma.appointment.updateMany({
+      where: { appointmentId: id, patientId, orgId },
       data: {
         status: 'cancelled',
         updatedAt: new Date(),
       },
     });
+
+    if (updateResult.count === 0) {
+      return reply.code(404).send({ error: 'الموعد غير موجود', errorEn: 'Appointment not found' });
+    }
 
     // Record status change
     await app.prisma.appointmentStatusHistory.create({
@@ -227,17 +231,17 @@ export default async function patientPortalRoutes(app: FastifyInstance) {
       },
     });
 
-    return { appointmentId: updated.appointmentId, status: updated.status };
+    return { appointmentId: id, status: 'cancelled' };
   });
 
   // ─── Profile ────────────────────────────────────────────────
 
   // GET /profile — Get patient profile + memories
   app.get('/profile', async (request: FastifyRequest) => {
-    const { patientId } = getPatientAuth(request);
+    const { patientId, orgId } = getPatientAuth(request);
 
-    const patient = await app.prisma.patient.findUnique({
-      where: { patientId },
+    const patient = await app.prisma.patient.findFirst({
+      where: { patientId, orgId },
       include: {
         contacts: true,
         memories: {
@@ -273,7 +277,7 @@ export default async function patientPortalRoutes(app: FastifyInstance) {
 
   // PUT /profile — Update contact info
   app.put('/profile', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { patientId } = getPatientAuth(request);
+    const { patientId, orgId } = getPatientAuth(request);
     const body = updateProfileSchema.parse(request.body);
 
     const updateData: any = {};
@@ -281,8 +285,8 @@ export default async function patientPortalRoutes(app: FastifyInstance) {
     if (body.lastName) updateData.lastName = body.lastName;
 
     if (Object.keys(updateData).length > 0) {
-      await app.prisma.patient.update({
-        where: { patientId },
+      await app.prisma.patient.updateMany({
+        where: { patientId, orgId },
         data: updateData,
       });
     }
@@ -293,8 +297,8 @@ export default async function patientPortalRoutes(app: FastifyInstance) {
         where: { patientId, contactType: 'email' },
       });
       if (emailContact) {
-        await app.prisma.patientContact.update({
-          where: { contactId: emailContact.contactId },
+        await app.prisma.patientContact.updateMany({
+          where: { contactId: emailContact.contactId, patientId },
           data: { contactValue: body.email },
         });
       } else {

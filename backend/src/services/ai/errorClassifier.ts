@@ -42,7 +42,7 @@ export function classifyError(err: unknown, context?: { toolName?: string; field
     };
   }
 
-  // Rate limiting (from OpenAI, our own rate limiter, or Twilio)
+  // Rate limiting (from OpenAI or our own rate limiter)
   if (
     message.includes('rate limit') ||
     message.includes('Rate limit') ||

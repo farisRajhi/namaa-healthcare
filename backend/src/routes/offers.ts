@@ -22,7 +22,6 @@ const targetFilterSchema = z.object({
   minAge: z.number().optional(),
   maxAge: z.number().optional(),
   sex: z.string().optional(),
-  conditions: z.array(z.string()).optional(),
   lastVisitDaysAgo: z.number().optional(),
   noAppointmentDays: z.number().optional(),
   previousServiceIds: z.array(z.string().uuid()).optional(),
@@ -67,7 +66,7 @@ const listQuerySchema = z.object({
 });
 
 export default async function offerRoutes(app: FastifyInstance) {
-  const getManager = () => new OfferManager(app.prisma, app.twilio);
+  const getManager = () => new OfferManager(app.prisma);
 
   // ── Public endpoint (no auth) ──────────────────────────────
   app.post('/validate-promo', async (request) => {
@@ -83,6 +82,8 @@ export default async function offerRoutes(app: FastifyInstance) {
   // ── Protected endpoints ────────────────────────────────────
   app.register(async (protectedApp) => {
     protectedApp.addHook('preHandler', app.authenticate);
+    protectedApp.addHook('preHandler', app.requireSubscription);
+    protectedApp.addHook('preHandler', app.requirePlan('professional'));
 
     // GET /api/offers/:orgId — List offers
     protectedApp.get<{ Params: { orgId: string } }>('/:orgId', async (request, reply) => {
@@ -215,12 +216,12 @@ export default async function offerRoutes(app: FastifyInstance) {
 
       const [redemptions, total] = await Promise.all([
         app.prisma.offerRedemption.findMany({
-          where: { offerId },
+          where: { offerId, offer: { orgId } },
           skip,
           take: query.limit,
           orderBy: { redeemedAt: 'desc' },
         }),
-        app.prisma.offerRedemption.count({ where: { offerId } }),
+        app.prisma.offerRedemption.count({ where: { offerId, offer: { orgId } } }),
       ]);
 
       return {

@@ -11,6 +11,23 @@ import {
   activateOrExtendSubscription,
   cancelSubscription,
 } from '../services/billing/subscriptions.js';
+import { getUsage } from '../services/usage/aiUsageLimiter.js';
+
+function daysUntilMonthReset(): number {
+  const now = new Date();
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const msRemaining = lastDay.getTime() - now.getTime();
+  return Math.max(0, Math.ceil(msRemaining / (1000 * 60 * 60 * 24)));
+}
+
+type UsageStatus = 'healthy' | 'warning' | 'critical' | 'blocked';
+
+function usageStatus(percentage: number): UsageStatus {
+  if (percentage >= 100) return 'blocked';
+  if (percentage >= 90) return 'critical';
+  if (percentage >= 70) return 'warning';
+  return 'healthy';
+}
 
 const upgradeSchema = z.object({
   plan: z.enum(['starter', 'professional', 'enterprise']),
@@ -41,10 +58,18 @@ export default async function subscriptionRoutes(app: FastifyInstance) {
         ['active', 'past_due'].includes(subscription.status) &&
         new Date(subscription.endDate) > new Date();
 
+      const usageRaw = await getUsage(app.prisma, user.orgId, subscription?.plan);
+      const usage = {
+        ...usageRaw,
+        daysUntilReset: daysUntilMonthReset(),
+        status: usageStatus(usageRaw.percentage),
+      };
+
       return reply.send({
         subscription,
         payments,
         isActive,
+        usage,
       });
     },
   );
@@ -68,8 +93,8 @@ export default async function subscriptionRoutes(app: FastifyInstance) {
 
       const redirectUrl =
         callbackUrl ||
-        `${process.env.FRONTEND_URL || 'http://localhost:5173'}/billing?payment=callback&plan=${plan}`;
-      const webhookUrl = `${process.env.BASE_URL || process.env.BACKEND_URL || 'http://localhost:3003'}/api/payments/webhook`;
+        `${process.env.FRONTEND_URL}/billing?payment=callback&plan=${plan}`;
+      const webhookUrl = `${process.env.BASE_URL || process.env.BACKEND_URL}/api/payments/webhook`;
 
       // Reuse existing Tap customer if we have one, so saved cards stay on a single customer.
       const lastPayment = await app.prisma.tawafudPayment.findFirst({
@@ -133,10 +158,12 @@ export default async function subscriptionRoutes(app: FastifyInstance) {
         });
       } catch (error: any) {
         app.log.error({ err: error, details: error?.details }, '[subscription/upgrade]');
-        return reply.code(error?.statusCode && error.statusCode < 500 ? 400 : 500).send({
-          error: 'Failed to initiate payment',
-          message: error?.message,
-          details: error?.details,
+        const isUserError = error?.isUserError ?? (error?.statusCode && error.statusCode < 500);
+        return reply.code(isUserError ? 400 : 500).send({
+          error: 'payment_failed',
+          code: error?.kind ?? 'unknown',
+          tapCode: error?.code ?? null,
+          message: error?.message || 'Payment failed',
         });
       }
     },

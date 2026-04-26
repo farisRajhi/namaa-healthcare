@@ -242,8 +242,8 @@ async function checkWrongPatient(
 
   if (!context.patientId) return flags;
 
-  const patient = await prisma.patient.findUnique({
-    where: { patientId: context.patientId },
+  const patient = await prisma.patient.findFirst({
+    where: { patientId: context.patientId, orgId: context.orgId },
     select: { firstName: true, lastName: true, mrn: true },
   });
 
@@ -481,4 +481,36 @@ export class GuardrailsService {
   getConfidence(response: string, knowledgeBaseHits?: string[]): number {
     return computeConfidence(response, knowledgeBaseHits);
   }
+}
+
+/**
+ * Quick scope/medical-claim check for intermediate assistant turns inside the
+ * tool loop. Runs only the synchronous regex checks (scope + medical claims) —
+ * the full validateResponse pipeline runs against the final reply.
+ *
+ * Returns { violation: true, reason } when the text crosses the line so the
+ * caller can break out of the loop and surface a safe response.
+ */
+export function validateIntermediate(
+  text: string,
+  language: 'ar' | 'en' = 'ar',
+): { violation: boolean; reason?: string; safeResponse?: string } {
+  if (!text || !text.trim()) return { violation: false };
+
+  const flags = [
+    ...checkScopeViolations(text),
+    ...detectMedicalClaims(text),
+  ].filter(f => f.severity === 'block');
+
+  if (flags.length === 0) return { violation: false };
+
+  const safe = language === 'ar'
+    ? SAFE_RESPONSES.medical_claim.ar
+    : SAFE_RESPONSES.medical_claim.en;
+
+  return {
+    violation: true,
+    reason: flags.map(f => f.description).join('; '),
+    safeResponse: safe,
+  };
 }

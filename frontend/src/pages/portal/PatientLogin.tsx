@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, Navigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import { usePatientAuth } from '../../context/PatientAuthContext'
 import { Phone, CalendarDays, ArrowLeft, ArrowRight, Shield, Globe } from 'lucide-react'
@@ -19,10 +19,9 @@ export default function PatientLogin() {
     i18n.changeLanguage(i18n.language === 'ar' ? 'en' : 'ar')
   }
 
-  // Redirect if already logged in
+  // Redirect if already logged in (declarative — never call navigate() during render)
   if (isAuthenticated) {
-    navigate('/patient/dashboard', { replace: true })
-    return null
+    return <Navigate to="/patient/dashboard" replace />
   }
 
   const handleSubmit = async (e: React.FormEvent) => {

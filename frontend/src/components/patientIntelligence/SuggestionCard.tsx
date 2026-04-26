@@ -107,7 +107,7 @@ export default function SuggestionCard({
       <div className="flex items-center gap-4 mb-3 text-sm">
         <span className="flex items-center gap-1 text-gray-600">
           <Users className="h-3.5 w-3.5" />
-          {suggestion.patientCount.toLocaleString()} {isAr ? 'مريض' : 'patients'}
+          {(suggestion.patientCount ?? 0).toLocaleString()} {isAr ? 'مريض' : 'patients'}
         </span>
         <span className="flex items-center gap-1 text-gray-500">
           <Sparkles className="h-3.5 w-3.5" />

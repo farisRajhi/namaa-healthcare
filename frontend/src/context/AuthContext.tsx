@@ -1,5 +1,17 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { api } from '../lib/api'
+import type { PlanId } from '../config/plans'
+
+export interface UserSubscription {
+  plan: PlanId | null
+  status: 'active' | 'past_due' | 'cancelled' | 'expired' | null
+  endDate: string | null
+  trialEndsAt: string | null
+  isActive: boolean
+  isTrialing: boolean
+  hasPaidActive: boolean
+  daysRemaining: number | null
+}
 
 interface User {
   userId: string
@@ -8,6 +20,7 @@ interface User {
     id: string
     name: string
   } | null
+  subscription: UserSubscription
 }
 
 interface AuthContextType {
@@ -17,9 +30,42 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string, orgName: string) => Promise<void>
   logout: () => void
+  /** Re-fetch /me to refresh subscription state (e.g. after a successful payment). */
+  refreshSubscription: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+const EMPTY_SUB: UserSubscription = {
+  plan: null,
+  status: null,
+  endDate: null,
+  trialEndsAt: null,
+  isActive: false,
+  isTrialing: false,
+  hasPaidActive: false,
+  daysRemaining: null,
+}
+
+function normalizeUser(raw: any): User {
+  return {
+    userId: raw.userId,
+    email: raw.email,
+    org: raw.org ?? null,
+    subscription: raw.subscription
+      ? {
+          plan: raw.subscription.plan ?? null,
+          status: raw.subscription.status ?? null,
+          endDate: raw.subscription.endDate ?? null,
+          trialEndsAt: raw.subscription.trialEndsAt ?? null,
+          isActive: !!raw.subscription.isActive,
+          isTrialing: !!raw.subscription.isTrialing,
+          hasPaidActive: !!raw.subscription.hasPaidActive,
+          daysRemaining: raw.subscription.daysRemaining ?? null,
+        }
+      : EMPTY_SUB,
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -39,7 +85,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchUser = async () => {
     try {
       const response = await api.get('/api/auth/me')
-      setUser(response.data)
+      setUser(normalizeUser(response.data))
     } catch {
       localStorage.removeItem('token')
       delete api.defaults.headers.common['Authorization']
@@ -91,6 +137,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         register,
         logout,
+        refreshSubscription: fetchUser,
       }}
     >
       {children}

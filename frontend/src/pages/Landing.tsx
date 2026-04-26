@@ -1,5 +1,5 @@
 import { useRef } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import {
   MessageCircle,
@@ -22,15 +22,18 @@ import {
   Workflow,
   Brain,
 } from 'lucide-react'
-// Voice demo hidden from UI — components still available at:
-// ../components/voice/VoiceDemoRealtime
-// ../components/ui/ComingSoonOverlay
 import DemoChatEmbed from '../components/chat/DemoChatEmbed'
+import PricingSection from '../components/pricing/PricingSection'
 import { gsap, ScrollTrigger, useGSAP } from '../lib/gsap'
 
 export default function Landing() {
   const { t, i18n } = useTranslation()
+  const navigate = useNavigate()
   const containerRef = useRef<HTMLDivElement>(null)
+
+  // Clicking a pricing card on the public landing page routes to /pricing,
+  // which handles the auth gate + Tap payment flow.
+  const handlePricingCta = () => navigate('/pricing')
 
   const toggleLanguage = () => {
     const newLang = i18n.language === 'ar' ? 'en' : 'ar'
@@ -376,6 +379,13 @@ export default function Landing() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <a
+                href="#pricing"
+                onClick={handleAnchorClick}
+                className="hidden sm:inline text-healthcare-muted hover:text-healthcare-text font-medium text-sm transition-colors"
+              >
+                {t('landing.footer.pricing')}
+              </a>
               <button
                 onClick={toggleLanguage}
                 className="flex items-center gap-1.5 text-healthcare-muted hover:text-healthcare-text font-medium text-sm transition-colors"
@@ -608,6 +618,9 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Pricing Section */}
+      <PricingSection id="pricing" onSelectPlan={handlePricingCta} variant="landing" />
+
       {/* CTA Section */}
       <section className="py-20 px-4 sm:px-6 lg:px-8 bg-hero-gradient">
         <div className="max-w-4xl mx-auto text-center">
@@ -656,7 +669,7 @@ export default function Landing() {
               <h4 className="text-sm font-semibold text-white mb-4">{t('landing.footer.product')}</h4>
               <ul className="space-y-2.5 text-sm">
                 <li><a href="#features" onClick={handleAnchorClick} className="hover:text-white transition-colors">{t('common.features')}</a></li>
-                <li><Link to="/pricing" className="hover:text-white transition-colors">{t('landing.footer.pricing')}</Link></li>
+                <li><a href="#pricing" onClick={handleAnchorClick} className="hover:text-white transition-colors">{t('landing.footer.pricing')}</a></li>
               </ul>
             </div>
 

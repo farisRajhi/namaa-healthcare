@@ -5,31 +5,47 @@ import { api } from '../lib/api'
 // Types
 // ---------------------------------------------------------------------------
 
+export type RecallSource = 'native' | 'external'
+export type RecallStatus = 'contacted' | 'booked' | 'not_interested' | 'unreachable'
+
+export interface SuggestionReliability {
+  totalVisits: number
+  completionRate: number | null
+  noShowCount: number
+}
+
 export interface SuggestionCard {
-  suggestionId: string
-  orgId: string
-  patientId: string
-  serviceId: string
-  score: number
-  suggestionType: 'reminder' | 'offer'
+  source: RecallSource
+  id: string
+  // Native-only fields
+  suggestionId?: string
+  patientId?: string
+  serviceId?: string
+  suggestionType?: 'reminder' | 'offer'
+  messageAr?: string | null
+  messageEn?: string | null
+  sentAt?: string | null
+  sentBy?: string | null
+  // External-only fields
+  externalPatientId?: string
+  // Shared
+  patientName: string
+  phoneNumber: string | null
+  serviceName: string | null
+  serviceNameEn: string | null
+  serviceCategory: string | null
   lastCompletedAt: string | null
   dueAt: string
   overdueDays: number
-  messageAr: string | null
-  messageEn: string | null
+  score: number
   status: string
-  sentAt: string | null
-  createdAt: string
-  // Joined fields
-  patientName: string
-  phoneNumber: string | null
-  serviceName: string
-  serviceNameEn: string | null
-  serviceCategory: string | null
+  reliability: SuggestionReliability
 }
 
 export interface SuggestionStats {
   totalPending: number
+  nativePending: number
+  externalPending: number
   reminders: number
   offers: number
   sentToday: number
@@ -42,7 +58,6 @@ export interface SuggestionStats {
 export function usePatientSuggestions(orgId: string) {
   const queryClient = useQueryClient()
 
-  // Fetch suggestions
   const suggestionsQuery = useQuery({
     queryKey: ['suggestions', orgId],
     queryFn: async () => {
@@ -53,7 +68,6 @@ export function usePatientSuggestions(orgId: string) {
     staleTime: 30_000,
   })
 
-  // Fetch stats
   const statsQuery = useQuery({
     queryKey: ['suggestions-stats', orgId],
     queryFn: async () => {
@@ -64,19 +78,19 @@ export function usePatientSuggestions(orgId: string) {
     staleTime: 30_000,
   })
 
-  // Generate suggestions
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ['suggestions', orgId] })
+    queryClient.invalidateQueries({ queryKey: ['suggestions-stats', orgId] })
+  }
+
   const generateMutation = useMutation({
     mutationFn: async () => {
       const res = await api.post(`/api/suggestions/${orgId}/generate`)
       return res.data
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['suggestions', orgId] })
-      queryClient.invalidateQueries({ queryKey: ['suggestions-stats', orgId] })
-    },
+    onSuccess: invalidate,
   })
 
-  // Send a suggestion
   const sendMutation = useMutation({
     mutationFn: async (params: { suggestionId: string; messageAr?: string; messageEn?: string; channel?: string }) => {
       const res = await api.patch(`/api/suggestions/${params.suggestionId}/send`, {
@@ -86,25 +100,17 @@ export function usePatientSuggestions(orgId: string) {
       })
       return res.data
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['suggestions', orgId] })
-      queryClient.invalidateQueries({ queryKey: ['suggestions-stats', orgId] })
-    },
+    onSuccess: invalidate,
   })
 
-  // Dismiss a suggestion
   const dismissMutation = useMutation({
     mutationFn: async (suggestionId: string) => {
       const res = await api.patch(`/api/suggestions/${suggestionId}/dismiss`)
       return res.data
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['suggestions', orgId] })
-      queryClient.invalidateQueries({ queryKey: ['suggestions-stats', orgId] })
-    },
+    onSuccess: invalidate,
   })
 
-  // Edit message
   const editMessageMutation = useMutation({
     mutationFn: async (params: { suggestionId: string; messageAr?: string; messageEn?: string }) => {
       const res = await api.patch(`/api/suggestions/${params.suggestionId}/message`, {
@@ -118,10 +124,28 @@ export function usePatientSuggestions(orgId: string) {
     },
   })
 
+  const updateStatusMutation = useMutation({
+    mutationFn: async (params: { id: string; source: RecallSource; status: RecallStatus }) => {
+      const path = params.source === 'external'
+        ? `/api/suggestions/external/${params.id}/status`
+        : `/api/suggestions/${params.id}/status`
+      const res = await api.patch(path, { status: params.status })
+      return res.data
+    },
+    onSuccess: invalidate,
+  })
+
   return {
     suggestions: suggestionsQuery.data?.data ?? [],
     pagination: suggestionsQuery.data?.pagination,
-    stats: statsQuery.data ?? { totalPending: 0, reminders: 0, offers: 0, sentToday: 0 },
+    stats: statsQuery.data ?? {
+      totalPending: 0,
+      nativePending: 0,
+      externalPending: 0,
+      reminders: 0,
+      offers: 0,
+      sentToday: 0,
+    },
     isLoading: suggestionsQuery.isLoading || statsQuery.isLoading,
     generate: generateMutation.mutate,
     isGenerating: generateMutation.isPending,
@@ -129,5 +153,7 @@ export function usePatientSuggestions(orgId: string) {
     isSending: sendMutation.isPending,
     dismiss: dismissMutation.mutate,
     editMessage: editMessageMutation.mutate,
+    updateStatus: updateStatusMutation.mutate,
+    isUpdatingStatus: updateStatusMutation.isPending,
   }
 }

@@ -50,10 +50,11 @@ export async function approveSuggestion(
     throw new Error(`Cannot approve suggestion in "${suggestion.status}" status`);
   }
 
-  // 2. Load external patients for this suggestion
+  // 2. Load external patients for this suggestion (orgId-scoped to prevent cross-tenant leak)
   const externalPatients = await prisma.externalPatient.findMany({
     where: {
       externalPatientId: { in: suggestion.patientIds },
+      orgId: suggestion.orgId,
     },
   });
 

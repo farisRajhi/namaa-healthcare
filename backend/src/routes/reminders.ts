@@ -6,7 +6,6 @@
  * POST   /api/reminders/process          — Trigger reminder processing (cron)
  * GET    /api/reminders/stats/:orgId     — Reminder effectiveness stats
  * POST   /api/reminders/create/:apptId   — Create reminders for an appointment
- * POST   /api/reminders/reply            — Handle patient reply (webhook)
  */
 import { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
@@ -21,7 +20,7 @@ const configureSchema = z.object({
   intervals: z.array(
     z.object({
       hoursBefore: z.number().min(0.5).max(168), // 30min to 7 days
-      channel: z.enum(['sms', 'whatsapp', 'voice']),
+      channel: z.literal('whatsapp'),
     }),
   ).min(1),
   enableSurvey: z.boolean().default(true),
@@ -39,34 +38,30 @@ const statsQuerySchema = z.object({
   to: z.string().datetime().optional(),
 });
 
-const replySchema = z.object({
-  From: z.string(), // Phone number
-  Body: z.string(), // Message body
-  channel: z.enum(['sms', 'whatsapp']).default('sms'),
-});
-
 // ---------------------------------------------------------------------------
 // Routes
 // ---------------------------------------------------------------------------
 
 export default async function remindersRoutes(app: FastifyInstance) {
-  const getService = () =>
-    getAppointmentReminderService(app.prisma, app.twilio);
+  app.addHook('preHandler', async (request, reply) => {
+    await app.authenticate(request, reply);
+    if (reply.sent) return;
+    await app.requireSubscription(request, reply);
+  });
+
+  const getService = () => getAppointmentReminderService(app.prisma);
 
   // -----------------------------------------------------------------------
   // GET /:orgId — List upcoming reminders
   // -----------------------------------------------------------------------
   app.get<{ Params: { orgId: string } }>(
     '/:orgId',
-    {
-      preHandler: [app.authenticate],
-    },
-    async (request) => {
+    async (request, reply) => {
       const { orgId } = request.params;
       const query = listQuerySchema.parse(request.query);
 
       if (request.user.orgId !== orgId) {
-        return { error: 'Unauthorized' };
+        return reply.code(403).send({ error: 'Unauthorized' });
       }
 
       const skip = (query.page - 1) * query.limit;
@@ -165,12 +160,9 @@ export default async function remindersRoutes(app: FastifyInstance) {
   // -----------------------------------------------------------------------
   app.post<{ Params: { orgId: string } }>(
     '/:orgId/configure',
-    {
-      preHandler: [app.authenticate],
-    },
-    async (request) => {
+    async (request, reply) => {
       const { orgId } = request.params;
-      if (request.user.orgId !== orgId) return { error: 'Unauthorized' };
+      if (request.user.orgId !== orgId) return reply.code(403).send({ error: 'Unauthorized' });
 
       const body = configureSchema.parse({ ...(request.body as object), orgId });
       const service = getService();
@@ -192,12 +184,9 @@ export default async function remindersRoutes(app: FastifyInstance) {
   // -----------------------------------------------------------------------
   app.get<{ Params: { orgId: string } }>(
     '/:orgId/stats',
-    {
-      preHandler: [app.authenticate],
-    },
-    async (request) => {
+    async (request, reply) => {
       const { orgId } = request.params;
-      if (request.user.orgId !== orgId) return { error: 'Unauthorized' };
+      if (request.user.orgId !== orgId) return reply.code(403).send({ error: 'Unauthorized' });
 
       const query = statsQuerySchema.parse(request.query);
       const service = getService();
@@ -220,9 +209,6 @@ export default async function remindersRoutes(app: FastifyInstance) {
   // -----------------------------------------------------------------------
   app.post(
     '/configure',
-    {
-      preHandler: [app.authenticate],
-    },
     async (request: FastifyRequest) => {
       const body = configureSchema.parse(request.body);
 
@@ -249,9 +235,6 @@ export default async function remindersRoutes(app: FastifyInstance) {
   // -----------------------------------------------------------------------
   app.post(
     '/process',
-    {
-      preHandler: [app.authenticate],
-    },
     async () => {
       const service = getService();
       const result = await service.processDueReminders();
@@ -268,9 +251,6 @@ export default async function remindersRoutes(app: FastifyInstance) {
   // -----------------------------------------------------------------------
   app.get<{ Params: { orgId: string } }>(
     '/stats/:orgId',
-    {
-      preHandler: [app.authenticate],
-    },
     async (request) => {
       const { orgId } = request.params;
       const query = statsQuerySchema.parse(request.query);
@@ -301,9 +281,6 @@ export default async function remindersRoutes(app: FastifyInstance) {
   // -----------------------------------------------------------------------
   app.post<{ Params: { apptId: string } }>(
     '/create/:apptId',
-    {
-      preHandler: [app.authenticate],
-    },
     async (request, reply) => {
       const { apptId } = request.params;
 
@@ -322,45 +299,4 @@ export default async function remindersRoutes(app: FastifyInstance) {
     },
   );
 
-  // -----------------------------------------------------------------------
-  // POST /reply — Handle incoming patient reply (Twilio webhook)
-  // This is designed for Twilio SMS/WhatsApp incoming message webhooks.
-  // It can be public (secured by Twilio signature) or authenticated.
-  // -----------------------------------------------------------------------
-  app.post('/reply', async (request: FastifyRequest) => {
-    const body = replySchema.parse(request.body);
-
-    const service = getService();
-    const result = await service.handlePatientReply(
-      body.From,
-      body.Body,
-      body.channel,
-    );
-
-    // Return TwiML-friendly response (for Twilio webhook)
-    if (result.action === 'confirm') {
-      return {
-        action: 'confirm',
-        appointmentId: result.appointmentId,
-        message: 'تم تأكيد موعدكم. شكراً لكم! ✅',
-      };
-    } else if (result.action === 'cancel') {
-      return {
-        action: 'cancel',
-        appointmentId: result.appointmentId,
-        message: 'تم إلغاء موعدكم. هل تود حجز موعد جديد؟',
-      };
-    } else if (result.action === 'reschedule') {
-      return {
-        action: 'reschedule',
-        appointmentId: result.appointmentId,
-        message: 'سنتواصل معكم لتحديد موعد جديد. شكراً!',
-      };
-    }
-
-    return {
-      action: 'unknown',
-      message: 'عذراً، لم نفهم ردكم. أرسل 1 للتأكيد، 2 للإلغاء، 3 للتغيير.',
-    };
-  });
 }

@@ -6,7 +6,7 @@
  *   2. Detect clinic type from service names
  *   3. Assess data quality (missing critical fields, warnings)
  */
-import { geminiJsonChat, type GeminiConfig } from './geminiClient.js';
+import { llmJsonChat } from './llmRouter.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -22,6 +22,7 @@ export interface DataUnderstandingResult {
     hasServices: boolean;
     warnings: string[];
   };
+  tokensUsed: number;
 }
 
 interface AIResponse {
@@ -102,15 +103,15 @@ Respond ONLY with a JSON object in this exact format:
 // ── Main function ────────────────────────────────────────────────────
 
 /**
- * Analyze CSV structure by sending headers + sample rows to Gemini.
+ * Analyze CSV structure by sending headers + sample rows to the LLM.
  *
- * @param geminiConfig - Gemini API configuration
+ * Provider is resolved via llmRouter (env-configurable per pipeline step).
+ *
  * @param headers      - CSV column header names
  * @param sampleRows   - Up to 5 rows as key-value objects
  * @returns Column mapping, clinic type, and data quality assessment
  */
 export async function analyzeDataStructure(
-  geminiConfig: GeminiConfig,
   headers: string[],
   sampleRows: Record<string, string>[],
 ): Promise<DataUnderstandingResult> {
@@ -124,7 +125,7 @@ export async function analyzeDataStructure(
   const userPrompt = `Analyze this CSV data and map each column to a standard patient field.\n\n${headerLine}\n${rowLines.join('\n')}`;
 
   try {
-    const content = await geminiJsonChat(geminiConfig, {
+    const { text: content, usage } = await llmJsonChat('data-understanding', {
       systemPrompt: SYSTEM_PROMPT,
       userPrompt,
       temperature: 0.1,
@@ -173,9 +174,9 @@ export async function analyzeDataStructure(
       dataQuality.warnings.push('No visit date column detected — recency scoring will be limited');
     }
 
-    return { columnMapping, clinicType, dataQuality };
+    return { columnMapping, clinicType, dataQuality, tokensUsed: usage.totalTokens };
   } catch (error) {
-    console.error('[DataUnderstanding] Gemini analysis failed:', error);
+    console.error('[DataUnderstanding] LLM analysis failed:', error);
 
     // Return a best-effort fallback: map nothing, flag everything
     const columnMapping: Record<string, string> = {};
@@ -186,6 +187,7 @@ export async function analyzeDataStructure(
     return {
       columnMapping,
       clinicType: 'general',
+      tokensUsed: 0,
       dataQuality: {
         totalColumns: headers.length,
         mappedColumns: 0,

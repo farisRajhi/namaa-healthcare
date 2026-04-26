@@ -11,7 +11,6 @@ const SEVERITIES = ['emergency', 'urgent', 'routine'] as const;
 const ACTIONS = ['call_emergency', 'schedule_urgent', 'schedule_routine', 'transfer_nurse'] as const;
 
 const createFaqSchema = z.object({
-  orgId: z.string().uuid().optional(), // falls back to request.user.orgId
   category: z.enum(CATEGORIES),
   questionEn: z.string().min(1),
   questionAr: z.string().min(1),
@@ -32,19 +31,16 @@ const updateFaqSchema = z.object({
 
 const searchSchema = z.object({
   query: z.string().min(1),
-  orgId: z.string().uuid().optional(),
   category: z.enum(CATEGORIES).optional(),
   lang: z.enum(['en', 'ar']).optional(),
   limit: z.number().int().min(1).max(50).default(10),
 });
 
 const triageSchema = z.object({
-  orgId: z.string().uuid().optional(),
   symptoms: z.string().min(1),
 });
 
 const createTriageRuleSchema = z.object({
-  orgId: z.string().uuid().optional(),
   keywords: z.array(z.string().min(1)).min(1),
   severity: z.enum(SEVERITIES),
   responseEn: z.string().min(1),
@@ -84,7 +80,7 @@ export default async function faqRoutes(app: FastifyInstance) {
     const body = createFaqSchema.parse(request.body);
 
     const entry = await engine.create({
-      orgId: body.orgId ?? userOrgId,
+      orgId: userOrgId,
       category: body.category as FaqCategory,
       questionEn: body.questionEn,
       questionAr: body.questionAr,
@@ -137,7 +133,7 @@ export default async function faqRoutes(app: FastifyInstance) {
   app.post('/search', async (request: FastifyRequest) => {
     const { orgId: userOrgId } = request.user;
     const body = searchSchema.parse(request.body);
-    const orgId = body.orgId ?? userOrgId;
+    const orgId = userOrgId;
 
     const results = await engine.search(orgId, body.query, {
       category: body.category as FaqCategory | undefined,
@@ -152,7 +148,7 @@ export default async function faqRoutes(app: FastifyInstance) {
   app.post('/triage', async (request: FastifyRequest) => {
     const { orgId: userOrgId } = request.user;
     const body = triageSchema.parse(request.body);
-    const orgId = body.orgId ?? userOrgId;
+    const orgId = userOrgId;
 
     const result = await engine.triageSymptoms(orgId, body.symptoms);
 
@@ -192,7 +188,7 @@ export async function triageRulesRoutes(app: FastifyInstance) {
     const body = createTriageRuleSchema.parse(request.body);
 
     const rule = await engine.createTriageRule({
-      orgId: body.orgId ?? userOrgId,
+      orgId: userOrgId,
       keywords: body.keywords,
       severity: body.severity as TriageSeverity,
       responseEn: body.responseEn,

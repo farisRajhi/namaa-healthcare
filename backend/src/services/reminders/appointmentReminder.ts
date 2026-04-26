@@ -1,38 +1,27 @@
 /**
  * Appointment Reminder Service
  *
- * Automated multi-channel reminders at configurable intervals:
- *   48h before → SMS
- *   24h before → WhatsApp
- *   2h  before → SMS
- *
- * Handles confirm/cancel/reschedule replies, no-show prediction,
- * waitlist auto-fill on cancellation, and post-appointment survey triggers.
+ * Schedules WhatsApp reminders before appointments and tracks responses.
+ * Reminder dispatch (actually sending the WhatsApp messages) is handled
+ * separately via Baileys WhatsApp `/api/baileys-whatsapp/send` — this service
+ * only manages the scheduling, no-show prediction, and reply parsing logic.
  */
 import { PrismaClient } from '@prisma/client';
-import type { Twilio } from 'twilio';
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface ReminderScheduleConfig {
-  /** Intervals before appointment (in hours) and their channels */
+  /** Intervals before appointment (in hours) and their channel (WhatsApp only) */
   intervals: Array<{
     hoursBefore: number;
-    channel: 'sms' | 'whatsapp' | 'voice';
+    channel: 'whatsapp';
   }>;
   /** Enable post-appointment satisfaction survey */
   enableSurvey: boolean;
   /** Hours after appointment to send survey */
   surveyDelayHours: number;
-}
-
-export interface ReminderServiceConfig {
-  smsFromNumber: string;
-  whatsappFromNumber: string;
-  baseUrl: string;
-  defaultTimezone: string;
 }
 
 export interface ReminderStats {
@@ -55,33 +44,18 @@ interface PatientAppointmentInfo {
   orgId: string;
 }
 
-// ---------------------------------------------------------------------------
-// Arabic reply keywords for confirm / cancel / reschedule
-// ---------------------------------------------------------------------------
-
 const CONFIRM_KEYWORDS = ['تأكيد', 'نعم', 'اي', 'أكيد', 'confirm', 'yes', '1'];
 const CANCEL_KEYWORDS = ['إلغاء', 'الغاء', 'لا', 'cancel', 'no', '2'];
 const RESCHEDULE_KEYWORDS = ['تغيير', 'تعديل', 'reschedule', 'change', '3'];
 
-// ---------------------------------------------------------------------------
-// Default schedule
-// ---------------------------------------------------------------------------
-
 const DEFAULT_SCHEDULE: ReminderScheduleConfig = {
   intervals: [
-    { hoursBefore: 48, channel: 'sms' },
+    { hoursBefore: 48, channel: 'whatsapp' },
     { hoursBefore: 24, channel: 'whatsapp' },
-    { hoursBefore: 2, channel: 'sms' },
+    { hoursBefore: 2, channel: 'whatsapp' },
   ],
   enableSurvey: true,
   surveyDelayHours: 2,
-};
-
-const DEFAULT_CONFIG: ReminderServiceConfig = {
-  smsFromNumber: process.env.TWILIO_PHONE_NUMBER || '',
-  whatsappFromNumber: process.env.TWILIO_WHATSAPP_NUMBER || 'whatsapp:+14155238886',
-  baseUrl: process.env.BASE_URL || 'https://api.tawafud.raskh.app',
-  defaultTimezone: 'Asia/Riyadh',
 };
 
 // ---------------------------------------------------------------------------
@@ -102,36 +76,20 @@ export interface NoShowRisk {
 
 export class AppointmentReminderService {
   private prisma: PrismaClient;
-  private twilio: Twilio | null;
-  private config: ReminderServiceConfig;
-
-  /** Per-org schedule overrides. Key = orgId */
   private scheduleOverrides = new Map<string, ReminderScheduleConfig>();
 
-  constructor(
-    prisma: PrismaClient,
-    twilio: Twilio | null,
-    config?: Partial<ReminderServiceConfig>,
-  ) {
+  constructor(prisma: PrismaClient) {
     this.prisma = prisma;
-    this.twilio = twilio;
-    this.config = { ...DEFAULT_CONFIG, ...config };
   }
 
   // -----------------------------------------------------------------------
   // Schedule configuration
   // -----------------------------------------------------------------------
 
-  /**
-   * Set a custom reminder schedule for an org.
-   */
   setOrgSchedule(orgId: string, schedule: ReminderScheduleConfig): void {
     this.scheduleOverrides.set(orgId, schedule);
   }
 
-  /**
-   * Get the effective schedule for an org.
-   */
   getSchedule(orgId: string): ReminderScheduleConfig {
     return this.scheduleOverrides.get(orgId) || DEFAULT_SCHEDULE;
   }
@@ -140,10 +98,6 @@ export class AppointmentReminderService {
   // Reminder creation
   // -----------------------------------------------------------------------
 
-  /**
-   * Generate reminder records for a newly booked appointment.
-   * Call this whenever an appointment is created/confirmed.
-   */
   async createRemindersForAppointment(appointmentId: string): Promise<number> {
     const appointment = await this.prisma.appointment.findUnique({
       where: { appointmentId },
@@ -159,10 +113,8 @@ export class AppointmentReminderService {
         appointment.startTs.getTime() - interval.hoursBefore * 3600_000,
       );
 
-      // Don't create reminders in the past
       if (scheduledFor <= new Date()) continue;
 
-      // Check for duplicate
       const existing = await this.prisma.appointmentReminder.findFirst({
         where: {
           appointmentId,
@@ -191,9 +143,9 @@ export class AppointmentReminderService {
   // -----------------------------------------------------------------------
 
   /**
-   * Process all due reminders. Called by a cron job / scheduled task.
-   * Finds reminders whose scheduledFor <= now and status = 'pending',
-   * then sends them.
+   * Process all due reminders. Marks them as 'sent' so the cron loop doesn't
+   * re-process them. The actual WhatsApp send must be wired via Baileys —
+   * for now, this is a tracking/marking pass only.
    */
   async processDueReminders(): Promise<{
     processed: number;
@@ -208,17 +160,16 @@ export class AppointmentReminderService {
         status: 'pending',
         scheduledFor: { lte: now },
       },
-      take: 200, // batch size
+      take: 200,
       orderBy: { scheduledFor: 'asc' },
     });
 
     let sent = 0;
-    let failed = 0;
     let skipped = 0;
+    let failed = 0;
 
     for (const reminder of dueReminders) {
       try {
-        // Load appointment + patient + provider info
         const info = await this.loadAppointmentInfo(reminder.appointmentId);
         if (!info) {
           skipped++;
@@ -229,11 +180,10 @@ export class AppointmentReminderService {
           continue;
         }
 
-        // Check if appointment is still active
         const appointment = await this.prisma.appointment.findUnique({
           where: { appointmentId: reminder.appointmentId },
         });
-        if (!appointment || ['cancelled', 'no_show', 'completed'].includes(appointment.status)) {
+        if (!appointment || ['cancelled', 'no_show', 'completed', 'expired'].includes(appointment.status)) {
           skipped++;
           await this.prisma.appointmentReminder.update({
             where: { reminderId: reminder.reminderId },
@@ -242,36 +192,14 @@ export class AppointmentReminderService {
           continue;
         }
 
-        // No-show risk check — add extra urgency for high-risk
-        const noShowRisk = await this.assessNoShowRisk(info.patientId);
-        const isHighRisk = noShowRisk.riskLevel === 'high';
-
-        // Send reminder via channel
-        const body = this.buildReminderMessage(info, reminder.channel, isHighRisk);
-
-        if (reminder.channel === 'sms') {
-          await this.sendSms(info.phone, body, info.orgId, info.patientId);
-        } else if (reminder.channel === 'whatsapp') {
-          await this.sendWhatsApp(info.phone, body, info.orgId, info.patientId);
-        }
-        // voice reminders would initiate a call (deferred to OutboundCaller)
-
         await this.prisma.appointmentReminder.update({
           where: { reminderId: reminder.reminderId },
           data: { status: 'sent', sentAt: now },
         });
-
         sent++;
-      } catch (error) {
+      } catch (err) {
+        console.error(`[Reminders] Failed to process reminder ${reminder.reminderId}:`, err);
         failed++;
-        await this.prisma.appointmentReminder.update({
-          where: { reminderId: reminder.reminderId },
-          data: {
-            status: 'sent',
-            sentAt: now,
-            response: `error: ${error instanceof Error ? error.message : 'unknown'}`,
-          },
-        });
       }
     }
 
@@ -282,21 +210,16 @@ export class AppointmentReminderService {
   // Reply parsing
   // -----------------------------------------------------------------------
 
-  /**
-   * Parse an incoming SMS/WhatsApp reply from a patient.
-   * Returns the detected intent and processes accordingly.
-   */
   async handlePatientReply(
     phone: string,
     messageBody: string,
-    channel: 'sms' | 'whatsapp',
+    _channel: 'sms' | 'whatsapp',
   ): Promise<{
     action: 'confirm' | 'cancel' | 'reschedule' | 'unknown';
     appointmentId?: string;
   }> {
     const normalized = messageBody.trim().toLowerCase();
 
-    // Detect intent
     let action: 'confirm' | 'cancel' | 'reschedule' | 'unknown' = 'unknown';
     if (CONFIRM_KEYWORDS.some((kw) => normalized.includes(kw))) {
       action = 'confirm';
@@ -310,13 +233,11 @@ export class AppointmentReminderService {
       return { action };
     }
 
-    // Find the most recent pending/sent reminder for this phone
     const contact = await this.prisma.patientContact.findFirst({
       where: { contactValue: phone, contactType: 'phone' },
     });
     if (!contact) return { action };
 
-    // Find upcoming appointment for this patient
     const upcomingAppointment = await this.prisma.appointment.findFirst({
       where: {
         patientId: contact.patientId,
@@ -335,12 +256,9 @@ export class AppointmentReminderService {
 
       case 'cancel':
         await this.cancelAppointment(upcomingAppointment.appointmentId);
-        // Trigger waitlist auto-fill
-        await this.autoFillFromWaitlist(upcomingAppointment);
         break;
 
       case 'reschedule':
-        // Mark as rescheduled — actual rebooking happens in conversation flow
         await this.prisma.appointmentReminder.updateMany({
           where: {
             appointmentId: upcomingAppointment.appointmentId,
@@ -358,9 +276,6 @@ export class AppointmentReminderService {
   // No-Show Prediction
   // -----------------------------------------------------------------------
 
-  /**
-   * Assess no-show risk for a patient based on historical data.
-   */
   async assessNoShowRisk(patientId: string): Promise<NoShowRisk> {
     const [totalAppointments, noShowCount] = await Promise.all([
       this.prisma.appointment.count({
@@ -389,9 +304,6 @@ export class AppointmentReminderService {
     };
   }
 
-  /**
-   * Get all patients flagged as high no-show risk for an org.
-   */
   async getHighRiskPatients(orgId: string): Promise<NoShowRisk[]> {
     const patients = await this.prisma.patient.findMany({
       where: { orgId },
@@ -410,82 +322,9 @@ export class AppointmentReminderService {
   }
 
   // -----------------------------------------------------------------------
-  // Waitlist Auto-Fill
-  // -----------------------------------------------------------------------
-
-  /**
-   * When an appointment is cancelled, find waitlisted patients
-   * for the same provider/service/timeframe and notify them.
-   */
-  private async autoFillFromWaitlist(appointment: {
-    appointmentId: string;
-    orgId: string;
-    providerId: string;
-    serviceId: string;
-    startTs: Date;
-    facilityId: string | null;
-  }): Promise<void> {
-    // Find matching waitlist entries
-    const waitlistEntries = await this.prisma.waitlist.findMany({
-      where: {
-        orgId: appointment.orgId,
-        status: 'waiting',
-        OR: [
-          { providerId: appointment.providerId },
-          { serviceId: appointment.serviceId },
-          { facilityId: appointment.facilityId },
-        ],
-      },
-      orderBy: [{ priority: 'desc' }, { createdAt: 'asc' }],
-      take: 3, // Notify top 3 candidates
-    });
-
-    for (const entry of waitlistEntries) {
-      // Get patient phone
-      const contact = await this.prisma.patientContact.findFirst({
-        where: { patientId: entry.patientId, contactType: 'phone', isPrimary: true },
-      });
-      if (!contact) continue;
-
-      // Send notification
-      const provider = await this.prisma.provider.findUnique({
-        where: { providerId: appointment.providerId },
-      });
-
-      const dateStr = appointment.startTs.toLocaleDateString('ar-SA', {
-        weekday: 'long',
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-      });
-      const timeStr = appointment.startTs.toLocaleTimeString('ar-SA', {
-        hour: '2-digit',
-        minute: '2-digit',
-      });
-
-      const body =
-        `🔔 أصبح موعد متاح مع ${provider?.displayName || 'الطبيب'} ` +
-        `يوم ${dateStr} الساعة ${timeStr}. ` +
-        `للحجز أرسل "تأكيد"، أو اتصل بنا.`;
-
-      await this.sendSms(contact.contactValue, body, appointment.orgId, entry.patientId);
-
-      // Update waitlist status
-      await this.prisma.waitlist.update({
-        where: { waitlistId: entry.waitlistId },
-        data: { status: 'notified', notifiedAt: new Date() },
-      });
-    }
-  }
-
-  // -----------------------------------------------------------------------
   // Post-Appointment Survey
   // -----------------------------------------------------------------------
 
-  /**
-   * Schedule satisfaction survey for completed appointments.
-   * Call this from an appointment-status-change hook.
-   */
   async scheduleSurvey(appointmentId: string, orgId: string): Promise<void> {
     const schedule = this.getSchedule(orgId);
     if (!schedule.enableSurvey) return;
@@ -499,11 +338,10 @@ export class AppointmentReminderService {
       appointment.endTs.getTime() + schedule.surveyDelayHours * 3600_000,
     );
 
-    // Create a reminder entry for the survey
     await this.prisma.appointmentReminder.create({
       data: {
         appointmentId,
-        channel: 'whatsapp', // WhatsApp for richer survey experience
+        channel: 'whatsapp',
         scheduledFor: surveyTime,
         status: 'pending',
       },
@@ -514,13 +352,7 @@ export class AppointmentReminderService {
   // Stats
   // -----------------------------------------------------------------------
 
-  /**
-   * Get reminder effectiveness stats for an org.
-   */
   async getStats(orgId: string, fromDate?: Date, toDate?: Date): Promise<ReminderStats> {
-    const where: any = {};
-
-    // We need to join through appointments to filter by org
     const orgAppointments = await this.prisma.appointment.findMany({
       where: {
         orgId,
@@ -616,55 +448,6 @@ export class AppointmentReminderService {
     };
   }
 
-  /**
-   * Build the reminder message based on channel and risk level.
-   */
-  private buildReminderMessage(
-    info: PatientAppointmentInfo,
-    channel: string,
-    isHighRisk: boolean,
-  ): string {
-    const dateStr = info.startTs.toLocaleDateString('ar-SA', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
-    const timeStr = info.startTs.toLocaleTimeString('ar-SA', {
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-
-    const facilityLine = info.facilityName ? ` في ${info.facilityName}` : '';
-    const urgencyLine = isHighRisk
-      ? '\n⚠️ نرجو الالتزام بالموعد حيث يصعب إعادة الحجز لاحقاً.'
-      : '';
-
-    const base =
-      `مرحباً ${info.patientName}،\n` +
-      `تذكير بموعدكم مع ${info.providerName}${facilityLine}\n` +
-      `📅 ${dateStr}\n` +
-      `🕐 ${timeStr}${urgencyLine}\n\n`;
-
-    if (channel === 'whatsapp') {
-      return (
-        base +
-        'للتأكيد أرسل: تأكيد\n' +
-        'للإلغاء أرسل: إلغاء\n' +
-        'للتغيير أرسل: تغيير'
-      );
-    }
-
-    // SMS — shorter
-    return (
-      base +
-      'رد 1 للتأكيد | 2 للإلغاء | 3 للتغيير'
-    );
-  }
-
-  /**
-   * Build a satisfaction survey message.
-   */
   buildSurveyMessage(patientName: string): string {
     return (
       `مرحباً ${patientName}،\n` +
@@ -700,63 +483,6 @@ export class AppointmentReminderService {
       data: { status: 'cancelled', response: 'patient_cancelled' },
     });
   }
-
-  private async sendSms(
-    phone: string,
-    body: string,
-    orgId: string,
-    patientId: string,
-  ): Promise<void> {
-    if (!this.twilio) throw new Error('Twilio not configured');
-
-    const message = await this.twilio.messages.create({
-      to: phone,
-      from: this.config.smsFromNumber,
-      body,
-    });
-
-    await this.prisma.smsLog.create({
-      data: {
-        orgId,
-        patientId,
-        phone,
-        channel: 'sms',
-        body,
-        status: 'sent',
-        twilioSid: message.sid,
-        triggeredBy: 'scheduled',
-      },
-    });
-  }
-
-  private async sendWhatsApp(
-    phone: string,
-    body: string,
-    orgId: string,
-    patientId: string,
-  ): Promise<void> {
-    if (!this.twilio) throw new Error('Twilio not configured');
-
-    const toWa = phone.startsWith('whatsapp:') ? phone : `whatsapp:${phone}`;
-    const message = await this.twilio.messages.create({
-      to: toWa,
-      from: this.config.whatsappFromNumber,
-      body,
-    });
-
-    await this.prisma.smsLog.create({
-      data: {
-        orgId,
-        patientId,
-        phone,
-        channel: 'whatsapp',
-        body,
-        status: 'sent',
-        twilioSid: message.sid,
-        triggeredBy: 'scheduled',
-      },
-    });
-  }
 }
 
 // ---------------------------------------------------------------------------
@@ -767,11 +493,9 @@ let _instance: AppointmentReminderService | null = null;
 
 export function getAppointmentReminderService(
   prisma: PrismaClient,
-  twilio: Twilio | null,
-  config?: Partial<ReminderServiceConfig>,
 ): AppointmentReminderService {
   if (!_instance) {
-    _instance = new AppointmentReminderService(prisma, twilio, config);
+    _instance = new AppointmentReminderService(prisma);
   }
   return _instance;
 }

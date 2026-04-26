@@ -1,7 +1,6 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { getAppointmentReminderService } from '../services/reminders/appointmentReminder.js';
-import { validateTwilioSignature } from '../lib/twilioVerify.js';
 
 const createAppointmentSchema = z.object({
   providerId: z.string().uuid(),
@@ -252,19 +251,50 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
       return reply.code(404).send({ error: 'Appointment not found' });
     }
 
-    const appointment = await app.prisma.appointment.update({
-      where: { appointmentId: id },
+    // Lifecycle transition allowlist — terminal states (completed, cancelled, no_show, expired)
+    // have no outgoing transitions.
+    const VALID_TRANSITIONS: Record<string, string[]> = {
+      held: ['booked', 'cancelled', 'expired'],
+      booked: ['confirmed', 'cancelled', 'no_show'],
+      confirmed: ['checked_in', 'cancelled', 'no_show'],
+      checked_in: ['in_progress', 'no_show'],
+      in_progress: ['completed'],
+    };
+    const allowed = VALID_TRANSITIONS[existing.status] ?? [];
+    if (!allowed.includes(body.status)) {
+      return reply.code(422).send({
+        error: `Cannot transition from ${existing.status} to ${body.status}`,
+      });
+    }
+
+    // Conditional update guards against hold-expiry / concurrent status changes:
+    // only update if the row's status is still what we just read.
+    const updated = await app.prisma.appointment.updateMany({
+      where: { appointmentId: id, orgId, status: existing.status },
       data: {
         status: body.status,
-        statusHistory: {
-          create: {
-            oldStatus: existing.status,
-            newStatus: body.status,
-            changedBy: userId,
-            reason: body.reason,
-          },
-        },
       },
+    });
+
+    if (updated.count === 0) {
+      return reply.code(409).send({
+        error: 'Appointment status changed concurrently, please retry',
+      });
+    }
+
+    // Record status-history separately so it lands only after the conditional update succeeds.
+    await app.prisma.appointmentStatusHistory.create({
+      data: {
+        appointmentId: id,
+        oldStatus: existing.status,
+        newStatus: body.status,
+        changedBy: userId,
+        reason: body.reason,
+      },
+    });
+
+    const appointment = await app.prisma.appointment.findFirst({
+      where: { appointmentId: id, orgId },
       include: {
         provider: true,
         patient: true,
@@ -312,20 +342,27 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
         });
         if (conflict) throw new Error('SLOT_CONFLICT');
 
-        return tx.appointment.update({
-          where: { appointmentId: id },
+        const updateResult = await tx.appointment.updateMany({
+          where: { appointmentId: id, orgId },
           data: {
             startTs: newStartTs,
             endTs: newEndTs,
-            statusHistory: {
-              create: {
-                oldStatus: existing.status,
-                newStatus: existing.status,
-                changedBy: userId,
-                reason: `Rescheduled from ${existing.startTs.toISOString()} to ${newStartTs.toISOString()}`,
-              },
-            },
           },
+        });
+        if (updateResult.count === 0) throw new Error('APPOINTMENT_NOT_FOUND');
+
+        await tx.appointmentStatusHistory.create({
+          data: {
+            appointmentId: id,
+            oldStatus: existing.status,
+            newStatus: existing.status,
+            changedBy: userId,
+            reason: `Rescheduled from ${existing.startTs.toISOString()} to ${newStartTs.toISOString()}`,
+          },
+        });
+
+        return tx.appointment.findFirst({
+          where: { appointmentId: id, orgId },
           include: { provider: true, patient: true, service: true },
         });
       }, { isolationLevel: 'Serializable' });
@@ -334,6 +371,9 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
     } catch (err: unknown) {
       if (err instanceof Error && err.message === 'SLOT_CONFLICT') {
         return reply.code(409).send({ error: 'New time slot is already booked' });
+      }
+      if (err instanceof Error && err.message === 'APPOINTMENT_NOT_FOUND') {
+        return reply.code(404).send({ error: 'Appointment not found' });
       }
       throw err;
     }
@@ -449,131 +489,4 @@ export default async function appointmentsRoutes(app: FastifyInstance) {
     return { slots };
   });
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // POST /cancel-by-sms – Cancel an appointment via SMS keyword
-  // Twilio webhook body: From (phone), Body (SMS text containing appointment ID or "إلغاء <id>")
-  // This endpoint is intentionally public (auth handled by Twilio signature in prod)
-  // ─────────────────────────────────────────────────────────────────────────
-  app.post('/cancel-by-sms', {
-    preHandler: validateTwilioSignature,
-  }, async (request: FastifyRequest, reply) => {
-    const smsSchema = z.object({
-      From: z.string(),   // patient phone in E.164
-      Body: z.string(),   // raw SMS body
-    });
-
-    let from: string;
-    let body: string;
-    try {
-      const parsed = smsSchema.parse(request.body);
-      from = parsed.From;
-      body = parsed.Body;
-    } catch {
-      return reply.code(400).send({ error: 'Missing From or Body fields' });
-    }
-
-    // Normalize phone
-    const phone = from.replace(/^whatsapp:/, '');
-
-    // Extract appointment ID – two patterns:
-    //   1. "إلغاء <uuid>"
-    //   2. Raw UUID anywhere in the message
-    const uuidRegex = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
-    const match = body.match(uuidRegex);
-    let appointment: any = null;
-
-    if (match) {
-      // Try direct appointment ID lookup
-      appointment = await app.prisma.appointment.findUnique({
-        where: { appointmentId: match[0] },
-        include: { patient: true, provider: true, service: true },
-      });
-    }
-
-    // Fallback: find the patient by phone and get their next upcoming appointment
-    if (!appointment) {
-      const contact = await app.prisma.patientContact.findFirst({
-        where: { contactType: 'phone', contactValue: phone },
-      });
-      if (contact) {
-        appointment = await app.prisma.appointment.findFirst({
-          where: {
-            patientId: contact.patientId,
-            status: { in: ['booked', 'confirmed'] },
-            startTs: { gt: new Date() },
-          },
-          orderBy: { startTs: 'asc' },
-          include: { patient: true, provider: true, service: true },
-        });
-      }
-    }
-
-    if (!appointment) {
-      // Send SMS "not found" reply via Twilio if configured
-      if (app.twilio) {
-        await app.twilio.messages.create({
-          to: phone,
-          from: process.env.TWILIO_PHONE_NUMBER!,
-          body: 'عذراً، لم نتمكن من العثور على موعد مرتبط برقمك. تواصل معنا للمساعدة.',
-        });
-      }
-      return reply.code(404).send({ error: 'Appointment not found' });
-    }
-
-    // Check it belongs to this patient
-    const arabicCancelKeywords = ['إلغاء', 'الغاء', 'الغ', 'cancel', 'no', '2'];
-    const lowerBody = body.trim().toLowerCase();
-    const isCancelIntent = arabicCancelKeywords.some((kw) => lowerBody.includes(kw));
-
-    if (!isCancelIntent && !match) {
-      return reply.code(400).send({ error: 'No cancellation intent detected in message' });
-    }
-
-    // Cancel the appointment
-    await app.prisma.appointment.update({
-      where: { appointmentId: appointment.appointmentId },
-      data: {
-        status: 'cancelled',
-        statusHistory: {
-          create: {
-            oldStatus: appointment.status,
-            newStatus: 'cancelled',
-            changedBy: 'sms_patient',
-            reason: 'Patient cancelled via SMS',
-          },
-        },
-      },
-    });
-
-    // Cancel pending reminders
-    await app.prisma.appointmentReminder.updateMany({
-      where: { appointmentId: appointment.appointmentId, status: 'pending' },
-      data: { status: 'cancelled', response: 'appointment_cancelled_by_patient_sms' },
-    });
-
-    // Send confirmation SMS
-    const dateStr = appointment.startTs.toLocaleDateString('ar-SA', {
-      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
-    });
-    const timeStr = appointment.startTs.toLocaleTimeString('ar-SA', {
-      hour: '2-digit', minute: '2-digit',
-    });
-    const confirmMsg =
-      `تم إلغاء موعدك مع ${appointment.provider.displayName} بتاريخ ${dateStr} الساعة ${timeStr} بنجاح. ` +
-      `نتمنى لك دوام الصحة والعافية. 💚`;
-
-    if (app.twilio) {
-      await app.twilio.messages.create({
-        to: phone,
-        from: process.env.TWILIO_PHONE_NUMBER!,
-        body: confirmMsg,
-      });
-    }
-
-    return {
-      success: true,
-      appointmentId: appointment.appointmentId,
-      message: confirmMsg,
-    };
-  });
 }

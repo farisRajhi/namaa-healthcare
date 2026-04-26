@@ -7,7 +7,7 @@
  * Each campaign includes channel recommendations, offer suggestions,
  * priority scoring, and culturally appropriate messaging for Saudi clinics.
  */
-import { geminiJsonChat, type GeminiConfig } from './geminiClient.js';
+import { llmJsonChat } from './llmRouter.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -170,29 +170,35 @@ function formatSegmentsForPrompt(segments: SegmentSummary[]): string {
 // ── Main function ────────────────────────────────────────────────────
 
 /**
- * Generate campaign suggestions from patient segment summaries using Gemini.
+ * Generate campaign suggestions from patient segment summaries using the
+ * configured LLM provider (defaults to Claude Sonnet for quality on this step).
  *
- * @param geminiConfig - Gemini API configuration
+ * Provider is resolved via llmRouter (env-configurable per pipeline step).
+ *
  * @param segments     - Summarized patient segments from analysis step
  * @param skillContent - Domain knowledge content loaded from skill files
  * @param clinicType   - Detected clinic type (dental, dermatology, etc.)
  * @returns Array of generated campaign suggestions
  */
+export interface GenerateCampaignsResult {
+  campaigns: GeneratedCampaign[];
+  tokensUsed: number;
+}
+
 export async function generateCampaigns(
-  geminiConfig: GeminiConfig,
   segments: SegmentSummary[],
   skillContent: string,
   clinicType: string,
-): Promise<GeneratedCampaign[]> {
+): Promise<GenerateCampaignsResult> {
   if (segments.length === 0) {
-    return [];
+    return { campaigns: [], tokensUsed: 0 };
   }
 
   const systemPrompt = buildSystemPrompt(clinicType, skillContent);
   const userPrompt = formatSegmentsForPrompt(segments);
 
   try {
-    const content = await geminiJsonChat(geminiConfig, {
+    const { text: content, usage } = await llmJsonChat('campaign-generation', {
       systemPrompt,
       userPrompt,
       temperature: 0.4,
@@ -202,7 +208,7 @@ export async function generateCampaigns(
     const parsed: AIResponse = JSON.parse(content);
 
     if (!Array.isArray(parsed.campaigns)) {
-      throw new Error('Gemini response missing "campaigns" array');
+      throw new Error('LLM response missing "campaigns" array');
     }
 
     // Validate and sanitize each campaign
@@ -214,31 +220,34 @@ export async function generateCampaigns(
     // Sort by priority descending
     validated.sort((a, b) => b.priority - a.priority);
 
-    return validated;
+    return { campaigns: validated, tokensUsed: usage.totalTokens };
   } catch (error) {
-    console.error('[CampaignGenerator] Gemini campaign generation failed:', error);
+    console.error('[CampaignGenerator] LLM campaign generation failed:', error);
 
     // Return a single fallback campaign so the pipeline doesn't produce zero output
-    return [
-      {
-        name: 'General Patient Recall',
-        nameAr: 'استدعاء المرضى العام',
-        type: 'recall',
-        segment: segments[0]?.segment || 'all',
-        segmentDescAr: 'جميع المرضى الذين لم يزوروا العيادة مؤخراً',
-        segmentDescEn: 'All patients who have not visited the clinic recently',
-        scriptAr: 'مرحباً {patient_name}، نتمنى لك دوام الصحة والعافية. لاحظنا أنه مضى وقت على آخر زيارة لك. ندعوك لحجز موعد فحص دوري. للحجز أرسل: حجز',
-        scriptEn: 'Hello {patient_name}, we hope you are well. It has been a while since your last visit. We invite you to schedule a checkup. Reply BOOK to schedule.',
-        channelSequence: ['whatsapp'],
-        suggestedOfferType: null,
-        suggestedDiscount: null,
-        reasoning: 'Fallback campaign — AI generation encountered an error. This general recall targets all lapsed patients.',
-        reasoningAr: 'حملة احتياطية — حدث خطأ في التوليد الذكي. هذه حملة استدعاء عامة لجميع المرضى المنقطعين.',
-        expectedOutcome: 'Re-engage lapsed patients with a general recall message',
-        priority: 50,
-        confidenceScore: 0.3,
-      },
-    ];
+    return {
+      campaigns: [
+        {
+          name: 'General Patient Recall',
+          nameAr: 'استدعاء المرضى العام',
+          type: 'recall',
+          segment: segments[0]?.segment || 'all',
+          segmentDescAr: 'جميع المرضى الذين لم يزوروا العيادة مؤخراً',
+          segmentDescEn: 'All patients who have not visited the clinic recently',
+          scriptAr: 'مرحباً {patient_name}، نتمنى لك دوام الصحة والعافية. لاحظنا أنه مضى وقت على آخر زيارة لك. ندعوك لحجز موعد فحص دوري. للحجز أرسل: حجز',
+          scriptEn: 'Hello {patient_name}, we hope you are well. It has been a while since your last visit. We invite you to schedule a checkup. Reply BOOK to schedule.',
+          channelSequence: ['whatsapp'],
+          suggestedOfferType: null,
+          suggestedDiscount: null,
+          reasoning: 'Fallback campaign — AI generation encountered an error. This general recall targets all lapsed patients.',
+          reasoningAr: 'حملة احتياطية — حدث خطأ في التوليد الذكي. هذه حملة استدعاء عامة لجميع المرضى المنقطعين.',
+          expectedOutcome: 'Re-engage lapsed patients with a general recall message',
+          priority: 50,
+          confidenceScore: 0.3,
+        },
+      ],
+      tokensUsed: 0,
+    };
   }
 }
 

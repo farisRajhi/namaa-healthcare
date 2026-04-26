@@ -10,12 +10,12 @@ import formbody from '@fastify/formbody';
 import multipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import path from 'path';
+import { mkdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { ZodError } from 'zod';
 import { prismaPlugin } from './plugins/prisma.js';
 import { openaiPlugin } from './plugins/openai.js';
 import { geminiPlugin } from './plugins/gemini.js';
-import { twilioPlugin } from './plugins/twilio.js';
 import { schedulerPlugin } from './plugins/scheduler.js';
 import { registerRoutes } from './routes/index.js';
 
@@ -23,7 +23,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export async function buildApp() {
-  const isProduction = process.env.NODE_ENV === 'production';
+  const nodeEnv = (process.env.NODE_ENV ?? '').toLowerCase().trim();
+  const isProduction = nodeEnv === 'production' || nodeEnv === 'prod';
 
   const app = Fastify({
     logger: {
@@ -55,12 +56,13 @@ export async function buildApp() {
     contentSecurityPolicy: isProduction ? {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'"],
+        scriptSrc: ["'self'", 'https://sdk.tap.company'],
         // 'unsafe-inline' required for Tailwind CSS runtime style injection
         // and inline styles in React components. Removing this breaks UI rendering.
         styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", 'data:'],
-        connectSrc: ["'self'"],
+        imgSrc: ["'self'", 'data:', 'https://tap-assets.b-cdn.net'],
+        connectSrc: ["'self'", 'https://api.tap.company'],
+        frameSrc: ['https://sdk.tap.company'],
         frameAncestors: ["'none'"],
         formAction: ["'self'"],
       },
@@ -77,10 +79,9 @@ export async function buildApp() {
     timeWindow: '1 minute',
     skipOnError: false,
     keyGenerator: (request) => {
-      // Use X-Forwarded-For if behind a proxy/load-balancer
-      const forwarded = request.headers['x-forwarded-for'];
-      const ip = Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(',')[0] ?? request.ip;
-      return ip;
+      // Fastify's `trustProxy: isProduction` already resolves the proxy chain safely.
+      // Reading X-Forwarded-For directly here would let any client spoof the rate-limit key.
+      return request.ip;
     },
     errorResponseBuilder: (_request, context) => ({
       statusCode: 429,
@@ -89,11 +90,18 @@ export async function buildApp() {
     }),
   });
 
-  // CORS — require explicit CORS_ORIGIN in production
+  // CORS — require explicit CORS_ORIGIN in production, reject wildcards
   if (isProduction && !process.env.CORS_ORIGIN) {
     console.error(
       '❌  FATAL: CORS_ORIGIN must be set in production.\n' +
       '    Set it to your frontend domain(s), comma-separated.',
+    );
+    process.exit(1);
+  }
+  if (isProduction && process.env.CORS_ORIGIN?.split(',').some((o) => o.trim() === '*')) {
+    console.error(
+      '❌  FATAL: CORS_ORIGIN must not contain "*" in production.\n' +
+      '    Wildcard with credentials:true is unsafe — allowlist explicit domains.',
     );
     process.exit(1);
   }
@@ -120,12 +128,16 @@ export async function buildApp() {
       console.error('❌  FATAL: WEBHOOK_API_KEY is missing or uses the placeholder value.');
       process.exit(1);
     }
-    if (process.env.SKIP_TWILIO_VERIFY === 'true') {
-      console.error('❌  FATAL: SKIP_TWILIO_VERIFY=true is not allowed in production.');
-      process.exit(1);
-    }
     if (!process.env.OPENAI_API_KEY) {
       console.error('FATAL: OPENAI_API_KEY is not set');
+      process.exit(1);
+    }
+    if (!process.env.ANTHROPIC_API_KEY) {
+      console.error('❌  FATAL: ANTHROPIC_API_KEY is not set. Patient Intelligence pipeline will fail.');
+      process.exit(1);
+    }
+    if (!process.env.GEMINI_API_KEY) {
+      console.error('❌  FATAL: GEMINI_API_KEY is not set. Chat AI will fail at runtime.');
       process.exit(1);
     }
     const tapSecret = process.env.TAP_SECRET_KEY;
@@ -133,12 +145,32 @@ export async function buildApp() {
       console.error('❌  FATAL: TAP_SECRET_KEY is missing or uses the placeholder value.');
       process.exit(1);
     }
-    if (!process.env.REGISTRATION_TOKEN) {
-      console.warn('WARNING: REGISTRATION_TOKEN is not set — registration is open to the public');
+    const registrationToken = process.env.REGISTRATION_TOKEN;
+    if (!registrationToken || registrationToken === 'CHANGE_ME_RANDOM_TOKEN') {
+      console.error('❌  FATAL: REGISTRATION_TOKEN is missing or uses the placeholder value.');
+      process.exit(1);
+    }
+    if (!process.env.FRONTEND_URL) {
+      console.error('❌  FATAL: FRONTEND_URL must be set in production (used for billing redirects, upgrade links).');
+      process.exit(1);
+    }
+    if (!process.env.BASE_URL) {
+      console.error('❌  FATAL: BASE_URL must be set in production (used for Tap webhook callbacks).');
+      process.exit(1);
     }
     if (process.env.SEED_PLATFORM_ADMIN_EMAIL || process.env.SEED_PLATFORM_ADMIN_PASSWORD) {
       console.error('❌  FATAL: SEED_PLATFORM_ADMIN_* env vars must not be set in production.');
       process.exit(1);
+    }
+  } else {
+    // Dev-mode warning: let the developer keep working, but make the missing
+    // key visible in logs so the `/pricing` "Pay" button failing makes sense.
+    const tapSecret = process.env.TAP_SECRET_KEY;
+    if (!tapSecret || tapSecret === 'sk_test_CHANGE_ME') {
+      console.warn(
+        '⚠️   TAP_SECRET_KEY is not set (dev). /api/payments/create will fail until it is.\n' +
+          '    Fill it in backend/.env (sandbox key from https://dashboard.tap.company/).',
+      );
     }
   }
 
@@ -154,11 +186,11 @@ export async function buildApp() {
   }
   await app.register(jwt, {
     secret: jwtSecret,
-    sign: { expiresIn: '2h', algorithm: 'HS256' },
+    sign: { expiresIn: '3650d', algorithm: 'HS256' },
     verify: { algorithms: ['HS256'] },
   });
 
-  // Form body parser (required for Twilio webhooks)
+  // Form body parser
   await app.register(formbody);
 
   // Multipart file upload (for Patient Intelligence CSV upload)
@@ -168,6 +200,16 @@ export async function buildApp() {
   await app.register(fastifyStatic, {
     root: path.join(__dirname, '..', 'public'),
     prefix: '/public/',
+  });
+
+  // Static file serving for locally-stored uploads (logos, generated ad images).
+  // Used as a dev / S3-not-configured fallback for the object storage helper.
+  const uploadsRoot = path.join(__dirname, '..', 'uploads');
+  mkdirSync(uploadsRoot, { recursive: true });
+  await app.register(fastifyStatic, {
+    root: uploadsRoot,
+    prefix: '/uploads/',
+    decorateReply: false,
   });
 
   // Swagger Documentation
@@ -215,11 +257,8 @@ export async function buildApp() {
   // Gemini Plugin (for Gemini Multimodal Live API)
   await app.register(geminiPlugin);
 
-  // WebSocket support for voice streaming
+  // WebSocket support
   await app.register(websocket);
-
-  // Twilio Plugin for voice calls
-  await app.register(twilioPlugin);
 
   // Global error handler — catches Zod errors, validation errors, etc.
   // MUST be set BEFORE registerRoutes() so encapsulated plugins inherit it

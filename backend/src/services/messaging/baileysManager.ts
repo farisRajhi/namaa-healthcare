@@ -14,6 +14,7 @@ import { PrismaClient, Prisma } from '@prisma/client';
 import * as QRCode from 'qrcode';
 import { EventEmitter } from 'events';
 import pino from 'pino';
+import * as crypto from 'node:crypto';
 
 // ─────────────────────────────────────────────────────────
 // BaileysManager — per-org WhatsApp Web session management
@@ -57,7 +58,11 @@ async function usePrismaAuthState(
         update: { creds: serialized },
       });
     } catch (err) {
+      // Rethrow so the Baileys lifecycle surfaces the failure. Silently swallowing here
+      // means stale creds persist and the next process restart fails with `badSession`,
+      // forcing a fresh QR pairing. Better to fail loud now.
       console.error('[Baileys] Failed to save creds:', err);
+      throw err;
     }
   };
 
@@ -128,7 +133,11 @@ async function usePrismaAuthState(
 export class BaileysManager extends EventEmitter {
   private sessions = new Map<string, WASocket>();
   private statuses = new Map<string, SessionInfo>();
-  private connecting = new Set<string>();
+  // Connect-in-flight tracker: stores the in-flight connect Promise per org so
+  // concurrent /connect calls await the same operation instead of racing.
+  // (Was a `Set<string>` — that had a TOCTOU window where caller B saw the set
+  // empty between caller A's check and add.)
+  private connecting = new Map<string, Promise<SessionInfo>>();
   private reconnectTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private reconnectAttempts = new Map<string, number>();
   private healthCheckInterval: ReturnType<typeof setInterval> | null = null;
@@ -228,14 +237,27 @@ export class BaileysManager extends EventEmitter {
       return this.getStatus(orgId);
     }
 
-    // Already in the process of connecting — don't double-connect
-    if (this.connecting.has(orgId)) {
-      return this.getStatus(orgId);
+    // Already in the process of connecting — share the in-flight promise so
+    // two concurrent connect() calls don't both spin up a socket.
+    const inFlight = this.connecting.get(orgId);
+    if (inFlight) {
+      return inFlight;
     }
 
+    const promise = this._doConnect(orgId).finally(() => {
+      // Clear in-flight tracker once the connect promise settles, regardless
+      // of outcome. Subsequent calls can attempt a fresh connect.
+      if (this.connecting.get(orgId) === promise) {
+        this.connecting.delete(orgId);
+      }
+    });
+    this.connecting.set(orgId, promise);
+    return promise;
+  }
+
+  private async _doConnect(orgId: string): Promise<SessionInfo> {
     // Clear manual-disconnect flag (explicit connect overrides it)
     this.manuallyDisconnected.delete(orgId);
-    this.connecting.add(orgId);
 
     // Cancel any pending reconnect timer
     const timer = this.reconnectTimers.get(orgId);
@@ -266,7 +288,6 @@ export class BaileysManager extends EventEmitter {
       });
 
       this.sessions.set(orgId, sock);
-      this.connecting.delete(orgId);
 
       // ── Connection updates ──
       sock.ev.on('connection.update', async (update: Partial<ConnectionState>) => {
@@ -353,13 +374,65 @@ export class BaileysManager extends EventEmitter {
               msg.message?.videoMessage?.caption ||
               '';
 
-            if (!text) continue;
+            // Voice notes (push-to-talk) and uploaded audio both arrive as audioMessage
+            // (with `ptt: true` for voice notes). Older clients may also send pttMessage.
+            const audioMessage =
+              msg.message?.audioMessage ||
+              (msg.message as any)?.pttMessage ||
+              null;
 
-            const phone = '+' + jid.split('@')[0];
-            const messageId = msg.key.id || `baileys-${Date.now()}`;
+            if (!text && !audioMessage) continue;
 
-            this.appLog?.info({ orgId, phone, messageId }, 'Baileys incoming message');
-            this.emit('message', orgId, { phone, text, messageId, jid });
+            // Resolve sender phone. WhatsApp now uses two JID namespaces for 1:1 chats:
+            //   <phone>@s.whatsapp.net  → identifier IS the real E.164 phone
+            //   <lid>@lid               → identifier is an opaque LID; needs lookup
+            // Group/broadcast/unknown JIDs are not user-addressable here — skip them.
+            const [identifier, domain] = jid.split('@');
+            let phone: string | null = null;
+
+            if (domain === 's.whatsapp.net') {
+              phone = '+' + identifier;
+            } else if (domain === 'lid') {
+              try {
+                const pnJid = await sock.signalRepository?.lidMapping?.getPNForLID(jid);
+                if (pnJid) {
+                  phone = '+' + pnJid.split('@')[0].split(':')[0];
+                }
+              } catch (err) {
+                this.appLog?.warn({ orgId, jid, err }, 'Failed LID→PN lookup');
+              }
+              if (!phone) {
+                this.appLog?.warn({ orgId, jid }, 'Skipping LID message with no phone mapping');
+                continue;
+              }
+            } else {
+              continue;
+            }
+
+            // Deterministic fallback messageId: when Baileys doesn't supply
+            // msg.key.id, derive a stable hash from (orgId, jid, timestamp,
+            // truncated body). Using Date.now() would defeat idempotency on
+            // duplicate deliveries since each retry would produce a fresh ID.
+            const truncatedBody = (text || '').slice(0, 64);
+            const fallbackId = `baileys-${crypto
+              .createHash('sha256')
+              .update(`${orgId}:${jid}:${msg.messageTimestamp}:${truncatedBody}`)
+              .digest('hex')
+              .slice(0, 16)}`;
+            const messageId = msg.key.id || fallbackId;
+
+            this.appLog?.info(
+              { orgId, phone, messageId, hasAudio: !!audioMessage },
+              'Baileys incoming message',
+            );
+            this.emit('message', orgId, {
+              phone,
+              text,
+              messageId,
+              jid,
+              audioMessage,
+              rawMessage: msg,
+            });
           } catch (err) {
             this.appLog?.error({ orgId, err }, 'Error processing Baileys message');
           }
@@ -368,14 +441,26 @@ export class BaileysManager extends EventEmitter {
 
       return this.getStatus(orgId);
     } catch (err) {
-      this.connecting.delete(orgId);
+      // Note: outer connect() .finally() removes us from this.connecting
       this.appLog?.error({ orgId, err }, 'Baileys connect() failed');
       this.updateStatus(orgId, { status: 'disconnected', qrDataUrl: null });
       throw err;
     }
   }
 
-  /** Send a text message to a JID or phone number */
+  /** Internal accessor used by the route listener for media downloads. */
+  getSocket(orgId: string): WASocket | null {
+    return this.sessions.get(orgId) ?? null;
+  }
+
+  /** Mask a JID/phone for logs — keep only the last 4 digits. */
+  private maskJid(jidOrPhone: string): string {
+    const digits = jidOrPhone.replace(/[^0-9]/g, '');
+    if (digits.length <= 4) return `***${digits}`;
+    return `***${digits.slice(-4)}`;
+  }
+
+  /** Send a text message to a JID or phone number. Retries once on failure. */
   async sendMessage(orgId: string, phoneOrJid: string, text: string): Promise<boolean> {
     const sock = this.sessions.get(orgId);
     if (!sock || !this.isConnected(orgId)) {
@@ -384,11 +469,33 @@ export class BaileysManager extends EventEmitter {
     }
 
     const jid = this.resolveJid(phoneOrJid);
-    await sock.sendMessage(jid, { text });
-    return true;
+    const masked = this.maskJid(jid);
+
+    try {
+      await sock.sendMessage(jid, { text });
+      return true;
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      this.appLog?.warn(
+        { orgId, jid: masked, error: errMsg },
+        'Baileys sendMessage failed — retrying once after 500ms',
+      );
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      try {
+        await sock.sendMessage(jid, { text });
+        return true;
+      } catch (retryErr) {
+        const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+        this.appLog?.error(
+          { orgId, jid: masked, error: retryMsg },
+          'Baileys sendMessage retry failed',
+        );
+        throw new Error(`Baileys sendMessage failed for ${masked}: ${retryMsg}`);
+      }
+    }
   }
 
-  /** Send an image with optional caption to a JID or phone number */
+  /** Send an image with optional caption to a JID or phone number. Retries once on failure. */
   async sendImageMessage(
     orgId: string,
     phoneOrJid: string,
@@ -403,12 +510,35 @@ export class BaileysManager extends EventEmitter {
     }
 
     const jid = this.resolveJid(phoneOrJid);
-    await sock.sendMessage(jid, {
+    const masked = this.maskJid(jid);
+    const payload = {
       image: imageBuffer,
       caption: caption || undefined,
       mimetype: (mimetype || 'image/jpeg') as any,
-    });
-    return true;
+    };
+
+    try {
+      await sock.sendMessage(jid, payload);
+      return true;
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      this.appLog?.warn(
+        { orgId, jid: masked, error: errMsg },
+        'Baileys sendImageMessage failed — retrying once after 500ms',
+      );
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      try {
+        await sock.sendMessage(jid, payload);
+        return true;
+      } catch (retryErr) {
+        const retryMsg = retryErr instanceof Error ? retryErr.message : String(retryErr);
+        this.appLog?.error(
+          { orgId, jid: masked, error: retryMsg },
+          'Baileys sendImageMessage retry failed',
+        );
+        throw new Error(`Baileys sendImageMessage failed for ${masked}: ${retryMsg}`);
+      }
+    }
   }
 
   /** Show "typing..." indicator to the recipient */
@@ -464,9 +594,22 @@ export class BaileysManager extends EventEmitter {
   }
 
   async restoreSessions(): Promise<void> {
-    const sessions = await this.prisma.whatsAppSession.findMany({
-      where: { connected: true },
+    // Only restore sessions for active orgs — suspended orgs stay disconnected
+    // until reactivated. WhatsAppSession has no Prisma relation to Org, so do
+    // the filter via an explicit orgId IN (...) lookup.
+    const activeOrgs = await this.prisma.org.findMany({
+      where: { status: 'active' },
+      select: { orgId: true },
     });
+    const activeOrgIds = activeOrgs.map((o) => o.orgId);
+    const sessions = activeOrgIds.length === 0
+      ? []
+      : await this.prisma.whatsAppSession.findMany({
+          where: {
+            connected: true,
+            orgId: { in: activeOrgIds },
+          },
+        });
 
     this.appLog?.info({ count: sessions.length }, 'Restoring Baileys sessions');
 
@@ -494,9 +637,22 @@ export class BaileysManager extends EventEmitter {
 
     this.healthCheckInterval = setInterval(async () => {
       try {
-        const dbSessions = await this.prisma.whatsAppSession.findMany({
-          where: { connected: true },
+        // Only resurrect sessions for active orgs — suspended orgs must stay
+        // offline until a platform admin reactivates them. WhatsAppSession has
+        // no Prisma relation to Org, so filter via explicit orgId lookup.
+        const activeOrgs = await this.prisma.org.findMany({
+          where: { status: 'active' },
+          select: { orgId: true },
         });
+        const activeOrgIds = activeOrgs.map((o) => o.orgId);
+        const dbSessions = activeOrgIds.length === 0
+          ? []
+          : await this.prisma.whatsAppSession.findMany({
+              where: {
+                connected: true,
+                orgId: { in: activeOrgIds },
+              },
+            });
 
         for (const session of dbSessions) {
           const orgId = session.orgId;
