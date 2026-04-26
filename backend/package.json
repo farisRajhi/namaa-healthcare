@@ -11,7 +11,7 @@
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:pull": "prisma db pull",
-    "db:migrate": "prisma migrate dev",
+    "db:migrate": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "platform:create-admin": "tsx scripts/createPlatformAdmin.ts",
     "billing:run-dunning": "tsx scripts/runDunning.ts",

@@ -13,8 +13,24 @@ NUL
 backend/NUL
 frontend/nul
 
+# Production/staging env files
+.env.production
+.env.staging
+
 # Secrets
 backend/secret/
 
 # Binaries
 ngrok.exe
+
+# Local fallback storage for AI-generated ad images and uploaded brand logos
+backend/uploads/
+
+# MCP server config — contains DB credentials, never commit
+.mcp.json
+
+# Playwright E2E artifacts
+frontend/test-results/
+frontend/playwright-report/
+frontend/.playwright/
+frontend/playwright/.cache/

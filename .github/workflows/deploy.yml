@@ -1,14 +1,24 @@
 name: Deploy to Production
 
+# Gated on the CI workflow succeeding on main (or a manual dispatch).
+# Prevents broken code from shipping just because someone pushed to main.
 on:
-  push:
+  workflow_run:
+    workflows: ['CI - Lint, Type Check & Test']
+    types: [completed]
     branches: [main]
   workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
   deploy:
     name: Build & Deploy
     runs-on: ubuntu-latest
+    # Skip when the CI workflow ended in failure/cancelled. workflow_dispatch has no
+    # github.event.workflow_run, so the second predicate keeps manual runs working.
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     
     steps:
       - name: Checkout code
@@ -26,17 +36,17 @@ jobs:
       
       - name: Build Docker images
         run: |
-          docker build -t namaa-backend:latest ./backend
-          docker build -t namaa-frontend:latest ./frontend
+          docker build -t tawafud-backend:latest ./backend
+          docker build -t tawafud-frontend:latest ./frontend
       
       - name: Save Docker images as artifacts
         if: ${{ secrets.DOCKER_USERNAME == '' }}
         run: |
-          docker save namaa-backend:latest | gzip > backend-image.tar.gz
-          docker save namaa-frontend:latest | gzip > frontend-image.tar.gz
+          docker save tawafud-backend:latest | gzip > backend-image.tar.gz
+          docker save tawafud-frontend:latest | gzip > frontend-image.tar.gz
       
       - name: Deploy to VPS via SSH
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f882c2f32070d  # v1.0.3
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
@@ -44,15 +54,15 @@ jobs:
           port: ${{ secrets.VPS_PORT || 22 }}
           script: |
             # Navigate to project directory
-            cd ${{ secrets.VPS_PROJECT_PATH || '/opt/namaa' }}
+            cd ${{ secrets.VPS_PROJECT_PATH || '/opt/tawafud' }}
             
             # Pull latest code
             git pull origin main
             
             # Pull or load Docker images
             if [ -n "${{ secrets.DOCKER_USERNAME }}" ]; then
-              docker pull ${{ secrets.DOCKER_USERNAME }}/namaa-backend:latest
-              docker pull ${{ secrets.DOCKER_USERNAME }}/namaa-frontend:latest
+              docker pull ${{ secrets.DOCKER_USERNAME }}/tawafud-backend:latest
+              docker pull ${{ secrets.DOCKER_USERNAME }}/tawafud-frontend:latest
             else
               # Build images on server
               docker compose -f docker-compose.prod.yml build
@@ -71,9 +81,19 @@ jobs:
       
       - name: Health check
         run: |
-          sleep 10
-          curl -f ${{ secrets.VPS_URL }}/health || exit 1
-          echo "✅ Health check passed!"
+          # Poll up to 90s — cold container + migrations can take longer than a
+          # single sleep+curl. Fail fast on persistent failure, not on a warm-up race.
+          for i in $(seq 1 18); do
+            if curl -fsL --max-redirs 2 --max-time 5 "${{ secrets.VPS_URL }}/health" > /tmp/health.json; then
+              echo "✅ Health check passed on attempt $i"
+              cat /tmp/health.json
+              exit 0
+            fi
+            echo "⏳ Attempt $i/18 — service not ready yet, retrying in 5s"
+            sleep 5
+          done
+          echo "❌ Health check failed after 90s"
+          exit 1
       
       - name: Notify deployment status
         if: always()
