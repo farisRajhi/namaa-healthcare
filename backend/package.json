@@ -37,6 +37,12 @@
   "author": "",
   "license": "ISC",
   "type": "module",
+  "overrides": {
+    "@whiskeysockets/libsignal-node": {
+      "protobufjs": "^7.5.5"
+    },
+    "protobufjs": "^7.5.5"
+  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.90.0",
     "@aws-sdk/client-s3": "^3.1037.0",
