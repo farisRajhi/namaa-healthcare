@@ -1,16 +1,19 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { Search, X } from 'lucide-react'
+import { Search, AlertTriangle, CheckCircle2, MinusCircle } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { platformApi } from '../../lib/platformApi'
 import { getErrorMessage } from '../../lib/api'
+import Modal from '../../components/ui/Modal'
+import i18n from '../../i18n'
 
 type OrgStatus = 'active' | 'suspended' | 'deleted'
 
 interface OrgRow {
   orgId: string
   name: string
+  nameAr?: string | null
   status: OrgStatus
   suspendedAt: string | null
   suspendedReason: string | null
@@ -27,14 +30,21 @@ interface ListResponse {
   pageSize: number
 }
 
-const STATUS_BADGE: Record<OrgStatus, string> = {
-  active: 'bg-success-50 text-success-700 border-success-200',
-  suspended: 'bg-warning-50 text-warning-700 border-warning-200',
-  deleted: 'bg-healthcare-bg text-healthcare-muted border-healthcare-border',
+const STATUS_BADGE: Record<OrgStatus, { cls: string; icon: typeof AlertTriangle }> = {
+  active: { cls: 'bg-success-50 text-success-700 border-success-200', icon: CheckCircle2 },
+  suspended: { cls: 'bg-warning-50 text-warning-700 border-warning-200', icon: AlertTriangle },
+  deleted: { cls: 'bg-healthcare-bg text-healthcare-muted border-healthcare-border', icon: MinusCircle },
+}
+
+const STATUS_KEY: Record<OrgStatus, string> = {
+  active: 'platform.orgs.statusActive',
+  suspended: 'platform.orgs.statusSuspended',
+  deleted: 'platform.orgs.statusDeleted',
 }
 
 export default function PlatformOrgs() {
   const { t } = useTranslation()
+  const lang = i18n.language
   const [page, setPage] = useState(1)
   const [pageSize] = useState(25)
   const [status, setStatus] = useState<OrgStatus | ''>('')
@@ -56,6 +66,7 @@ export default function PlatformOrgs() {
       })
       return res.data
     },
+    staleTime: 30_000,
   })
 
   const statusMutation = useMutation({
@@ -70,7 +81,8 @@ export default function PlatformOrgs() {
       setModalError(null)
     },
     onError: (err) => {
-      setModalError(getErrorMessage(err).en)
+      const m = getErrorMessage(err)
+      setModalError(lang === 'ar' ? m.ar : m.en)
     },
   })
 
@@ -89,6 +101,8 @@ export default function PlatformOrgs() {
       reason: modalReason.trim(),
     })
   }
+
+  const orgName = (o: OrgRow) => (lang === 'ar' ? (o.nameAr ?? o.name) : o.name)
 
   const data = listQuery.data
   const totalPages = data ? Math.max(1, Math.ceil(data.total / pageSize)) : 1
@@ -114,8 +128,12 @@ export default function PlatformOrgs() {
           className="flex-1 flex gap-2 min-w-[240px]"
         >
           <div className="relative flex-1">
+            <label htmlFor="orgs-search" className="sr-only">
+              {t('platform.orgs.search')}
+            </label>
             <Search className="w-4 h-4 text-healthcare-muted absolute top-1/2 -translate-y-1/2 start-3 pointer-events-none" />
             <input
+              id="orgs-search"
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder={t('platform.orgs.search')}
@@ -126,7 +144,11 @@ export default function PlatformOrgs() {
             {t('platform.orgs.searchBtn')}
           </button>
         </form>
+        <label htmlFor="orgs-status" className="sr-only">
+          {t('platform.orgs.status')}
+        </label>
         <select
+          id="orgs-status"
           value={status}
           onChange={(e) => {
             setStatus(e.target.value as OrgStatus | '')
@@ -135,29 +157,32 @@ export default function PlatformOrgs() {
           className="bg-white border border-healthcare-border rounded-lg px-3 py-2 text-sm text-healthcare-text focus:outline-none focus:ring-[3px] focus:ring-primary-400 focus:border-primary-500"
         >
           <option value="">{t('platform.orgs.allStatuses')}</option>
-          <option value="active">Active</option>
-          <option value="suspended">Suspended</option>
-          <option value="deleted">Deleted</option>
+          <option value="active">{t('platform.orgs.statusActive')}</option>
+          <option value="suspended">{t('platform.orgs.statusSuspended')}</option>
+          <option value="deleted">{t('platform.orgs.statusDeleted')}</option>
         </select>
       </div>
 
-      <div className="card overflow-hidden">
-        <table className="w-full text-sm">
+      <div className="card overflow-x-auto">
+        <table className="w-full text-sm" aria-label={t('platform.orgs.title')}>
+          <caption className="sr-only">{t('platform.orgs.title')}</caption>
           <thead className="bg-healthcare-bg text-healthcare-muted text-[11px] uppercase tracking-widest font-semibold">
             <tr>
-              <th className="text-start px-4 py-3">{t('platform.orgs.name')}</th>
-              <th className="text-start px-4 py-3">{t('platform.orgs.status')}</th>
-              <th className="text-start px-4 py-3">{t('platform.orgs.plan')}</th>
-              <th className="text-start px-4 py-3">{t('platform.orgs.users')}</th>
-              <th className="text-start px-4 py-3">{t('platform.orgs.createdAt')}</th>
-              <th className="text-end px-4 py-3">{t('platform.orgs.actions')}</th>
+              <th scope="col" className="text-start px-4 py-3">{t('platform.orgs.name')}</th>
+              <th scope="col" className="text-start px-4 py-3">{t('platform.orgs.status')}</th>
+              <th scope="col" className="text-start px-4 py-3">{t('platform.orgs.plan')}</th>
+              <th scope="col" className="text-start px-4 py-3">{t('platform.orgs.users')}</th>
+              <th scope="col" className="text-start px-4 py-3">{t('platform.orgs.createdAt')}</th>
+              <th scope="col" className="text-end px-4 py-3">{t('platform.orgs.actions')}</th>
             </tr>
           </thead>
           <tbody>
             {listQuery.isLoading && (
               <tr>
                 <td colSpan={6} className="px-4 py-8 text-center text-healthcare-muted">
-                  {t('platform.orgs.loading')}
+                  <span role="status" aria-live="polite">
+                    {t('platform.orgs.loading')}
+                  </span>
                 </td>
               </tr>
             )}
@@ -168,52 +193,59 @@ export default function PlatformOrgs() {
                 </td>
               </tr>
             )}
-            {data?.data.map((o) => (
-              <tr
-                key={o.orgId}
-                className="border-t border-healthcare-border/40 hover:bg-healthcare-bg/60 transition-colors"
-              >
-                <td className="px-4 py-3">
-                  <Link
-                    to={`/platform/orgs/${o.orgId}`}
-                    className="text-healthcare-text hover:text-primary-600 font-medium transition-colors"
-                  >
-                    {o.name}
-                  </Link>
-                </td>
-                <td className="px-4 py-3">
-                  <span
-                    className={`inline-block text-xs font-semibold border rounded-full px-2.5 py-0.5 ${STATUS_BADGE[o.status]}`}
-                  >
-                    {o.status}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-healthcare-muted capitalize">
-                  {o.subscription?.plan ?? '—'}
-                </td>
-                <td className="px-4 py-3 text-healthcare-text tabular-nums">{o.userCount}</td>
-                <td className="px-4 py-3 text-healthcare-muted tabular-nums">
-                  {new Date(o.createdAt).toLocaleDateString()}
-                </td>
-                <td className="px-4 py-3 text-end">
-                  {o.status === 'active' ? (
-                    <button
-                      onClick={() => openModal(o, 'suspend')}
-                      className="text-xs font-semibold text-warning-700 hover:text-warning-800 transition-colors"
+            {data?.data.map((o) => {
+              const badge = STATUS_BADGE[o.status]
+              const StatusIcon = badge.icon
+              const planLabel = o.subscription?.plan ? t(`plans.${o.subscription.plan}`, { defaultValue: o.subscription.plan }) : '—'
+              return (
+                <tr
+                  key={o.orgId}
+                  className="border-t border-healthcare-border/40 hover:bg-healthcare-bg/60 transition-colors"
+                >
+                  <td className="px-4 py-3">
+                    <Link
+                      to={`/platform/orgs/${o.orgId}`}
+                      className="text-healthcare-text hover:text-primary-600 font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 rounded"
                     >
-                      {t('platform.orgs.suspend')}
-                    </button>
-                  ) : o.status === 'suspended' ? (
-                    <button
-                      onClick={() => openModal(o, 'reactivate')}
-                      className="text-xs font-semibold text-success-700 hover:text-success-800 transition-colors"
+                      {orgName(o)}
+                    </Link>
+                  </td>
+                  <td className="px-4 py-3">
+                    <span
+                      className={`inline-flex items-center gap-1 text-xs font-semibold border rounded-full px-2.5 py-0.5 ${badge.cls}`}
+                      aria-label={`${t('platform.orgs.status')}: ${t(STATUS_KEY[o.status])}`}
                     >
-                      {t('platform.orgs.reactivate')}
-                    </button>
-                  ) : null}
-                </td>
-              </tr>
-            ))}
+                      <StatusIcon className="w-3 h-3" aria-hidden="true" />
+                      {t(STATUS_KEY[o.status])}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-healthcare-muted">
+                    {planLabel}
+                  </td>
+                  <td className="px-4 py-3 text-healthcare-text tabular-nums">{o.userCount}</td>
+                  <td className="px-4 py-3 text-healthcare-muted tabular-nums">
+                    {new Date(o.createdAt).toLocaleDateString(lang)}
+                  </td>
+                  <td className="px-4 py-3 text-end">
+                    {o.status === 'active' ? (
+                      <button
+                        onClick={() => openModal(o, 'suspend')}
+                        className="btn-outline btn-sm text-warning-700 hover:bg-warning-50 focus-visible:ring-2 focus-visible:ring-warning-400"
+                      >
+                        {t('platform.orgs.suspend')}
+                      </button>
+                    ) : o.status === 'suspended' ? (
+                      <button
+                        onClick={() => openModal(o, 'reactivate')}
+                        className="btn-outline btn-sm text-success-700 hover:bg-success-50 focus-visible:ring-2 focus-visible:ring-success-400"
+                      >
+                        {t('platform.orgs.reactivate')}
+                      </button>
+                    ) : null}
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
@@ -238,63 +270,52 @@ export default function PlatformOrgs() {
         </button>
       </div>
 
-      {modalOrg && (
-        <div
-          className="fixed inset-0 bg-healthcare-text/40 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in"
-          onClick={() => setModalOrg(null)}
-        >
-          <div
-            className="bg-white rounded-2xl border border-healthcare-border/40 shadow-modal p-6 max-w-md w-full animate-scale-in"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3 mb-2">
-              <h2 className="font-heading text-lg font-semibold text-healthcare-text">
-                {modalAction === 'suspend'
+      <Modal
+        open={!!modalOrg}
+        onClose={() => setModalOrg(null)}
+        title={
+          modalOrg
+            ? `${
+                modalAction === 'suspend'
                   ? t('platform.orgs.suspend')
-                  : t('platform.orgs.reactivate')}{' '}
-                — {modalOrg.name}
-              </h2>
-              <button
-                onClick={() => setModalOrg(null)}
-                className="text-healthcare-muted hover:text-healthcare-text p-1 rounded-md hover:bg-healthcare-bg transition-colors"
-                aria-label="Close"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <label className="block mt-3 text-sm font-medium text-healthcare-text">
-              {t('platform.orgDetail.statusReason')}
-            </label>
-            <textarea
-              value={modalReason}
-              onChange={(e) => setModalReason(e.target.value)}
-              rows={3}
-              className="mt-1 w-full bg-white border border-healthcare-border rounded-lg px-3 py-2 text-sm text-healthcare-text focus:outline-none focus:ring-[3px] focus:ring-primary-400 focus:border-primary-500 resize-none"
-            />
-            {modalError && (
-              <div className="mt-3 text-sm text-danger-700 bg-danger-50 border border-danger-200 rounded-lg px-3 py-2">
-                {modalError}
-              </div>
-            )}
-            <div className="mt-5 flex gap-2 justify-end">
-              <button onClick={() => setModalOrg(null)} className="btn-outline btn-sm">
-                {t('common.cancel')}
-              </button>
-              <button
-                onClick={confirmModal}
-                disabled={statusMutation.isPending}
-                className={modalAction === 'suspend' ? 'btn-warning btn-sm' : 'btn-success btn-sm'}
-              >
-                {statusMutation.isPending
-                  ? t('platform.orgDetail.saving')
-                  : modalAction === 'suspend'
-                    ? t('platform.orgs.suspend')
-                    : t('platform.orgs.reactivate')}
-              </button>
-            </div>
+                  : t('platform.orgs.reactivate')
+              } — ${orgName(modalOrg)}`
+            : ''
+        }
+      >
+        <label htmlFor="modal-reason" className="block text-sm font-medium text-healthcare-text">
+          {t('platform.orgDetail.statusReason')}
+        </label>
+        <textarea
+          id="modal-reason"
+          value={modalReason}
+          onChange={(e) => setModalReason(e.target.value)}
+          rows={3}
+          className="mt-1 w-full bg-white border border-healthcare-border rounded-lg px-3 py-2 text-sm text-healthcare-text focus:outline-none focus:ring-[3px] focus:ring-primary-400 focus:border-primary-500 resize-none"
+        />
+        {modalError && (
+          <div role="alert" className="mt-3 text-sm text-danger-700 bg-danger-50 border border-danger-200 rounded-lg px-3 py-2">
+            {modalError}
           </div>
+        )}
+        <div className="mt-5 flex gap-2 justify-end">
+          <button onClick={() => setModalOrg(null)} className="btn-outline btn-sm">
+            {t('common.cancel')}
+          </button>
+          <button
+            onClick={confirmModal}
+            disabled={statusMutation.isPending}
+            aria-busy={statusMutation.isPending}
+            className={modalAction === 'suspend' ? 'btn-warning btn-sm' : 'btn-success btn-sm'}
+          >
+            {statusMutation.isPending
+              ? t('platform.orgDetail.saving')
+              : modalAction === 'suspend'
+                ? t('platform.orgs.suspend')
+                : t('platform.orgs.reactivate')}
+          </button>
         </div>
-      )}
+      </Modal>
     </div>
   )
 }

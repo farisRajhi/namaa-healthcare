@@ -23,9 +23,18 @@ interface MetricsPayload {
   generatedAt: string;
 }
 
+interface MetricsCacheEntry {
+  cache: { at: number; value: MetricsPayload } | null;
+  inflight: Promise<MetricsPayload> | null;
+}
+
+declare module 'fastify' {
+  interface FastifyInstance {
+    platformMetricsCache: MetricsCacheEntry;
+  }
+}
+
 const CACHE_TTL_MS = 60_000;
-let cache: { at: number; value: MetricsPayload } | null = null;
-let inflight: Promise<MetricsPayload> | null = null;
 
 async function computeMetrics(app: FastifyInstance): Promise<MetricsPayload> {
   const now = new Date();
@@ -100,24 +109,36 @@ async function computeMetrics(app: FastifyInstance): Promise<MetricsPayload> {
 }
 
 export default async function platformMetricsRoutes(app: FastifyInstance) {
+  // Hold cache + inflight on the app instance so hot-reload doesn't strand
+  // a stale promise in module scope, and so a thrown computeMetrics doesn't
+  // poison the next request via leftover state.
+  if (!app.hasDecorator('platformMetricsCache')) {
+    app.decorate('platformMetricsCache', { cache: null, inflight: null } as MetricsCacheEntry);
+  }
+
   app.get('/', {
     preHandler: [app.authenticatePlatform],
   }, async (_request: FastifyRequest) => {
+    const store = app.platformMetricsCache;
     const now = Date.now();
-    if (cache && now - cache.at < CACHE_TTL_MS) {
-      return cache.value;
+    if (store.cache && now - store.cache.at < CACHE_TTL_MS) {
+      return store.cache.value;
     }
-    if (inflight) {
-      return inflight;
+    if (store.inflight) {
+      return store.inflight;
     }
-    inflight = computeMetrics(app)
+    store.inflight = computeMetrics(app)
       .then((value) => {
-        cache = { at: Date.now(), value };
+        store.cache = { at: Date.now(), value };
         return value;
       })
+      .catch((err) => {
+        store.cache = null;
+        throw err;
+      })
       .finally(() => {
-        inflight = null;
+        store.inflight = null;
       });
-    return inflight;
+    return store.inflight;
   });
 }

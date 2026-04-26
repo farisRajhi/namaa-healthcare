@@ -1,5 +1,6 @@
 import { FastifyPluginAsync, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
+import { messages, getLang, msg } from '../lib/messages.js';
 
 export interface PlatformJwtPayload {
   platformAdminId: string;
@@ -34,7 +35,8 @@ const platformAuthPlugin: FastifyPluginAsync = async (fastify) => {
       if (admin.lastLogin && decoded.iat) {
         const lastLoginSeconds = Math.floor(admin.lastLogin.getTime() / 1000);
         if (decoded.iat < lastLoginSeconds) {
-          return reply.code(401).send({ error: 'Token has been invalidated' });
+          const lang = getLang(request.headers['accept-language']);
+          return reply.code(401).send({ error: 'Unauthorized', message: msg(messages.platform.tokenInvalidated, lang) });
         }
       }
 

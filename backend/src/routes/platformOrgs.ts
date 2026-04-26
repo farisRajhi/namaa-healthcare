@@ -1,7 +1,10 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
+import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { PLAN_KEYS } from '../services/billing/plans.js';
 import { getBaileysManager } from '../services/messaging/baileysManager.js';
+import { messages, getLang, msg } from '../lib/messages.js';
+import { redactAuditDetails } from '../services/security/redactAuditDetails.js';
 
 const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -17,14 +20,19 @@ const statusSchema = z.object({
   reason: z.string().trim().max(500).optional(),
 });
 
-const subscriptionOverrideSchema = z.object({
-  plan: z.enum(['starter', 'professional', 'enterprise']).optional(),
-  endDate: z.string().datetime().optional(),
-  status: z.enum(['active', 'cancelled', 'expired']).optional(),
-  reason: z.string().trim().min(3).max(500),
-}).refine((v) => v.plan !== undefined || v.endDate !== undefined || v.status !== undefined, {
-  message: 'At least one of plan, endDate, or status must be provided',
-});
+// Per-request schema so the refinement error message can be localized via
+// Accept-Language. The refinement key 'subscription.override.requires_field'
+// is replaced with the localized text in the error handler below.
+function buildSubscriptionOverrideSchema(localizedRefinementMessage: string) {
+  return z.object({
+    plan: z.enum(['starter', 'professional', 'enterprise']).optional(),
+    endDate: z.string().datetime().optional(),
+    status: z.enum(['active', 'cancelled', 'expired']).optional(),
+    reason: z.string().trim().min(3).max(500),
+  }).refine((v) => v.plan !== undefined || v.endDate !== undefined || v.status !== undefined, {
+    message: localizedRefinementMessage,
+  });
+}
 
 const impersonateSchema = z.object({
   userId: z.string().uuid().optional(),
@@ -37,9 +45,14 @@ export default async function platformOrgsRoutes(app: FastifyInstance) {
   }, async (request: FastifyRequest) => {
     const q = listQuerySchema.parse(request.query);
 
-    const where: any = {};
+    const where: Prisma.OrgWhereInput = {};
     if (q.status) where.status = q.status;
-    if (q.search) where.name = { contains: q.search, mode: 'insensitive' };
+    if (q.search) {
+      where.OR = [
+        { name: { contains: q.search, mode: 'insensitive' } },
+        { nameAr: { contains: q.search, mode: 'insensitive' } },
+      ];
+    }
 
     const [data, total] = await Promise.all([
       app.prisma.org.findMany({
@@ -54,7 +67,6 @@ export default async function platformOrgsRoutes(app: FastifyInstance) {
       app.prisma.org.count({ where }),
     ]);
 
-    // Fetch latest subscription for each org in a single batch
     const orgIds = data.map((o) => o.orgId);
     const subs = orgIds.length
       ? await app.prisma.tawafudSubscription.findMany({
@@ -71,6 +83,7 @@ export default async function platformOrgsRoutes(app: FastifyInstance) {
       data: data.map((o) => ({
         orgId: o.orgId,
         name: o.name,
+        nameAr: o.nameAr,
         status: o.status,
         suspendedAt: o.suspendedAt,
         suspendedReason: o.suspendedReason,
@@ -85,17 +98,25 @@ export default async function platformOrgsRoutes(app: FastifyInstance) {
     };
   });
 
+  // Plan catalog — registered BEFORE /:id so the static path matches first.
+  app.get('/plans/catalog', {
+    preHandler: [app.authenticatePlatform],
+  }, async () => {
+    return { plans: PLAN_KEYS };
+  });
+
   // Org detail: metadata + counts + subscription
   app.get('/:id', {
     preHandler: [app.authenticatePlatform],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
+    const lang = getLang(request.headers['accept-language']);
 
     const org = await app.prisma.org.findUnique({
       where: { orgId: id },
     });
     if (!org) {
-      return reply.code(404).send({ error: 'Org not found' });
+      return reply.code(404).send({ error: 'NotFound', message: msg(messages.platform.orgNotFound, lang) });
     }
 
     const [userCount, facilityCount, patientCount, appointmentCount, smsCount, subscription, latestAudit] = await Promise.all([
@@ -118,6 +139,7 @@ export default async function platformOrgsRoutes(app: FastifyInstance) {
     return {
       orgId: org.orgId,
       name: org.name,
+      nameAr: org.nameAr,
       status: org.status,
       suspendedAt: org.suspendedAt,
       suspendedReason: org.suspendedReason,
@@ -143,10 +165,12 @@ export default async function platformOrgsRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string };
     const body = statusSchema.parse(request.body);
     const platformAdminId = request.platformAdmin!.platformAdminId;
+    const lang = getLang(request.headers['accept-language']);
+    const userAgent = request.headers['user-agent'] ?? null;
 
     const existing = await app.prisma.org.findUnique({ where: { orgId: id }, select: { orgId: true, status: true } });
     if (!existing) {
-      return reply.code(404).send({ error: 'Org not found' });
+      return reply.code(404).send({ error: 'NotFound', message: msg(messages.platform.orgNotFound, lang) });
     }
 
     const nextStatus = body.status;
@@ -169,7 +193,7 @@ export default async function platformOrgsRoutes(app: FastifyInstance) {
           action: isSuspending ? 'platform.org.suspend' : 'platform.org.reactivate',
           resource: 'org',
           resourceId: id,
-          details: { reason: body.reason ?? null, previousStatus: existing.status },
+          details: { reason: body.reason ?? null, previousStatus: existing.status, userAgent },
           ipAddress: request.ip,
         },
       });
@@ -177,10 +201,6 @@ export default async function platformOrgsRoutes(app: FastifyInstance) {
       return org;
     });
 
-    // Tear down the WhatsApp session when suspending so the org stops sending/
-    // receiving messages immediately. Health check skips suspended orgs so it
-    // won't get resurrected. Best-effort: failure to disconnect must not block
-    // the suspension itself.
     if (isSuspending) {
       try {
         await getBaileysManager().disconnect(id);
@@ -192,17 +212,23 @@ export default async function platformOrgsRoutes(app: FastifyInstance) {
     return updated;
   });
 
-  // Override subscription (grant comps, extend trial, etc.)
+  // Override subscription
   app.patch('/:id/subscription', {
     preHandler: [app.authenticatePlatform],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
-    const body = subscriptionOverrideSchema.parse(request.body);
+    const lang = getLang(request.headers['accept-language']);
+    const userAgent = request.headers['user-agent'] ?? null;
+
+    const overrideSchema = buildSubscriptionOverrideSchema(
+      msg(messages.platform.subscriptionOverrideRequiresField, lang),
+    );
+    const body = overrideSchema.parse(request.body);
     const platformAdminId = request.platformAdmin!.platformAdminId;
 
     const org = await app.prisma.org.findUnique({ where: { orgId: id }, select: { orgId: true } });
     if (!org) {
-      return reply.code(404).send({ error: 'Org not found' });
+      return reply.code(404).send({ error: 'NotFound', message: msg(messages.platform.orgNotFound, lang) });
     }
 
     const current = await app.prisma.tawafudSubscription.findFirst({
@@ -247,6 +273,7 @@ export default async function platformOrgsRoutes(app: FastifyInstance) {
             reason: body.reason,
             previous: current ? { plan: current.plan, status: current.status, endDate: current.endDate } : null,
             next: { plan: nextPlan, status: nextStatus, endDate: nextEnd },
+            userAgent,
           },
           ipAddress: request.ip,
         },
@@ -258,21 +285,22 @@ export default async function platformOrgsRoutes(app: FastifyInstance) {
     return result;
   });
 
-  // Impersonate: mint a short-lived staff JWT scoped to the target org.
-  // Picks an active admin user if no userId given.
+  // Impersonate
   app.post('/:id/impersonate', {
     preHandler: [app.authenticatePlatform],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
     const body = impersonateSchema.parse(request.body ?? {});
     const platformAdminId = request.platformAdmin!.platformAdminId;
+    const lang = getLang(request.headers['accept-language']);
+    const userAgent = request.headers['user-agent'] ?? null;
 
-    const org = await app.prisma.org.findUnique({ where: { orgId: id }, select: { orgId: true, name: true, status: true } });
+    const org = await app.prisma.org.findUnique({ where: { orgId: id }, select: { orgId: true, name: true, nameAr: true, status: true } });
     if (!org) {
-      return reply.code(404).send({ error: 'Org not found' });
+      return reply.code(404).send({ error: 'NotFound', message: msg(messages.platform.orgNotFound, lang) });
     }
     if (org.status !== 'active') {
-      return reply.code(400).send({ error: 'Cannot impersonate user in a non-active org' });
+      return reply.code(400).send({ error: 'BadRequest', message: msg(messages.platform.cannotImpersonateInactiveOrg, lang) });
     }
 
     const target = body.userId
@@ -284,7 +312,7 @@ export default async function platformOrgsRoutes(app: FastifyInstance) {
           orderBy: { createdAt: 'asc' },
         });
     if (!target) {
-      return reply.code(404).send({ error: 'No active user found in this org' });
+      return reply.code(404).send({ error: 'NotFound', message: msg(messages.platform.noActiveUserInOrg, lang) });
     }
 
     let roleName: string | undefined;
@@ -317,7 +345,7 @@ export default async function platformOrgsRoutes(app: FastifyInstance) {
         action: 'platform.impersonate.start',
         resource: 'user',
         resourceId: target.userId,
-        details: { orgName: org.name, expiresInSec },
+        details: { orgName: org.name, orgNameAr: org.nameAr, expiresInSec, userAgent },
         ipAddress: request.ip,
       },
     });
@@ -331,29 +359,23 @@ export default async function platformOrgsRoutes(app: FastifyInstance) {
         name: target.name,
         role: roleName ?? 'admin',
       },
-      org: { orgId: org.orgId, name: org.name },
+      org: { orgId: org.orgId, name: org.name, nameAr: org.nameAr },
     };
   });
 
-  // Expose plan catalog for the override form
-  app.get('/plans/catalog', {
-    preHandler: [app.authenticatePlatform],
-  }, async () => {
-    return { plans: PLAN_KEYS };
-  });
-
-  // Audit log for a single org (paginated, newest first)
+  // Per-org audit log (newest first, paginated)
   app.get('/:id/audit-log', {
     preHandler: [app.authenticatePlatform],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
+    const lang = getLang(request.headers['accept-language']);
     const q = z.object({
       limit: z.coerce.number().int().min(1).max(200).default(50),
       cursor: z.string().uuid().optional(),
     }).parse(request.query);
 
     const org = await app.prisma.org.findUnique({ where: { orgId: id }, select: { orgId: true } });
-    if (!org) return reply.code(404).send({ error: 'Org not found' });
+    if (!org) return reply.code(404).send({ error: 'NotFound', message: msg(messages.platform.orgNotFound, lang) });
 
     const entries = await app.prisma.auditLog.findMany({
       where: { orgId: id },
@@ -363,7 +385,10 @@ export default async function platformOrgsRoutes(app: FastifyInstance) {
     });
 
     const hasMore = entries.length > q.limit;
-    const items = hasMore ? entries.slice(0, q.limit) : entries;
+    const items = (hasMore ? entries.slice(0, q.limit) : entries).map((e) => ({
+      ...e,
+      details: redactAuditDetails(e.details),
+    }));
     const nextCursor = hasMore ? items[items.length - 1].auditId : null;
 
     return { items, nextCursor };

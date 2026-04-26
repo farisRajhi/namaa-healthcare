@@ -2,6 +2,7 @@ import { useTranslation } from 'react-i18next'
 import { useQuery } from '@tanstack/react-query'
 import { Building2, Users, CalendarCheck, MessageSquare, Wallet, TrendingUp } from 'lucide-react'
 import { platformApi } from '../../lib/platformApi'
+import i18n from '../../i18n'
 
 interface MetricsResponse {
   totals: {
@@ -23,10 +24,17 @@ interface MetricsResponse {
   generatedAt: string
 }
 
-function formatSAR(n: number): string {
-  return (
-    n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' SAR'
-  )
+function formatSAR(n: number, lang: string): string {
+  try {
+    return new Intl.NumberFormat(lang === 'ar' ? 'ar-SA' : 'en-US', {
+      style: 'currency',
+      currency: 'SAR',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(n)
+  } catch {
+    return n.toLocaleString(lang) + ' SAR'
+  }
 }
 
 type AccentTone = 'primary' | 'secondary' | 'success' | 'warning' | 'danger'
@@ -119,17 +127,27 @@ const PLAN_TONE: Record<string, AccentTone> = {
 
 export default function PlatformDashboard() {
   const { t } = useTranslation()
-  const { data, isLoading, error } = useQuery<MetricsResponse>({
+  const lang = i18n.language
+  const { data, isPending, error } = useQuery<MetricsResponse>({
     queryKey: ['platform', 'metrics'],
     queryFn: async () => (await platformApi.get('/api/platform/metrics')).data,
     refetchInterval: 60_000,
+    staleTime: 55_000,
   })
 
-  if (isLoading) {
-    return <div className="text-healthcare-muted text-sm">{t('platform.dashboard.loading')}</div>
+  if (isPending) {
+    return (
+      <div role="status" aria-live="polite" className="text-healthcare-muted text-sm">
+        {t('platform.dashboard.loading')}
+      </div>
+    )
   }
   if (error || !data) {
-    return <div className="text-danger-600 text-sm">{t('platform.dashboard.loadFailed')}</div>
+    return (
+      <div role="alert" className="text-danger-600 text-sm">
+        {t('platform.dashboard.loadFailed')}
+      </div>
+    )
   }
 
   const { totals, mrr, subscriptionsByPlan, signups } = data
@@ -165,7 +183,7 @@ export default function PlatformDashboard() {
         />
         <Metric
           title={t('platform.dashboard.mrr')}
-          value={formatSAR(mrr.sar)}
+          value={formatSAR(mrr.sar, lang)}
           subtitle={t('platform.dashboard.activeSubs', { count: totals.activeSubscriptions })}
           icon={Wallet}
           tone="secondary"
@@ -185,19 +203,19 @@ export default function PlatformDashboard() {
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         <Metric
           title={t('platform.dashboard.patients')}
-          value={totals.patients.toLocaleString()}
+          value={totals.patients.toLocaleString(lang)}
           icon={Users}
           tone="primary"
         />
         <Metric
           title={t('platform.dashboard.appointments')}
-          value={totals.appointments.toLocaleString()}
+          value={totals.appointments.toLocaleString(lang)}
           icon={CalendarCheck}
           tone="secondary"
         />
         <Metric
           title={t('platform.dashboard.smsSent')}
-          value={totals.smsMessages.toLocaleString()}
+          value={totals.smsMessages.toLocaleString(lang)}
           icon={MessageSquare}
           tone="success"
         />
@@ -216,9 +234,9 @@ export default function PlatformDashboard() {
                 key={plan}
                 className={`rounded-xl border border-healthcare-border/40 p-4 ${a.iconBg}`}
               >
-                <div className={`text-xs font-semibold capitalize ${a.iconText}`}>{plan}</div>
+                <div className={`text-xs font-semibold ${a.iconText}`}>{t(`plans.${plan}`)}</div>
                 <div className="font-heading text-2xl font-bold text-healthcare-text mt-1 tabular-nums">
-                  {subscriptionsByPlan[plan] ?? 0}
+                  {(subscriptionsByPlan[plan] ?? 0).toLocaleString(lang)}
                 </div>
               </div>
             )

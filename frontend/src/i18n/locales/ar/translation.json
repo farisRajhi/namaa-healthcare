@@ -36,7 +36,8 @@
     "minutes": "دقيقة",
     "providers": "طبيب",
     "services": "خدمة",
-    "total": "الإجمالي"
+    "total": "الإجمالي",
+    "unknown": "غير معروف"
   },
   "landing": {
     "brand": "توافد",
@@ -626,6 +627,11 @@
       "testEscalation": "اختبر التصعيد"
     }
   },
+  "plans": {
+    "starter": "أساسي",
+    "professional": "احترافي",
+    "enterprise": "متقدم"
+  },
   "platform": {
     "brand": "توافد",
     "title": "إدارة المنصة",
@@ -680,10 +686,13 @@
       "loading": "جاري التحميل…",
       "suspend": "إيقاف",
       "reactivate": "إعادة تفعيل",
-      "page": "صفحة {{page}} / {{total}}"
+      "page": "صفحة {{page}} / {{total}}",
+      "statusActive": "نشط",
+      "statusSuspended": "موقوف",
+      "statusDeleted": "محذوف"
     },
     "orgDetail": {
-      "back": "← كل المؤسسات",
+      "back": "→ كل المؤسسات",
       "users": "المستخدمون",
       "facilities": "المنشآت",
       "patients": "المرضى",
@@ -708,7 +717,17 @@
       "impersonateConfirm": "تأكيد — اذهب إلى /dashboard",
       "impersonateStarting": "جاري البدء…",
       "auditSection": "سجل التدقيق",
-      "lastActivity": "آخر نشاط مسجل: {{when}}"
+      "lastActivity": "آخر نشاط مسجل: {{when}}",
+      "loading": "جاري التحميل…",
+      "loadFailed": "تعذر تحميل المؤسسة.",
+      "created": "أُنشئ في {{date}}",
+      "timezone": "المنطقة الزمنية {{tz}}",
+      "suspendedHeading": "موقوف",
+      "auditDescription": "كل إجراء يخص هذه المؤسسة — تسجيلات الدخول، الإيقاف، تغييرات الاشتراك، انتحال الهوية.",
+      "backShort": "رجوع",
+      "subscriptionPlanInline": "الخطة:",
+      "subscriptionStatusInline": "الحالة:",
+      "subscriptionEndsInline": "ينتهي:"
     },
     "subscriptions": {
       "title": "الاشتراكات",
@@ -728,7 +747,10 @@
       "cancelTitle": "إلغاء الاشتراك؟",
       "cancelReason": "السبب (يُسجل)",
       "confirmCancel": "تأكيد الإلغاء",
-      "retryRenewal": "إعادة محاولة التجديد"
+      "retryRenewal": "إعادة محاولة التجديد",
+      "total": "{{n}} الإجمالي",
+      "failedAttempts": "{{n}}× محاولة فاشلة",
+      "cancelReasonTooShort": "يجب أن يكون السبب 3 أحرف على الأقل (يُسجل في التدقيق)."
     },
     "audit": {
       "title": "سجل التدقيق",
@@ -737,7 +759,23 @@
       "apply": "تطبيق",
       "clear": "مسح",
       "loadMore": "حمّل المزيد",
-      "noEntries": "لا توجد سجلات تدقيق بعد."
+      "noEntries": "لا توجد سجلات تدقيق بعد.",
+      "loading": "جاري تحميل سجل التدقيق…",
+      "empty": "لا توجد سجلات تدقيق بعد.",
+      "error": "تعذر تحميل سجل التدقيق",
+      "headers": {
+        "when": "متى",
+        "action": "الإجراء",
+        "org": "المؤسسة",
+        "actor": "الفاعل",
+        "details": "التفاصيل",
+        "ip": "العنوان"
+      },
+      "actor": {
+        "platformAdmin": "مدير المنصة",
+        "orgUser": "مستخدم المؤسسة",
+        "system": "النظام"
+      }
     }
   }
 }

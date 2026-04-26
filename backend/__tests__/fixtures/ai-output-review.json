@@ -40,9 +40,9 @@
       "hasServices": true,
       "warnings": [
         "Missing email addresses for some patients.",
-        "Inconsistent phone number formats (some with country code, some without)."
+        "Phone numbers have inconsistent formatting."
       ]
     },
-    "tokensUsed": 1109
+    "tokensUsed": 1101
   }
 }
