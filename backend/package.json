@@ -23,6 +23,7 @@
     "test:services": "vitest run __tests__/services",
     "test:integration": "vitest run __tests__/integration",
     "test:unit": "vitest run __tests__/routes __tests__/services",
+    "test:ci": "vitest run __tests__/services --exclude '**/*.integration.test.ts'",
     "test:all": "vitest run && vitest run --coverage",
     "test:legacy": "npx tsx --test tests/api.test.ts",
     "test:verbose": "npx tsx --test --test-reporter spec tests/api.test.ts"
