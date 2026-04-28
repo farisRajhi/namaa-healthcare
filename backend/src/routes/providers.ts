@@ -1,7 +1,5 @@
 import { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
-import { PLAN_PROVIDER_LIMIT, isPlanKey } from '../services/billing/plans.js';
-import { getLang, messages } from '../lib/messages.js';
 
 const createProviderSchema = z.object({
   displayName: z.string().min(1),
@@ -10,33 +8,6 @@ const createProviderSchema = z.object({
   credentials: z.string().optional(),
   active: z.boolean().default(true),
 });
-
-/**
- * Returns the provider cap for the org's current plan. Reads
- * `request.subscription` populated by requireSubscription; falls back to
- * the starter cap (defensive — shouldn't fire once the hook is wired).
- */
-function providerLimitFor(request: FastifyRequest): number {
-  const plan = (request as any).subscription?.plan;
-  if (plan && isPlanKey(plan)) return PLAN_PROVIDER_LIMIT[plan];
-  return PLAN_PROVIDER_LIMIT.starter;
-}
-
-function overLimitReply(currentPlan: string, limit: number, request: FastifyRequest) {
-  const lang = getLang(request.headers['accept-language']);
-  return {
-    status: 402,
-    body: {
-      error: 'Plan upgrade required',
-      message: messages.plan.limitReachedProviders[lang],
-      code: 'PLAN_LIMIT_REACHED',
-      kind: 'providers' as const,
-      currentPlan,
-      limit,
-      upgradeUrl: `${process.env.FRONTEND_URL}/billing?tab=plans`,
-    },
-  };
-}
 
 const availabilityRuleSchema = z.object({
   dayOfWeek: z.number().min(0).max(6),
@@ -49,10 +20,7 @@ const availabilityRuleSchema = z.object({
 
 export default async function providersRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
-  // Populates request.subscription with { plan, isTrialing, endDate }.
-  // Read-only routes (GET) use it only to check active subscription; POST/PUT
-  // additionally use the plan for provider-count limits.
-  app.addHook('preHandler', app.requireSubscription);
+  app.addHook('preHandler', app.requireActivated);
 
   // List providers
   app.get('/', async (request: FastifyRequest) => {
@@ -112,21 +80,6 @@ export default async function providersRoutes(app: FastifyInstance) {
     const { orgId } = request.user;
     const body = createProviderSchema.parse(request.body);
 
-    // Plan-based cap on active providers. Inactive providers do not count.
-    if (body.active) {
-      const limit = providerLimitFor(request);
-      if (Number.isFinite(limit)) {
-        const activeCount = await app.prisma.provider.count({
-          where: { orgId, active: true },
-        });
-        if (activeCount >= limit) {
-          const plan = (request as any).subscription?.plan ?? 'starter';
-          const { status, body: errBody } = overLimitReply(plan, limit, request);
-          return reply.code(status).send(errBody);
-        }
-      }
-    }
-
     const provider = await app.prisma.provider.create({
       data: {
         orgId,
@@ -150,27 +103,6 @@ export default async function providersRoutes(app: FastifyInstance) {
     const { orgId } = request.user;
     const { id } = request.params;
     const body = createProviderSchema.partial().parse(request.body);
-
-    // Re-check provider cap if reactivating a previously-inactive provider.
-    if (body.active === true) {
-      const existing = await app.prisma.provider.findFirst({
-        where: { providerId: id, orgId },
-        select: { active: true },
-      });
-      if (existing && !existing.active) {
-        const limit = providerLimitFor(request);
-        if (Number.isFinite(limit)) {
-          const activeCount = await app.prisma.provider.count({
-            where: { orgId, active: true },
-          });
-          if (activeCount >= limit) {
-            const plan = (request as any).subscription?.plan ?? 'starter';
-            const { status, body: errBody } = overLimitReply(plan, limit, request);
-            return reply.code(status).send(errBody);
-          }
-        }
-      }
-    }
 
     const result = await app.prisma.provider.updateMany({
       where: { providerId: id, orgId },

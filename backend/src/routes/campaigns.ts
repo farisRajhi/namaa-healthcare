@@ -53,8 +53,7 @@ const listQuerySchema = z.object({
 
 export default async function campaignRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
-  app.addHook('preHandler', app.requireSubscription);
-  app.addHook('preHandler', app.requirePlan('professional'));
+  app.addHook('preHandler', app.requireActivated);
   // Campaign management is admin/manager only
   app.addHook('preHandler', requireManager);
 

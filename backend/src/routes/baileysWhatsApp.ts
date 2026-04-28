@@ -201,7 +201,7 @@ export default async function baileysWhatsAppRoutes(app: FastifyInstance) {
   // Send text or image+caption to one or more phone numbers.
   // Gated: requires an active subscription (trial OK). Starter and up can send.
   app.post('/send', {
-    preHandler: [app.authenticate, app.requireSubscription],
+    preHandler: [app.authenticate, app.requireActivated],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { orgId } = request.user as { orgId: string };
     const body = request.body as {

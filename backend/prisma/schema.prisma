@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -10,21 +11,26 @@ datasource db {
 // ─── Core Org ───────────────────────────────────────────────
 
 model Org {
-  orgId           String           @id @default(dbgenerated("gen_random_uuid()")) @map("org_id") @db.Uuid
-  name            String
-  nameAr          String?          @map("name_ar")
-  defaultTimezone String           @default("UTC") @map("default_timezone")
-  aiAutoReply     Boolean          @default(true) @map("ai_auto_reply")
-  status          org_status       @default(active)
-  suspendedAt     DateTime?        @map("suspended_at") @db.Timestamptz(6)
-  suspendedReason String?          @map("suspended_reason")
+  orgId                      String           @id @default(dbgenerated("gen_random_uuid()")) @map("org_id") @db.Uuid
+  name                       String
+  nameAr                     String?          @map("name_ar")
+  defaultTimezone            String           @default("UTC") @map("default_timezone")
+  aiAutoReply                Boolean          @default(true) @map("ai_auto_reply")
+  status                     org_status       @default(active)
+  suspendedAt                DateTime?        @map("suspended_at") @db.Timestamptz(6)
+  suspendedReason            String?          @map("suspended_reason")
+  /// Platform-admin gated activation. New orgs default to false; existing orgs are backfilled to true.
+  /// While false, the org can authenticate but feature routes are blocked by requireActivated.
+  isActivated                Boolean          @default(false) @map("is_activated")
+  activatedAt                DateTime?        @map("activated_at") @db.Timestamptz(6)
+  activatedByPlatformAdminId String?          @map("activated_by_platform_admin_id") @db.Uuid
   /// Free trial expiration. Null → no trial (or already converted to paid).
   /// Populated at registration (14 days) and unset when a paid subscription activates.
-  trialEndsAt     DateTime?        @map("trial_ends_at") @db.Timestamptz(6)
-  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
-  agentFlows      AgentFlow[]
-  users           User[]
-  branding        OrgBranding?
+  trialEndsAt                DateTime?        @map("trial_ends_at") @db.Timestamptz(6)
+  createdAt                  DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  agentFlows                 AgentFlow[]
+  users                      User[]
+  branding                   OrgBranding?
 
   @@map("orgs")
 }

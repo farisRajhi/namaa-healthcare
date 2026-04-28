@@ -1,8 +1,10 @@
 import { FastifyInstance } from 'fastify';
 import { authPlugin } from '../plugins/auth.js';
 import { platformAuthPlugin } from '../plugins/platformAuth.js';
-import { subscriptionGuardPlugin } from '../plugins/subscriptionGuard.js';
-import { planGuardPlugin } from '../plugins/planGuard.js';
+import { activationGuardPlugin } from '../plugins/activationGuard.js';
+// HIDDEN: billing system — re-enable when subscriptions return
+// import { subscriptionGuardPlugin } from '../plugins/subscriptionGuard.js';
+// import { planGuardPlugin } from '../plugins/planGuard.js';
 import authRoutes from './auth.js';
 import patientsRoutes from './patients.js';
 import appointmentsRoutes from './appointments.js';
@@ -28,7 +30,8 @@ import patientPortalRoutes from './patientPortal.js';
 import platformAuthRoutes from './platformAuth.js';
 import platformOrgsRoutes from './platformOrgs.js';
 import platformMetricsRoutes from './platformMetrics.js';
-import platformSubscriptionsRoutes from './platformSubscriptions.js';
+// HIDDEN: billing system — re-enable when subscriptions return
+// import platformSubscriptionsRoutes from './platformSubscriptions.js';
 import platformAuditRoutes from './platformAudit.js';
 import agentBuilderRoutes from './agentBuilder.js';
 import campaignRoutes from './campaigns.js';
@@ -36,8 +39,9 @@ import outboundCampaignsRoutes from './outboundCampaigns.js';
 import { integrationsRoutes, webhookSubscriptionsRoutes } from './integrations.js';
 import settingsRoutes from './settings.js';
 import reportsRoutes from './reports.js';
-import paymentsRoutes from './payments.js';
-import subscriptionRoutes from './subscription.js';
+// HIDDEN: billing system — re-enable when subscriptions return
+// import paymentsRoutes from './payments.js';
+// import subscriptionRoutes from './subscription.js';
 import publicBookingRoutes from './publicBooking.js';
 import branchRoutes from './branches.js';
 import usageRoutes from './usage.js';
@@ -56,11 +60,12 @@ export async function registerRoutes(app: FastifyInstance) {
   // Register platform-admin auth plugin (separate JWT type)
   await app.register(platformAuthPlugin);
 
-  // Register subscription guard plugin
-  await app.register(subscriptionGuardPlugin);
+  // HIDDEN: billing system — re-enable when subscriptions return
+  // await app.register(subscriptionGuardPlugin);
+  // await app.register(planGuardPlugin);
 
-  // Register plan-tier guard plugin (depends on subscriptionGuard)
-  await app.register(planGuardPlugin);
+  // Activation guard (replaces subscription/plan guards while billing is hidden)
+  await app.register(activationGuardPlugin);
 
   // Public routes
   await app.register(authRoutes, { prefix: '/api/auth' });
@@ -85,7 +90,8 @@ export async function registerRoutes(app: FastifyInstance) {
   await app.register(platformAuthRoutes, { prefix: '/api/platform/auth' });
   await app.register(platformOrgsRoutes, { prefix: '/api/platform/orgs' });
   await app.register(platformMetricsRoutes, { prefix: '/api/platform/metrics' });
-  await app.register(platformSubscriptionsRoutes, { prefix: '/api/platform/subscriptions' });
+  // HIDDEN: billing system — re-enable when subscriptions return
+  // await app.register(platformSubscriptionsRoutes, { prefix: '/api/platform/subscriptions' });
   await app.register(platformAuditRoutes, { prefix: '/api/platform/audit-log' });
 
   // Serve widget.js at root level too (for <script src="/widget.js">)
@@ -144,11 +150,9 @@ export async function registerRoutes(app: FastifyInstance) {
   // Reports & Export
   await app.register(reportsRoutes, { prefix: '/api/reports' });
 
-  // Tap Payments
-  await app.register(paymentsRoutes, { prefix: '/api/payments' });
-
-  // Subscription management
-  await app.register(subscriptionRoutes, { prefix: '/api/subscription' });
+  // HIDDEN: billing system — re-enable when subscriptions return
+  // await app.register(paymentsRoutes, { prefix: '/api/payments' });
+  // await app.register(subscriptionRoutes, { prefix: '/api/subscription' });
 
   // Public patient self-booking links (no auth required)
   await app.register(publicBookingRoutes, { prefix: '/api/book' });

@@ -28,6 +28,7 @@ const revokeConsentSchema = z.object({
 
 export default async function marketingConsentRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
+  app.addHook('preHandler', app.requireActivated);
 
   const getService = () => new MarketingConsentService(app.prisma);
 

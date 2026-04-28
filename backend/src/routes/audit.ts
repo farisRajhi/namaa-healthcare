@@ -26,6 +26,7 @@ const exportSchema = z.object({
 
 export default async function auditRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
+  app.addHook('preHandler', app.requireActivated);
 
   const auditLogger = new AuditLoggerService(app.prisma);
 

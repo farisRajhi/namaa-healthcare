@@ -1,3 +1,6 @@
+// @ts-nocheck
+// HIDDEN: billing UI — re-enable when subscriptions return.
+// File kept on disk; not imported anywhere while billing is hidden.
 import { useEffect, useState } from 'react'
 import { SUBSCRIPTION_REQUIRED_EVENT, type SubscriptionRequiredPayload } from '../../lib/api'
 import UpgradeOverlay from './UpgradeOverlay'

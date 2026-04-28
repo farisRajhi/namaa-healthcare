@@ -1,3 +1,6 @@
+// @ts-nocheck
+// HIDDEN: billing UI — re-enable when subscriptions return.
+// File kept on disk; not imported anywhere while billing is hidden.
 import { useMemo } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { canAccessFeature, TRIAL_PLAN, type PlanFeature } from '../config/planFeatures'

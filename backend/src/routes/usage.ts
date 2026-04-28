@@ -9,6 +9,7 @@ import {
 
 export default async function usageRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
+  app.addHook('preHandler', app.requireActivated);
 
   // GET /api/usage — current month's AI token usage for the org.
   // Resolve the plan via resolveOrgPlan so trialing orgs (no subscription row

@@ -17,7 +17,7 @@ export default async function patientIntelligenceRoutes(app: FastifyInstance) {
   // All routes require authentication + active subscription (trial OK).
   // Patient Intelligence is included in every paid plan, so no plan-tier guard.
   app.addHook('onRequest', app.authenticate);
-  app.addHook('preHandler', app.requireSubscription);
+  app.addHook('preHandler', app.requireActivated);
 
   // -----------------------------------------------------------------------
   // Upload CSV and start analysis pipeline

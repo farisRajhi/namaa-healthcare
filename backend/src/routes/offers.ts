@@ -82,8 +82,7 @@ export default async function offerRoutes(app: FastifyInstance) {
   // ── Protected endpoints ────────────────────────────────────
   app.register(async (protectedApp) => {
     protectedApp.addHook('preHandler', app.authenticate);
-    protectedApp.addHook('preHandler', app.requireSubscription);
-    protectedApp.addHook('preHandler', app.requirePlan('professional'));
+    protectedApp.addHook('preHandler', app.requireActivated);
 
     // GET /api/offers/:orgId — List offers
     protectedApp.get<{ Params: { orgId: string } }>('/:orgId', async (request, reply) => {

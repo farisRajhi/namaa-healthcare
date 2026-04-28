@@ -456,36 +456,18 @@ export async function getUsage(
 /**
  * Resolve the effective plan for usage-limit purposes.
  *
- * Lookup order:
- *  1. Active or past_due paid subscription with endDate >= now → that plan.
- *  2. Trial org (trialEndsAt > now) → 'professional' (matches planGuard/subscriptionGuard).
- *  3. No active sub and no trial → 'starter' (most restrictive fallback).
+ * Billing is currently hidden — every activated org is treated as enterprise so
+ * the per-org monthly token/conversation caps stay generous instead of falling
+ * back to the starter cap. The activation guard already blocks unactivated orgs
+ * before any AI route runs, so this only fires for legitimate paid customers.
+ *
+ * When subscriptions return, restore the lookup that resolves the real plan.
  */
 export async function resolveOrgPlan(
-  prisma: PrismaClient,
-  orgId: string,
+  _prisma: PrismaClient,
+  _orgId: string,
 ): Promise<PlanKey> {
-  const now = new Date();
-
-  const sub = await prisma.tawafudSubscription.findFirst({
-    where: {
-      orgId,
-      status: { in: ['active', 'past_due'] },
-      endDate: { gte: now },
-    },
-    select: { plan: true },
-  });
-  if (sub?.plan && isPlanKey(sub.plan)) return sub.plan;
-
-  const org = await prisma.org.findUnique({
-    where: { orgId },
-    select: { trialEndsAt: true } as any,
-  });
-  const trialEndsAt: Date | null = (org as any)?.trialEndsAt ?? null;
-  const isTrialing = !!trialEndsAt && trialEndsAt.getTime() > now.getTime();
-  if (isTrialing) return 'professional';
-
-  return 'starter';
+  return 'enterprise';
 }
 
 /**

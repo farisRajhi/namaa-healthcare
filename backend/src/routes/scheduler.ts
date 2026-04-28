@@ -13,6 +13,7 @@ import { FastifyInstance } from 'fastify';
 export default async function schedulerRoutes(app: FastifyInstance) {
   // All scheduler routes require authentication + admin/manager role
   app.addHook('preHandler', app.authenticate);
+  app.addHook('preHandler', app.requireActivated);
   app.addHook('preHandler', async (request, reply) => {
     const allowedRoles = ['admin', 'manager', 'owner'];
     const userRole = (request.user as any).role;

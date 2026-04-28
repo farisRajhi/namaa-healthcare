@@ -1,3 +1,6 @@
+// @ts-nocheck
+// HIDDEN: billing UI — re-enable when subscriptions return.
+// File kept on disk; not imported anywhere while billing is hidden.
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'

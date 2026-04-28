@@ -4,7 +4,6 @@ import {
   Globe,
   LayoutDashboard,
   Building2,
-  CreditCard,
   FileClock,
   LogOut,
   ShieldCheck,
@@ -21,7 +20,8 @@ export default function PlatformLayout() {
   const NAV = [
     { to: '/platform', label: t('platform.nav.dashboard'), icon: LayoutDashboard, end: true },
     { to: '/platform/orgs', label: t('platform.nav.orgs'), icon: Building2 },
-    { to: '/platform/subscriptions', label: t('platform.nav.subscriptions'), icon: CreditCard },
+    // HIDDEN: billing UI — re-enable when subscriptions return
+    // { to: '/platform/subscriptions', label: t('platform.nav.subscriptions'), icon: CreditCard },
     { to: '/platform/audit', label: t('platform.nav.audit'), icon: FileClock },
   ]
 

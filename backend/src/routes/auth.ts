@@ -58,14 +58,13 @@ export default async function authRoutes(app: FastifyInstance) {
     // Hash password
     const hashedPassword = await bcrypt.hash(body.password, 12);
 
-    // Create org first — grant a 14-day trial so the new signup can use paid
-    // features immediately while they evaluate.
-    const trialEndsAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000);
+    // Create org. New orgs are NOT activated by default — a Platform Admin must
+    // flip is_activated to true from the platform panel before features unlock.
+    // The clinic can still register, login, and see the dashboard shell.
     const org = await app.prisma.org.create({
       data: {
         name: body.orgName,
         defaultTimezone: 'Asia/Riyadh',
-        trialEndsAt,
       } as any,
     });
 
@@ -172,7 +171,7 @@ export default async function authRoutes(app: FastifyInstance) {
     return { token };
   });
 
-  // Get current user — includes subscription/trial state so the frontend can gate
+  // Get current user — includes activation state so the frontend can gate
   // features without an additional round-trip.
   app.get('/me', {
     preHandler: [app.authenticate],
@@ -192,48 +191,19 @@ export default async function authRoutes(app: FastifyInstance) {
       where: { orgId: user.orgId },
     });
 
-    const subscription = await app.prisma.tawafudSubscription.findUnique({
-      where: { orgId: user.orgId },
-    });
-
-    const now = Date.now();
-    const trialEndsAt = (org as any)?.trialEndsAt as Date | null | undefined;
-    const trialMs = trialEndsAt ? new Date(trialEndsAt).getTime() - now : 0;
-    const isTrialing = !!trialEndsAt && trialMs > 0;
-
-    const hasPaidActive =
-      !!subscription &&
-      ['active', 'past_due'].includes(subscription.status) &&
-      subscription.endDate.getTime() > now;
-
-    const isActive = hasPaidActive || isTrialing;
-
-    // Days remaining against the relevant clock: paid endDate takes precedence,
-    // otherwise the trial clock.
-    const endMs = hasPaidActive
-      ? subscription!.endDate.getTime()
-      : trialEndsAt
-      ? new Date(trialEndsAt).getTime()
-      : null;
-    const daysRemaining =
-      endMs !== null ? Math.max(0, Math.ceil((endMs - now) / 86_400_000)) : null;
-
     return {
       userId: user.userId,
       email: user.email,
       name: user.name,
       nameAr: user.nameAr,
-      org: org ? { id: org.orgId, name: org.name } : null,
-      subscription: {
-        plan: subscription?.plan ?? null,
-        status: subscription?.status ?? null,
-        endDate: subscription?.endDate ?? null,
-        trialEndsAt: trialEndsAt ?? null,
-        isActive,
-        isTrialing,
-        hasPaidActive,
-        daysRemaining,
-      },
+      org: org
+        ? {
+            id: org.orgId,
+            name: org.name,
+            isActivated: (org as any).isActivated ?? false,
+            activatedAt: (org as any).activatedAt ?? null,
+          }
+        : null,
     };
   });
 

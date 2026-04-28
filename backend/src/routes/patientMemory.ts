@@ -29,6 +29,7 @@ type MemoryItemParams = { patientId: string; memoryId: string };
 
 export default async function patientMemoryRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
+  app.addHook('preHandler', app.requireActivated);
 
   // GET /api/patients/:patientId/memories — قائمة ذكريات المريض
   app.get<{ Params: MemoryParams }>(

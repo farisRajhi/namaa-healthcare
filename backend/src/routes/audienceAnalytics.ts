@@ -37,8 +37,7 @@ export default async function audienceAnalyticsRoutes(app: FastifyInstance) {
   app.addHook('onRequest', app.authenticate);
   // Audience segmentation is a Professional-tier feature (Starter is single-clinic
   // with basic metrics only; segmentation drives campaign targeting).
-  app.addHook('preHandler', app.requireSubscription);
-  app.addHook('preHandler', app.requirePlan('professional'));
+  app.addHook('preHandler', app.requireActivated);
 
   // -------------------------------------------------------------------------
   // GET /api/audience/:orgId/presets — Targeting preset definitions

@@ -56,6 +56,7 @@ const faqQuerySchema = z.object({
 
 export default async function faqRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
+  app.addHook('preHandler', app.requireActivated);
 
   const engine = new FaqEngine(app.prisma);
 
@@ -169,6 +170,7 @@ export default async function faqRoutes(app: FastifyInstance) {
 // ─────────────────────────────────────────────────────────
 export async function triageRulesRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
+  app.addHook('preHandler', app.requireActivated);
 
   const engine = new FaqEngine(app.prisma);
 

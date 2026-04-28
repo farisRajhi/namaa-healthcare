@@ -14,6 +14,7 @@ const createFacilitySchema = z.object({
 
 export default async function facilitiesRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
+  app.addHook('preHandler', app.requireActivated);
 
   // List facilities
   app.get('/', async (request: FastifyRequest) => {

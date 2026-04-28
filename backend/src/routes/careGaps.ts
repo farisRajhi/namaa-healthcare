@@ -57,6 +57,7 @@ const updateGapStatusSchema = z.object({
 
 export default async function careGapsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
+  app.addHook('preHandler', app.requireActivated);
 
   const getEngine = () => getPredictiveEngine(app.prisma);
 
@@ -258,6 +259,7 @@ export default async function careGapsRoutes(app: FastifyInstance) {
 
 export async function careGapRulesRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
+  app.addHook('preHandler', app.requireActivated);
 
   const getEngine = () => getPredictiveEngine(app.prisma);
 

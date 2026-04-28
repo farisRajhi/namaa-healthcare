@@ -227,10 +227,7 @@ async function getFleetHealthData(app: FastifyInstance, orgId: string) {
 
 export default async function analyticsEnhancedRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
-  app.addHook('preHandler', app.requireSubscription);
-  // Conversational intelligence, quality scores, and call-driver analysis are
-  // Professional-tier features. Matches frontend planFeatures.ts (reports).
-  app.addHook('preHandler', app.requirePlan('professional'));
+  app.addHook('preHandler', app.requireActivated);
 
   // ════════════════════════════════════════════════════════════════════════
   // Org-scoped routes: GET /api/analytics-v2/:orgId/<endpoint>
@@ -276,10 +273,9 @@ export default async function analyticsEnhancedRoutes(app: FastifyInstance) {
     return { overview: emptyQualityOverview(), trend: [] as unknown[] };
   });
 
-  // Fleet endpoints aggregate across multiple facilities/branches — Enterprise only.
+  // Fleet endpoints aggregate across multiple facilities/branches.
   app.get<{ Params: { orgId: string } }>(
     '/:orgId/fleet',
-    { preHandler: app.requirePlan('enterprise') },
     async (request, reply) => {
       const { orgId } = request.user;
       if (request.params.orgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
@@ -289,7 +285,6 @@ export default async function analyticsEnhancedRoutes(app: FastifyInstance) {
 
   app.get<{ Params: { orgId: string } }>(
     '/:orgId/fleet/health',
-    { preHandler: app.requirePlan('enterprise') },
     async (request, reply) => {
       const { orgId } = request.user;
       if (request.params.orgId !== orgId) return reply.code(403).send({ error: 'Forbidden' });
@@ -389,10 +384,9 @@ export default async function analyticsEnhancedRoutes(app: FastifyInstance) {
     return { analyzed: 0, message: 'Voice-call quality analysis has been retired' };
   });
 
-  // Cross-branch facility comparison — Enterprise only.
+  // Cross-branch facility comparison.
   app.get(
     '/facility-comparison',
-    { preHandler: app.requirePlan('enterprise') },
     async (request: FastifyRequest) => {
       dateRangeSchema.parse(request.query);
       return [] as unknown[];

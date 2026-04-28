@@ -7,6 +7,7 @@ const createDepartmentSchema = z.object({
 
 export default async function departmentsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
+  app.addHook('preHandler', app.requireActivated);
 
   // List departments
   app.get('/', async (request: FastifyRequest) => {

@@ -5,11 +5,11 @@ import { PlatformAuthProvider, usePlatformAuth } from './context/PlatformAuthCon
 import DashboardLayout from './components/layout/DashboardLayout'
 import PortalLayout from './components/portal/PortalLayout'
 import Landing from './pages/Landing'
-import Pricing from './pages/Pricing'
-import Billing from './pages/Billing'
-import BillingCheckout from './pages/BillingCheckout'
-import RequiresSubscription from './components/subscription/RequiresSubscription'
-import SubscriptionRequiredListener from './components/subscription/SubscriptionRequiredListener'
+// HIDDEN: billing UI — re-enable when subscriptions return
+// import Pricing from './pages/Pricing'
+// import Billing from './pages/Billing'
+// import BillingCheckout from './pages/BillingCheckout'
+import RequiresActivation from './components/activation/RequiresActivation'
 import Login from './pages/Login'
 import Register from './pages/Register'
 import Dashboard from './pages/Dashboard'
@@ -24,12 +24,10 @@ import Campaigns from './pages/Campaigns'
 import Reminders from './pages/Reminders'
 import AnalyticsDashboard from './pages/AnalyticsDashboard'
 import Integrations from './pages/Integrations'
-// SmsTemplates page removed — redirects to PatientEngagement
 import AgentBuilderList from './pages/AgentBuilderList'
 import AgentBuilder from './pages/AgentBuilder'
 import Reports from './pages/Reports'
 import KnowledgeBase from './pages/KnowledgeBase'
-// Offers, PatientInsights, MarketingHub pages removed — redirects to PatientEngagement
 import PatientEngagement from './pages/PatientEngagement'
 import PatientSuggestions from './pages/PatientSuggestions'
 import PatientIntelligence from './pages/PatientIntelligence'
@@ -48,7 +46,8 @@ import PlatformLogin from './pages/platform/PlatformLogin'
 import PlatformDashboard from './pages/platform/PlatformDashboard'
 import PlatformOrgs from './pages/platform/PlatformOrgs'
 import PlatformOrgDetail from './pages/platform/PlatformOrgDetail'
-import PlatformSubscriptions from './pages/platform/PlatformSubscriptions'
+// HIDDEN: billing UI — re-enable when subscriptions return
+// import PlatformSubscriptions from './pages/platform/PlatformSubscriptions'
 import PlatformAudit from './pages/platform/PlatformAudit'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -108,31 +107,17 @@ function ProtectedPlatformRoute({ children }: { children: React.ReactNode }) {
 function App() {
   return (
     <>
-      <SubscriptionRequiredListener />
       <Routes>
       {/* Public routes */}
       <Route path="/" element={<Landing />} />
-      <Route path="/pricing" element={<Pricing />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
 
-      {/* Billing (post-payment callback + subscription status) */}
-      <Route
-        path="/billing"
-        element={
-          <ProtectedRoute>
-            <Billing />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/billing/checkout/:planId"
-        element={
-          <ProtectedRoute>
-            <BillingCheckout />
-          </ProtectedRoute>
-        }
-      />
+      {/* HIDDEN: billing UI — re-enable when subscriptions return
+      <Route path="/pricing" element={<Pricing />} />
+      <Route path="/billing" element={<ProtectedRoute><Billing /></ProtectedRoute>} />
+      <Route path="/billing/checkout/:planId" element={<ProtectedRoute><BillingCheckout /></ProtectedRoute>} />
+      */}
 
       {/* Protected routes */}
       <Route
@@ -143,34 +128,32 @@ function App() {
           </ProtectedRoute>
         }
       >
+        {/* Always-on routes (no activation required) — dashboard home, profile/settings */}
         <Route index element={<Dashboard />} />
-        <Route path="patients" element={<Patients />} />
-        <Route path="patients/:id" element={<PatientDetail />} />
-        <Route path="appointments" element={<Appointments />} />
-        <Route path="management" element={<Management />} />
         <Route path="settings" element={<Settings />} />
         <Route path="settings/branding" element={<BrandIdentity />} />
-        <Route path="faq" element={<FAQ />} />
-        <Route path="knowledge-base" element={<KnowledgeBase />} />
-        {/* Billing alias inside the dashboard shell for sidebar nav */}
-        <Route path="billing" element={<Billing />} />
 
-        {/* Gated: any active plan (Starter and up) */}
-        <Route path="patient-intelligence" element={<RequiresSubscription feature="patientIntelligence"><PatientIntelligence /></RequiresSubscription>} />
-        <Route path="reminders" element={<RequiresSubscription feature="reminders"><Reminders /></RequiresSubscription>} />
-        <Route path="analytics-dashboard" element={<RequiresSubscription feature="analytics"><AnalyticsDashboard /></RequiresSubscription>} />
-        <Route path="analytics" element={<RequiresSubscription feature="analytics"><AnalyticsDashboard /></RequiresSubscription>} />
+        {/* Activation-gated feature routes — Platform Admin must flip is_activated=true */}
+        <Route path="patients" element={<RequiresActivation><Patients /></RequiresActivation>} />
+        <Route path="patients/:id" element={<RequiresActivation><PatientDetail /></RequiresActivation>} />
+        <Route path="appointments" element={<RequiresActivation><Appointments /></RequiresActivation>} />
+        <Route path="management" element={<RequiresActivation><Management /></RequiresActivation>} />
+        <Route path="faq" element={<RequiresActivation><FAQ /></RequiresActivation>} />
+        <Route path="knowledge-base" element={<RequiresActivation><KnowledgeBase /></RequiresActivation>} />
 
-        {/* Gated: Professional and up */}
-        <Route path="patient-engagement" element={<RequiresSubscription feature="patientEngagement"><PatientEngagement /></RequiresSubscription>} />
-        <Route path="patient-suggestions" element={<RequiresSubscription feature="patientSuggestions"><PatientSuggestions /></RequiresSubscription>} />
-        <Route path="campaigns" element={<RequiresSubscription feature="campaigns"><Campaigns /></RequiresSubscription>} />
-        <Route path="agent-builder" element={<RequiresSubscription feature="agentBuilder"><AgentBuilderList /></RequiresSubscription>} />
-        <Route path="agent-builder/:id" element={<RequiresSubscription feature="agentBuilder"><AgentBuilder /></RequiresSubscription>} />
-        <Route path="reports" element={<RequiresSubscription feature="reports"><Reports /></RequiresSubscription>} />
+        <Route path="patient-intelligence" element={<RequiresActivation><PatientIntelligence /></RequiresActivation>} />
+        <Route path="reminders" element={<RequiresActivation><Reminders /></RequiresActivation>} />
+        <Route path="analytics-dashboard" element={<RequiresActivation><AnalyticsDashboard /></RequiresActivation>} />
+        <Route path="analytics" element={<RequiresActivation><AnalyticsDashboard /></RequiresActivation>} />
 
-        {/* Gated: Enterprise only */}
-        <Route path="integrations" element={<RequiresSubscription feature="ehrIntegration"><Integrations /></RequiresSubscription>} />
+        <Route path="patient-engagement" element={<RequiresActivation><PatientEngagement /></RequiresActivation>} />
+        <Route path="patient-suggestions" element={<RequiresActivation><PatientSuggestions /></RequiresActivation>} />
+        <Route path="campaigns" element={<RequiresActivation><Campaigns /></RequiresActivation>} />
+        <Route path="agent-builder" element={<RequiresActivation><AgentBuilderList /></RequiresActivation>} />
+        <Route path="agent-builder/:id" element={<RequiresActivation><AgentBuilder /></RequiresActivation>} />
+        <Route path="reports" element={<RequiresActivation><Reports /></RequiresActivation>} />
+
+        <Route path="integrations" element={<RequiresActivation><Integrations /></RequiresActivation>} />
 
         {/* Redirects: old marketing pages → Patient Engagement */}
         <Route path="marketing" element={<Navigate to="/dashboard/patient-engagement" replace />} />
@@ -235,7 +218,9 @@ function App() {
         <Route index element={<PlatformDashboard />} />
         <Route path="orgs" element={<PlatformOrgs />} />
         <Route path="orgs/:id" element={<PlatformOrgDetail />} />
+        {/* HIDDEN: billing UI — re-enable when subscriptions return
         <Route path="subscriptions" element={<PlatformSubscriptions />} />
+        */}
         <Route path="audit" element={<PlatformAudit />} />
       </Route>
 

@@ -22,6 +22,7 @@ const querySchema = z.object({
 export default async function patientsRoutes(app: FastifyInstance) {
   // Apply authentication to all routes
   app.addHook('preHandler', app.authenticate);
+  app.addHook('preHandler', app.requireActivated);
 
   // List patients
   app.get('/', async (request: FastifyRequest) => {

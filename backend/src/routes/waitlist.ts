@@ -30,6 +30,7 @@ const querySchema = z.object({
 
 export default async function waitlistRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
+  app.addHook('preHandler', app.requireActivated);
 
   // ─── Add to waitlist (org-scoped: POST /:orgId) ────────────────────────
 

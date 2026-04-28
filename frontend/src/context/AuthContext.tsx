@@ -1,26 +1,17 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react'
 import { api } from '../lib/api'
-import type { PlanId } from '../config/plans'
 
-export interface UserSubscription {
-  plan: PlanId | null
-  status: 'active' | 'past_due' | 'cancelled' | 'expired' | null
-  endDate: string | null
-  trialEndsAt: string | null
-  isActive: boolean
-  isTrialing: boolean
-  hasPaidActive: boolean
-  daysRemaining: number | null
+interface Org {
+  id: string
+  name: string
+  isActivated: boolean
+  activatedAt: string | null
 }
 
 interface User {
   userId: string
   email: string
-  org: {
-    id: string
-    name: string
-  } | null
-  subscription: UserSubscription
+  org: Org | null
 }
 
 interface AuthContextType {
@@ -30,40 +21,24 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>
   register: (email: string, password: string, orgName: string) => Promise<void>
   logout: () => void
-  /** Re-fetch /me to refresh subscription state (e.g. after a successful payment). */
-  refreshSubscription: () => Promise<void>
+  /** Re-fetch /me to refresh activation state (e.g. after admin flips the toggle). */
+  refreshUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
-
-const EMPTY_SUB: UserSubscription = {
-  plan: null,
-  status: null,
-  endDate: null,
-  trialEndsAt: null,
-  isActive: false,
-  isTrialing: false,
-  hasPaidActive: false,
-  daysRemaining: null,
-}
 
 function normalizeUser(raw: any): User {
   return {
     userId: raw.userId,
     email: raw.email,
-    org: raw.org ?? null,
-    subscription: raw.subscription
+    org: raw.org
       ? {
-          plan: raw.subscription.plan ?? null,
-          status: raw.subscription.status ?? null,
-          endDate: raw.subscription.endDate ?? null,
-          trialEndsAt: raw.subscription.trialEndsAt ?? null,
-          isActive: !!raw.subscription.isActive,
-          isTrialing: !!raw.subscription.isTrialing,
-          hasPaidActive: !!raw.subscription.hasPaidActive,
-          daysRemaining: raw.subscription.daysRemaining ?? null,
+          id: raw.org.id,
+          name: raw.org.name,
+          isActivated: !!raw.org.isActivated,
+          activatedAt: raw.org.activatedAt ?? null,
         }
-      : EMPTY_SUB,
+      : null,
   }
 }
 
@@ -137,7 +112,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         register,
         logout,
-        refreshSubscription: fetchUser,
+        refreshUser: fetchUser,
       }}
     >
       {children}

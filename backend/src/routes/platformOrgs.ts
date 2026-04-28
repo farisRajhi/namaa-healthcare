@@ -1,7 +1,8 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
-import { PLAN_KEYS } from '../services/billing/plans.js';
+// HIDDEN: billing system — re-enable when subscriptions return
+// import { PLAN_KEYS } from '../services/billing/plans.js';
 import { getBaileysManager } from '../services/messaging/baileysManager.js';
 import { messages, getLang, msg } from '../lib/messages.js';
 import { redactAuditDetails } from '../services/security/redactAuditDetails.js';
@@ -10,6 +11,7 @@ const listQuerySchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(25),
   status: z.enum(['active', 'suspended', 'deleted']).optional(),
+  isActivated: z.coerce.boolean().optional(),
   search: z.string().trim().min(1).max(200).optional(),
   sort: z.enum(['createdAt', 'name']).default('createdAt'),
   order: z.enum(['asc', 'desc']).default('desc'),
@@ -20,19 +22,10 @@ const statusSchema = z.object({
   reason: z.string().trim().max(500).optional(),
 });
 
-// Per-request schema so the refinement error message can be localized via
-// Accept-Language. The refinement key 'subscription.override.requires_field'
-// is replaced with the localized text in the error handler below.
-function buildSubscriptionOverrideSchema(localizedRefinementMessage: string) {
-  return z.object({
-    plan: z.enum(['starter', 'professional', 'enterprise']).optional(),
-    endDate: z.string().datetime().optional(),
-    status: z.enum(['active', 'cancelled', 'expired']).optional(),
-    reason: z.string().trim().min(3).max(500),
-  }).refine((v) => v.plan !== undefined || v.endDate !== undefined || v.status !== undefined, {
-    message: localizedRefinementMessage,
-  });
-}
+const activationSchema = z.object({
+  isActivated: z.boolean(),
+  reason: z.string().trim().min(3).max(500).optional(),
+});
 
 const impersonateSchema = z.object({
   userId: z.string().uuid().optional(),
@@ -47,6 +40,7 @@ export default async function platformOrgsRoutes(app: FastifyInstance) {
 
     const where: Prisma.OrgWhereInput = {};
     if (q.status) where.status = q.status;
+    if (q.isActivated !== undefined) (where as any).isActivated = q.isActivated;
     if (q.search) {
       where.OR = [
         { name: { contains: q.search, mode: 'insensitive' } },
@@ -67,18 +61,6 @@ export default async function platformOrgsRoutes(app: FastifyInstance) {
       app.prisma.org.count({ where }),
     ]);
 
-    const orgIds = data.map((o) => o.orgId);
-    const subs = orgIds.length
-      ? await app.prisma.tawafudSubscription.findMany({
-          where: { orgId: { in: orgIds } },
-          orderBy: { createdAt: 'desc' },
-        })
-      : [];
-    const latestByOrg = new Map<string, (typeof subs)[number]>();
-    for (const s of subs) {
-      if (!latestByOrg.has(s.orgId)) latestByOrg.set(s.orgId, s);
-    }
-
     return {
       data: data.map((o) => ({
         orgId: o.orgId,
@@ -90,19 +72,13 @@ export default async function platformOrgsRoutes(app: FastifyInstance) {
         defaultTimezone: o.defaultTimezone,
         createdAt: o.createdAt,
         userCount: o._count.users,
-        subscription: latestByOrg.get(o.orgId) ?? null,
+        isActivated: (o as any).isActivated ?? false,
+        activatedAt: (o as any).activatedAt ?? null,
       })),
       total,
       page: q.page,
       pageSize: q.pageSize,
     };
-  });
-
-  // Plan catalog — registered BEFORE /:id so the static path matches first.
-  app.get('/plans/catalog', {
-    preHandler: [app.authenticatePlatform],
-  }, async () => {
-    return { plans: PLAN_KEYS };
   });
 
   // Org detail: metadata + counts + subscription
@@ -119,21 +95,23 @@ export default async function platformOrgsRoutes(app: FastifyInstance) {
       return reply.code(404).send({ error: 'NotFound', message: msg(messages.platform.orgNotFound, lang) });
     }
 
-    const [userCount, facilityCount, patientCount, appointmentCount, smsCount, subscription, latestAudit] = await Promise.all([
+    const [userCount, facilityCount, patientCount, appointmentCount, smsCount, latestAudit, activatedBy] = await Promise.all([
       app.prisma.user.count({ where: { orgId: id } }),
       app.prisma.facility.count({ where: { orgId: id } }),
       app.prisma.patient.count({ where: { orgId: id } }),
       app.prisma.appointment.count({ where: { orgId: id } }),
       app.prisma.smsLog.count({ where: { orgId: id } }),
-      app.prisma.tawafudSubscription.findFirst({
-        where: { orgId: id },
-        orderBy: { createdAt: 'desc' },
-      }),
       app.prisma.auditLog.findFirst({
         where: { orgId: id },
         orderBy: { createdAt: 'desc' },
         select: { createdAt: true },
       }),
+      (org as any).activatedByPlatformAdminId
+        ? app.prisma.platformAdmin.findUnique({
+            where: { platformAdminId: (org as any).activatedByPlatformAdminId },
+            select: { name: true, email: true },
+          })
+        : Promise.resolve(null),
     ]);
 
     return {
@@ -146,6 +124,9 @@ export default async function platformOrgsRoutes(app: FastifyInstance) {
       defaultTimezone: org.defaultTimezone,
       aiAutoReply: org.aiAutoReply,
       createdAt: org.createdAt,
+      isActivated: (org as any).isActivated ?? false,
+      activatedAt: (org as any).activatedAt ?? null,
+      activatedBy: activatedBy ? { name: activatedBy.name, email: activatedBy.email } : null,
       counts: {
         users: userCount,
         facilities: facilityCount,
@@ -153,9 +134,58 @@ export default async function platformOrgsRoutes(app: FastifyInstance) {
         appointments: appointmentCount,
         smsMessages: smsCount,
       },
-      subscription,
       lastActivityAt: latestAudit?.createdAt ?? null,
     };
+  });
+
+  // Activate / deactivate org (replaces hidden subscription system)
+  app.patch('/:id/activation', {
+    preHandler: [app.authenticatePlatform],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const body = activationSchema.parse(request.body);
+    const platformAdminId = request.platformAdmin!.platformAdminId;
+    const lang = getLang(request.headers['accept-language']);
+    const userAgent = request.headers['user-agent'] ?? null;
+
+    const existing = await app.prisma.org.findUnique({
+      where: { orgId: id },
+      select: { orgId: true, isActivated: true } as any,
+    });
+    if (!existing) {
+      return reply.code(404).send({ error: 'NotFound', message: msg(messages.platform.orgNotFound, lang) });
+    }
+
+    const updated = await app.prisma.$transaction(async (tx) => {
+      const org = await tx.org.update({
+        where: { orgId: id },
+        data: ({
+          isActivated: body.isActivated,
+          activatedAt: body.isActivated ? new Date() : null,
+          activatedByPlatformAdminId: body.isActivated ? platformAdminId : null,
+        } as any),
+      });
+
+      await tx.auditLog.create({
+        data: {
+          orgId: id,
+          platformAdminId,
+          action: body.isActivated ? 'platform.org.activate' : 'platform.org.deactivate',
+          resource: 'org',
+          resourceId: id,
+          details: {
+            reason: body.reason ?? null,
+            previousIsActivated: (existing as any).isActivated ?? false,
+            userAgent,
+          },
+          ipAddress: request.ip,
+        },
+      });
+
+      return org;
+    });
+
+    return updated;
   });
 
   // Suspend / reactivate
@@ -212,78 +242,8 @@ export default async function platformOrgsRoutes(app: FastifyInstance) {
     return updated;
   });
 
-  // Override subscription
-  app.patch('/:id/subscription', {
-    preHandler: [app.authenticatePlatform],
-  }, async (request: FastifyRequest, reply: FastifyReply) => {
-    const { id } = request.params as { id: string };
-    const lang = getLang(request.headers['accept-language']);
-    const userAgent = request.headers['user-agent'] ?? null;
-
-    const overrideSchema = buildSubscriptionOverrideSchema(
-      msg(messages.platform.subscriptionOverrideRequiresField, lang),
-    );
-    const body = overrideSchema.parse(request.body);
-    const platformAdminId = request.platformAdmin!.platformAdminId;
-
-    const org = await app.prisma.org.findUnique({ where: { orgId: id }, select: { orgId: true } });
-    if (!org) {
-      return reply.code(404).send({ error: 'NotFound', message: msg(messages.platform.orgNotFound, lang) });
-    }
-
-    const current = await app.prisma.tawafudSubscription.findFirst({
-      where: { orgId: id },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    const nextPlan = body.plan ?? current?.plan ?? 'starter';
-    const nextStatus = body.status ?? current?.status ?? 'active';
-    const nextStart = current?.startDate ?? new Date();
-    const nextEnd = body.endDate
-      ? new Date(body.endDate)
-      : current?.endDate ?? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-
-    const result = await app.prisma.$transaction(async (tx) => {
-      let subscription;
-      if (current) {
-        subscription = await tx.tawafudSubscription.update({
-          where: { id: current.id },
-          data: { plan: nextPlan, status: nextStatus, endDate: nextEnd },
-        });
-      } else {
-        subscription = await tx.tawafudSubscription.create({
-          data: {
-            orgId: id,
-            plan: nextPlan,
-            status: nextStatus,
-            startDate: nextStart,
-            endDate: nextEnd,
-          },
-        });
-      }
-
-      await tx.auditLog.create({
-        data: {
-          orgId: id,
-          platformAdminId,
-          action: 'platform.subscription.override',
-          resource: 'subscription',
-          resourceId: subscription.id,
-          details: {
-            reason: body.reason,
-            previous: current ? { plan: current.plan, status: current.status, endDate: current.endDate } : null,
-            next: { plan: nextPlan, status: nextStatus, endDate: nextEnd },
-            userAgent,
-          },
-          ipAddress: request.ip,
-        },
-      });
-
-      return subscription;
-    });
-
-    return result;
-  });
+  // HIDDEN: billing system — subscription override endpoint removed while activation
+  // is the only gating signal. Re-enable PATCH /:id/subscription when billing returns.
 
   // Impersonate
   app.post('/:id/impersonate', {

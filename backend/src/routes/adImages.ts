@@ -12,7 +12,7 @@ const DAILY_LIMIT_PER_ORG = Number(process.env.AD_IMAGE_DAILY_LIMIT ?? 30);
 
 export default async function adImagesRoutes(app: FastifyInstance) {
   app.addHook('onRequest', app.authenticate);
-  app.addHook('preHandler', app.requireSubscription);
+  app.addHook('preHandler', app.requireActivated);
 
   app.post('/generate', async (request: FastifyRequest, reply) => {
     const { orgId } = request.user;

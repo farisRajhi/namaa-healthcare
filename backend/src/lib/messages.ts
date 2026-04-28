@@ -60,6 +60,12 @@ export const messages = {
       en: 'You are approaching your monthly AI token limit. Consider upgrading.',
     } as BilingualMessage,
   },
+  org: {
+    notActivated: {
+      ar: 'حسابك في انتظار التفعيل من قبل إدارة توافد. يرجى التواصل معنا.',
+      en: 'Your account is awaiting activation by Tawafud staff. Please contact support.',
+    } as BilingualMessage,
+  },
   platform: {
     invalidCredentials: { ar: 'بيانات الاعتماد غير صحيحة', en: 'Invalid credentials' } as BilingualMessage,
     adminNotFound: { ar: 'مدير المنصة غير موجود', en: 'Platform admin not found' } as BilingualMessage,

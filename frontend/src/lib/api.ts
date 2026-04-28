@@ -16,22 +16,6 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-/**
- * Shape of the 402 payload emitted by subscriptionGuard / planGuard on the backend.
- * When we see one of these, we dispatch a global event that the app shell listens
- * for and uses to show an upgrade overlay on top of whatever page the user is on.
- */
-export interface SubscriptionRequiredPayload {
-  error: string
-  message: string
-  code: 'SUBSCRIPTION_REQUIRED' | 'PLAN_UPGRADE_REQUIRED'
-  requiredPlan?: 'starter' | 'professional' | 'enterprise'
-  currentPlan?: string
-  upgradeUrl?: string
-}
-
-export const SUBSCRIPTION_REQUIRED_EVENT = 'tawafud:subscription-required'
-
 // Response interceptor for error handling
 api.interceptors.response.use(
   (response) => response,
@@ -46,17 +30,6 @@ api.interceptors.response.use(
       // Only redirect if not already on auth pages
       if (!window.location.pathname.startsWith('/login') && !window.location.pathname.startsWith('/register')) {
         window.location.href = '/login'
-      }
-    } else if (status === 402) {
-      // Subscription or plan upgrade required. Broadcast so the app shell can
-      // mount an <UpgradeOverlay> regardless of which page triggered the call.
-      const payload = error.response?.data as SubscriptionRequiredPayload | undefined
-      if (payload?.code === 'SUBSCRIPTION_REQUIRED' || payload?.code === 'PLAN_UPGRADE_REQUIRED') {
-        try {
-          window.dispatchEvent(new CustomEvent(SUBSCRIPTION_REQUIRED_EVENT, { detail: payload }))
-        } catch {
-          /* SSR / test env — ignore */
-        }
       }
     }
     return Promise.reject(error)

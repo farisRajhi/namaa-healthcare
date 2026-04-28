@@ -32,7 +32,7 @@ export default async function chatRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
   // Block expired-subscription orgs before they reach the AI pipeline.
   // Trial and past_due orgs are allowed (subscriptionGuard treats them as active).
-  app.addHook('preHandler', app.requireSubscription);
+  app.addHook('preHandler', app.requireActivated);
 
   // Phase 4.1: Rate limiting — 30 messages per user per 5 minutes
   await app.register(rateLimit, {

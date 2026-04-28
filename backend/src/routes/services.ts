@@ -19,6 +19,7 @@ const createServiceSchema = z.object({
 
 export default async function servicesRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
+  app.addHook('preHandler', app.requireActivated);
 
   // List services
   app.get('/', async (request: FastifyRequest) => {

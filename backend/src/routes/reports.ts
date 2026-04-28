@@ -36,8 +36,7 @@ function toCsv(data: Record<string, any>[], columns?: string[]): string {
 
 export default async function reportsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
-  app.addHook('preHandler', app.requireSubscription);
-  app.addHook('preHandler', app.requirePlan('professional'));
+  app.addHook('preHandler', app.requireActivated);
 
   // Summary report (aggregated stats for a date range)
   app.get('/summary', async (request: FastifyRequest) => {

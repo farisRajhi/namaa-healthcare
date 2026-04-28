@@ -51,8 +51,7 @@ const targetsQuerySchema = z.object({
 
 export default async function outboundCampaignsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
-  app.addHook('preHandler', app.requireSubscription);
-  app.addHook('preHandler', app.requirePlan('professional'));
+  app.addHook('preHandler', app.requireActivated);
   app.addHook('preHandler', requireManager);
 
   const getManager = () => getCampaignManager(app.prisma);

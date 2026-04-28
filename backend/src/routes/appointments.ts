@@ -36,6 +36,7 @@ const querySchema = z.object({
 
 export default async function appointmentsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
+  app.addHook('preHandler', app.requireActivated);
 
   // List appointments
   app.get('/', async (request: FastifyRequest, reply) => {

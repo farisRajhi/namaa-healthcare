@@ -133,18 +133,18 @@ export async function buildApp() {
       process.exit(1);
     }
     if (!process.env.ANTHROPIC_API_KEY) {
-      console.error('❌  FATAL: ANTHROPIC_API_KEY is not set. Patient Intelligence pipeline will fail.');
-      process.exit(1);
+      console.warn('⚠️   ANTHROPIC_API_KEY not set — Patient Intelligence pipeline will be unavailable.');
     }
     if (!process.env.GEMINI_API_KEY) {
       console.error('❌  FATAL: GEMINI_API_KEY is not set. Chat AI will fail at runtime.');
       process.exit(1);
     }
-    const tapSecret = process.env.TAP_SECRET_KEY;
-    if (!tapSecret || tapSecret === 'sk_test_CHANGE_ME') {
-      console.error('❌  FATAL: TAP_SECRET_KEY is missing or uses the placeholder value.');
-      process.exit(1);
-    }
+    // HIDDEN: billing system — re-enable when subscriptions return.
+    // const tapSecret = process.env.TAP_SECRET_KEY;
+    // if (!tapSecret || tapSecret === 'sk_test_CHANGE_ME') {
+    //   console.error('❌  FATAL: TAP_SECRET_KEY is missing or uses the placeholder value.');
+    //   process.exit(1);
+    // }
     const registrationToken = process.env.REGISTRATION_TOKEN;
     if (!registrationToken || registrationToken === 'CHANGE_ME_RANDOM_TOKEN') {
       console.error('❌  FATAL: REGISTRATION_TOKEN is missing or uses the placeholder value.');
@@ -162,17 +162,8 @@ export async function buildApp() {
       console.error('❌  FATAL: SEED_PLATFORM_ADMIN_* env vars must not be set in production.');
       process.exit(1);
     }
-  } else {
-    // Dev-mode warning: let the developer keep working, but make the missing
-    // key visible in logs so the `/pricing` "Pay" button failing makes sense.
-    const tapSecret = process.env.TAP_SECRET_KEY;
-    if (!tapSecret || tapSecret === 'sk_test_CHANGE_ME') {
-      console.warn(
-        '⚠️   TAP_SECRET_KEY is not set (dev). /api/payments/create will fail until it is.\n' +
-          '    Fill it in backend/.env (sandbox key from https://dashboard.tap.company/).',
-      );
-    }
   }
+  // HIDDEN: billing system — TAP_SECRET_KEY dev warning removed while billing routes are unregistered.
 
   if (!jwtSecret || INSECURE_DEFAULTS.has(jwtSecret)) {
     // Use console.error so the message is visible even before the logger is ready

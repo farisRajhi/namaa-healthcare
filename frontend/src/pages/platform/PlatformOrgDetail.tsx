@@ -10,7 +10,7 @@ import {
   CalendarDays,
   MessageSquare,
   ShieldAlert,
-  Wallet,
+  Power,
   UserCog,
   AlertTriangle,
   CheckCircle2,
@@ -35,19 +35,15 @@ interface OrgDetail {
   defaultTimezone: string
   aiAutoReply: boolean
   createdAt: string
+  isActivated: boolean
+  activatedAt: string | null
+  activatedBy: { name: string | null; email: string } | null
   counts: {
     users: number
     facilities: number
     patients: number
     appointments: number
     smsMessages: number
-  }
-  subscription: null | {
-    id: string
-    plan: string
-    status: string
-    startDate: string
-    endDate: string
   }
   lastActivityAt: string | null
 }
@@ -85,6 +81,21 @@ function StatusPill({ status }: { status: OrgStatus }) {
   )
 }
 
+function ActivationPill({ isActivated }: { isActivated: boolean }) {
+  const { t } = useTranslation()
+  return isActivated ? (
+    <span className="inline-flex items-center gap-1 text-xs font-semibold border rounded-full px-2.5 py-0.5 bg-success-50 text-success-700 border-success-200">
+      <CheckCircle2 className="w-3 h-3" aria-hidden="true" />
+      {t('platform.orgs.activationActivated', 'Activated')}
+    </span>
+  ) : (
+    <span className="inline-flex items-center gap-1 text-xs font-semibold border rounded-full px-2.5 py-0.5 bg-warning-50 text-warning-700 border-warning-200">
+      <Power className="w-3 h-3" aria-hidden="true" />
+      {t('platform.orgs.activationNotActivated', 'Not activated')}
+    </span>
+  )
+}
+
 export default function PlatformOrgDetail() {
   const { id } = useParams<{ id: string }>()
   const { t } = useTranslation()
@@ -96,11 +107,9 @@ export default function PlatformOrgDetail() {
   const [statusError, setStatusError] = useState<string | null>(null)
   const [statusConfirm, setStatusConfirm] = useState<null | OrgStatus>(null)
 
-  const [subPlan, setSubPlan] = useState<'starter' | 'professional' | 'enterprise' | ''>('')
-  const [subEnd, setSubEnd] = useState('')
-  const [subReason, setSubReason] = useState('')
-  const [subError, setSubError] = useState<string | null>(null)
-  const [subSaved, setSubSaved] = useState(false)
+  const [activationReason, setActivationReason] = useState('')
+  const [activationError, setActivationError] = useState<string | null>(null)
+  const [activationConfirm, setActivationConfirm] = useState<null | boolean>(null)
 
   const [impError, setImpError] = useState<string | null>(null)
   const [showImpConfirm, setShowImpConfirm] = useState(false)
@@ -128,23 +137,22 @@ export default function PlatformOrgDetail() {
     },
   })
 
-  const subMutation = useMutation({
-    mutationFn: async () =>
-      platformApi.patch(`/api/platform/orgs/${id}/subscription`, {
-        plan: subPlan || undefined,
-        endDate: subEnd ? new Date(subEnd).toISOString() : undefined,
-        reason: subReason,
+  const activationMutation = useMutation({
+    mutationFn: async ({ isActivated, reason }: { isActivated: boolean; reason: string }) =>
+      platformApi.patch(`/api/platform/orgs/${id}/activation`, {
+        isActivated,
+        reason: reason || undefined,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['platform', 'org', id] })
-      qc.invalidateQueries({ queryKey: ['platform', 'subscriptions'] })
-      setSubError(null)
-      setSubSaved(true)
-      setTimeout(() => setSubSaved(false), 4000)
+      qc.invalidateQueries({ queryKey: ['platform', 'orgs'] })
+      setActivationReason('')
+      setActivationError(null)
+      setActivationConfirm(null)
     },
     onError: (err) => {
       const m = getErrorMessage(err)
-      setSubError(isRTL ? m.ar : m.en)
+      setActivationError(isRTL ? m.ar : m.en)
     },
   })
 
@@ -195,7 +203,6 @@ export default function PlatformOrgDetail() {
   const canSuspend = org.status === 'active'
   const canReactivate = org.status === 'suspended'
   const BackArrow = isRTL ? ArrowRight : ArrowLeft
-  const isReasonValid = subReason.trim().length >= 3
 
   return (
     <div className="space-y-6">
@@ -212,10 +219,24 @@ export default function PlatformOrgDetail() {
           <h1 className="font-heading text-3xl font-semibold text-healthcare-text">{orgDisplayName}</h1>
           <div className="mt-2 flex items-center gap-3 text-sm text-healthcare-muted flex-wrap">
             <StatusPill status={org.status} />
+            <ActivationPill isActivated={org.isActivated} />
             <span>{t('platform.orgDetail.created', { date: new Date(org.createdAt).toLocaleDateString(lang) })}</span>
             <span className="text-healthcare-border">·</span>
             <span>{t('platform.orgDetail.timezone', { tz: org.defaultTimezone })}</span>
           </div>
+          {org.activatedAt && (
+            <div className="mt-2 text-xs text-healthcare-muted">
+              {t('platform.orgDetail.activatedAt', 'Activated at')}:{' '}
+              <span className="text-healthcare-text">{new Date(org.activatedAt).toLocaleString(lang)}</span>
+              {org.activatedBy && (
+                <>
+                  {' · '}
+                  {t('platform.orgDetail.activatedBy', 'by')}:{' '}
+                  <span className="text-healthcare-text">{org.activatedBy.name ?? org.activatedBy.email}</span>
+                </>
+              )}
+            </div>
+          )}
           {org.status === 'suspended' && org.suspendedReason && (
             <div role="status" className="mt-3 text-sm text-warning-800 bg-warning-50 border border-warning-200 rounded-lg px-3 py-2">
               <strong>{t('platform.orgDetail.suspendedHeading')}</strong>{' '}
@@ -297,108 +318,59 @@ export default function PlatformOrgDetail() {
           </div>
         </div>
 
-        {/* Subscription override */}
+        {/* Activation toggle */}
         <div className="card p-5 space-y-3">
           <div className="flex items-center gap-2">
-            <div className="w-9 h-9 rounded-lg bg-secondary-50 text-secondary-700 flex items-center justify-center">
-              <Wallet className="w-4 h-4" aria-hidden="true" />
-            </div>
-            <h2 className="font-heading text-base font-semibold text-healthcare-text">
-              {t('platform.orgDetail.subscriptionSection')}
-            </h2>
-          </div>
-          {org.subscription ? (
-            <div className="text-sm space-y-1 bg-healthcare-bg rounded-lg p-3 border border-healthcare-border/40">
-              <div>
-                <span className="text-healthcare-muted">{t('platform.orgDetail.subscriptionPlanInline')}</span>{' '}
-                <span className="font-semibold text-healthcare-text">
-                  {t(`plans.${org.subscription.plan}`, { defaultValue: org.subscription.plan })}
-                </span>
-              </div>
-              <div>
-                <span className="text-healthcare-muted">{t('platform.orgDetail.subscriptionStatusInline')}</span>{' '}
-                <span className="font-medium text-healthcare-text">
-                  {t(`platform.subscriptions.${org.subscription.status === 'past_due' ? 'pastDue' : org.subscription.status}`, { defaultValue: org.subscription.status })}
-                </span>
-              </div>
-              <div>
-                <span className="text-healthcare-muted">{t('platform.orgDetail.subscriptionEndsInline')}</span>{' '}
-                <span className="font-medium text-healthcare-text tabular-nums">
-                  {new Date(org.subscription.endDate).toLocaleDateString(lang)}
-                </span>
-              </div>
-            </div>
-          ) : (
-            <div className="text-sm text-healthcare-muted italic">{t('platform.orgDetail.noSubscription')}</div>
-          )}
-
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label htmlFor="sub-plan" className="block text-xs text-healthcare-muted mb-1 font-medium">
-                {t('platform.orgDetail.planLabel')}
-              </label>
-              <select
-                id="sub-plan"
-                value={subPlan}
-                onChange={(e) => setSubPlan(e.target.value as typeof subPlan)}
-                className="w-full bg-white border border-healthcare-border rounded-lg px-2 py-1.5 text-sm text-healthcare-text focus:outline-none focus:ring-[3px] focus:ring-primary-400 focus:border-primary-500"
-              >
-                <option value="">{t('platform.orgDetail.unchanged')}</option>
-                <option value="starter">{t('plans.starter')}</option>
-                <option value="professional">{t('plans.professional')}</option>
-                <option value="enterprise">{t('plans.enterprise')}</option>
-              </select>
+            <div className="w-9 h-9 rounded-lg bg-primary-50 text-primary-600 flex items-center justify-center">
+              <Power className="w-4 h-4" aria-hidden="true" />
             </div>
             <div>
-              <label htmlFor="sub-end" className="block text-xs text-healthcare-muted mb-1 font-medium">
-                {t('platform.orgDetail.endDate')}
-              </label>
-              <input
-                id="sub-end"
-                type="date"
-                value={subEnd}
-                onChange={(e) => setSubEnd(e.target.value)}
-                className="w-full bg-white border border-healthcare-border rounded-lg px-2 py-1.5 text-sm text-healthcare-text focus:outline-none focus:ring-[3px] focus:ring-primary-400 focus:border-primary-500"
-              />
-            </div>
-          </div>
-          <div>
-            <label htmlFor="sub-reason" className="sr-only">
-              {t('platform.orgDetail.subReason')}
-            </label>
-            <textarea
-              id="sub-reason"
-              value={subReason}
-              onChange={(e) => setSubReason(e.target.value)}
-              rows={2}
-              placeholder={t('platform.orgDetail.subReason')}
-              aria-describedby="sub-reason-hint"
-              className="w-full bg-white border border-healthcare-border rounded-lg px-3 py-2 text-sm text-healthcare-text focus:outline-none focus:ring-[3px] focus:ring-primary-400 focus:border-primary-500 resize-none"
-            />
-            {!isReasonValid && subReason.length > 0 && (
-              <p id="sub-reason-hint" className="mt-1 text-xs text-danger-600">
-                {t('platform.subscriptions.cancelReasonTooShort')}
+              <h2 className="font-heading text-base font-semibold text-healthcare-text">
+                {t('platform.orgDetail.activationSection', 'Activation')}
+              </h2>
+              <p className="text-sm text-healthcare-muted mt-0.5">
+                {t(
+                  'platform.orgDetail.activationBlurb',
+                  'Activate to unlock all clinic features. Deactivate to lock the dashboard while keeping the account.',
+                )}
               </p>
+            </div>
+          </div>
+          <label htmlFor="activation-reason" className="sr-only">
+            {t('platform.orgDetail.activationReason', 'Reason')}
+          </label>
+          <textarea
+            id="activation-reason"
+            value={activationReason}
+            onChange={(e) => setActivationReason(e.target.value)}
+            rows={2}
+            placeholder={t('platform.orgDetail.activationReason', 'Reason (optional, ≥3 chars)')}
+            className="w-full bg-white border border-healthcare-border rounded-lg px-3 py-2 text-sm text-healthcare-text focus:outline-none focus:ring-[3px] focus:ring-primary-400 focus:border-primary-500 resize-none"
+          />
+          {activationError && (
+            <div role="alert" className="text-sm text-danger-700 bg-danger-50 border border-danger-200 rounded-lg px-3 py-2">
+              {activationError}
+            </div>
+          )}
+          <div className="flex gap-2">
+            {org.isActivated ? (
+              <button
+                disabled={activationMutation.isPending}
+                onClick={() => setActivationConfirm(false)}
+                className="btn-warning btn-sm focus-visible:ring-2 focus-visible:ring-warning-400"
+              >
+                {t('platform.orgs.deactivate', 'Deactivate')}
+              </button>
+            ) : (
+              <button
+                disabled={activationMutation.isPending}
+                onClick={() => setActivationConfirm(true)}
+                className="btn-primary btn-sm focus-visible:ring-2 focus-visible:ring-primary-400"
+              >
+                {t('platform.orgs.activate', 'Activate')}
+              </button>
             )}
           </div>
-          {subError && (
-            <div role="alert" className="text-sm text-danger-700 bg-danger-50 border border-danger-200 rounded-lg px-3 py-2">
-              {subError}
-            </div>
-          )}
-          {subSaved && (
-            <div role="status" aria-live="polite" className="text-sm text-success-700 bg-success-50 border border-success-200 rounded-lg px-3 py-2">
-              {t('platform.orgDetail.subSaved')}
-            </div>
-          )}
-          <button
-            disabled={(!subPlan && !subEnd) || !isReasonValid || subMutation.isPending}
-            onClick={() => subMutation.mutate()}
-            aria-busy={subMutation.isPending}
-            className="btn-primary btn-sm focus-visible:ring-2 focus-visible:ring-primary-400"
-          >
-            {subMutation.isPending ? t('platform.orgDetail.saving') : t('platform.orgDetail.saveOverride')}
-          </button>
         </div>
       </div>
 
@@ -492,6 +464,44 @@ export default function PlatformOrgDetail() {
         </div>
       </Modal>
 
+      {/* Activation confirmation modal */}
+      <Modal
+        open={activationConfirm !== null}
+        onClose={() => !activationMutation.isPending && setActivationConfirm(null)}
+        title={activationConfirm ? t('platform.orgs.activate', 'Activate') : t('platform.orgs.deactivate', 'Deactivate')}
+      >
+        <p className="text-sm text-healthcare-muted">
+          {activationConfirm
+            ? t('platform.orgs.activate', 'Activate')
+            : t('platform.orgs.deactivate', 'Deactivate')}{' '}
+          — {orgDisplayName}
+        </p>
+        <div className="mt-5 flex gap-2 justify-end">
+          <button
+            onClick={() => setActivationConfirm(null)}
+            disabled={activationMutation.isPending}
+            className="btn-outline btn-sm"
+          >
+            {t('common.cancel')}
+          </button>
+          <button
+            onClick={() =>
+              activationConfirm !== null &&
+              activationMutation.mutate({ isActivated: activationConfirm, reason: activationReason.trim() })
+            }
+            disabled={activationMutation.isPending}
+            aria-busy={activationMutation.isPending}
+            className={activationConfirm ? 'btn-primary btn-sm' : 'btn-warning btn-sm'}
+          >
+            {activationMutation.isPending
+              ? t('platform.orgDetail.saving')
+              : activationConfirm
+                ? t('platform.orgs.activate', 'Activate')
+                : t('platform.orgs.deactivate', 'Deactivate')}
+          </button>
+        </div>
+      </Modal>
+
       {/* Impersonate confirmation modal */}
       <Modal
         open={showImpConfirm}
@@ -525,4 +535,3 @@ export default function PlatformOrgDetail() {
     </div>
   )
 }
-

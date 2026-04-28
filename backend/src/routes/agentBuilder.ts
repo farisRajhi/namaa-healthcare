@@ -46,8 +46,7 @@ const listFlowsQuerySchema = z.object({
 
 export default async function agentBuilderRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate)
-  app.addHook('preHandler', app.requireSubscription)
-  app.addHook('preHandler', app.requirePlan('professional'))
+  app.addHook('preHandler', app.requireActivated)
 
   const engine = new FlowEngine(app.prisma)
 

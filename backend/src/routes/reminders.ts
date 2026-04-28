@@ -46,7 +46,7 @@ export default async function remindersRoutes(app: FastifyInstance) {
   app.addHook('preHandler', async (request, reply) => {
     await app.authenticate(request, reply);
     if (reply.sent) return;
-    await app.requireSubscription(request, reply);
+    await app.requireActivated(request, reply);
   });
 
   const getService = () => getAppointmentReminderService(app.prisma);

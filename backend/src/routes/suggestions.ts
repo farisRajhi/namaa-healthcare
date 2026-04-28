@@ -48,8 +48,7 @@ const sendSchema = z.object({
 
 export default async function suggestionsRoutes(app: FastifyInstance) {
   app.addHook('preHandler', app.authenticate);
-  app.addHook('preHandler', app.requireSubscription);
-  app.addHook('preHandler', app.requirePlan('professional'));
+  app.addHook('preHandler', app.requireActivated);
 
   // -----------------------------------------------------------------------
   // GET /:orgId — Unified recall list (native + external, ranked by overdueDays)
