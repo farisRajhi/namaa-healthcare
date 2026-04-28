@@ -881,6 +881,8 @@ export const aiCustomizationTemplate: FlowTemplate = {
     },
 
     // ── Greeting instruction ──
+    // Guidance, not a verbatim phrase: the LLM weaves the clinic name into a
+    // single natural reply rather than emitting a canned greeting before answering.
     {
       id: 'inst-greeting',
       type: NodeType.INSTRUCTION,
@@ -889,8 +891,8 @@ export const aiCustomizationTemplate: FlowTemplate = {
         label: 'Greeting',
         labelAr: 'الترحيب',
         instructionCategory: 'greeting',
-        instructionText: 'Welcome to our clinic! How can I help you today? 👋',
-        instructionTextAr: 'أهلاً وسهلاً بك في عيادتنا! كيف يمكنني مساعدتك اليوم؟ 👋',
+        instructionText: 'On the first reply of a new conversation, greet the patient warmly and mention the clinic name (available in the system context). Keep the greeting to one short, natural sentence inside the same reply — do not send it as a separate message before answering the patient.',
+        instructionTextAr: 'في أول رد بالمحادثة، رحّب بالمريض بشكل ودود واذكر اسم العيادة (متاح في سياق النظام). اجعل الترحيب جملة واحدة قصيرة ضمن نفس الردّ، لا تفصله في رسالة منفصلة قبل الإجابة على سؤال المريض.',
         instructionPriority: 8,
       },
     },
@@ -911,20 +913,9 @@ export const aiCustomizationTemplate: FlowTemplate = {
     },
 
     // ── Business Rules ──
-    // Example rule. Clinics can replace/extend this in the Agent Builder UI.
-    {
-      id: 'inst-rule-2',
-      type: NodeType.INSTRUCTION,
-      position: { x: 700, y: 380 },
-      data: {
-        label: 'Business Rule: Working Hours',
-        labelAr: 'قاعدة: ساعات العمل',
-        instructionCategory: 'business_rule',
-        instructionText: 'Our clinic is open Saturday to Thursday, 8 AM to 10 PM. Friday is closed. Remind patients of this when booking.',
-        instructionTextAr: 'العيادة مفتوحة من السبت إلى الخميس، من 8 صباحاً حتى 10 مساءً. الجمعة إجازة. ذكّر المرضى بذلك عند الحجز.',
-        instructionPriority: 8,
-      },
-    },
+    // No hardcoded clinic-specific rules. Real schedule + departments + facilities
+    // are already injected into the system prompt from live data (see
+    // systemPrompt.ts → getClinicSchedule). Add custom rules via the UI.
 
     // ── Escalation triggers ──
     {

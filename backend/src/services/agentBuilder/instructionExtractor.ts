@@ -123,13 +123,15 @@ export function extractInstructions(nodes: any[], settings?: any): LLMInstructio
 export function buildInstructionPrompt(instructions: LLMInstructions): string {
   const sections: string[] = [];
 
-  // Greeting instruction
+  // Greeting style guidance. We deliberately frame this as guidance instead of
+  // "emit this exact phrase" — otherwise the LLM splits the greeting and the
+  // real reply into two messages glued together.
   if (instructions.greeting) {
-    sections.push(`## تعليمات الترحيب (Greeting)
-- عند بداية المحادثة، رحّب بالمريض بالطريقة التالية:
-  - بالعربية: "${instructions.greeting.ar}"
-  - بالإنجليزية: "${instructions.greeting.en}"
-- استخدم الترحيب المناسب حسب لغة المريض.`);
+    const greet = instructions.greeting.ar || instructions.greeting.en;
+    if (greet) {
+      sections.push(`## أسلوب الترحيب (Greeting Style)
+${greet}`);
+    }
   }
 
   // Tone instructions
