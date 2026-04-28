@@ -58,6 +58,22 @@ const PRICING_RULES_EN = `
 - Never make up or estimate prices — stick to listed numbers only.
 `;
 
+const INTEGRITY_RULES_AR = `
+## قواعد الصدق والخصوصية (مهمة جداً)
+- ⛔ ممنوع منعاً باتاً اختلاق أي عروض أو خصومات أو هدايا أو حملات ترويجية. لا تذكري أي خصم (مثلاً "خصم 20%") إلا إذا ذُكر صراحةً في سياقك. إذا لم يكن هناك عرض في السياق، **لا توجد عروض حالياً** — لا تخمّني، لا تصنعي أرقاماً، لا تقولي "هذا الشهر فقط".
+- ⛔ ممنوع كشف أي معرفات داخلية (serviceId, providerId, appointmentId, departmentId, UUIDs) للمريض. هذه للاستخدام الداخلي فقط في استدعاء الأدوات.
+- ⛔ ممنوع وصف أخطاء تقنية أو رسائل خطأ من الأدوات (مثل "أخطأت في Service ID" أو "تم رفض الطلب"). إذا فشلت أداة، اعتذري بشكل طبيعي ("لحظة من فضلك") واستمري في المحادثة بدون شرح السبب التقني.
+- ⛔ ممنوع تأكيد أي معلومة لست متأكدة منها 100% — قولي "سأتحقق وأرجع لك" بدلاً من التخمين.
+`;
+
+const INTEGRITY_RULES_EN = `
+## Integrity & Privacy Rules (very important)
+- ⛔ Strictly forbidden to invent any offers, discounts, gifts, or promotions. Do not mention any discount (e.g. "20% off") unless it is explicitly listed in your context. If no offer is listed, **there are no current offers** — do not guess, do not fabricate numbers, do not say "this month only".
+- ⛔ Never expose internal identifiers (serviceId, providerId, appointmentId, departmentId, UUIDs) to the patient. These are for tool calls only.
+- ⛔ Never describe technical errors or tool failures (e.g. "Service ID error", "request was rejected"). If a tool fails, apologize naturally ("one moment please") and continue the conversation without explaining the technical reason.
+- ⛔ Never confirm anything you are not 100% sure of — say "let me check and get back to you" instead of guessing.
+`;
+
 export async function buildSystemPrompt(prisma: PrismaClient, orgId: string): Promise<string> {
   // Fetch org info
   const org = await prisma.org.findUnique({
@@ -156,6 +172,7 @@ Current time (Saudi Arabia): ${rNow.timeStr}
     if (services.some(s => s.showPrice)) {
       prompt += PRICING_RULES_EN;
     }
+    prompt += INTEGRITY_RULES_EN;
   }
 
   // Providers section — Phase 2.2: budget-limited
@@ -500,6 +517,7 @@ export async function buildWhatsAppSystemPrompt(prisma: PrismaClient, orgId: str
     if (services.some(s => s.showPrice)) {
       prompt += PRICING_RULES_AR;
     }
+    prompt += INTEGRITY_RULES_AR;
   }
 
   // Providers section (Arabic labels, budget-limited)
@@ -756,6 +774,7 @@ async function buildStateLayer(
       if (services.some(sv => sv.showPrice)) {
         s += PRICING_RULES_AR;
       }
+      s += INTEGRITY_RULES_AR;
       return s;
     }
 
@@ -824,6 +843,7 @@ async function buildStateLayer(
         if (servicesWithCat.some(sv => sv.showPrice)) {
           s += PRICING_RULES_AR;
         }
+        s += INTEGRITY_RULES_AR;
         s += `\n**ملاحظة مهمة للمطابقة**: المريض قد يستخدم مرادفات. طابقي ذكياً حتى لو الكلمات مختلفة:\n`;
         s += `- "خلع سن" / "قلع سن" / "شيل ضرس" → "خلع ضرس" أو "خلع ضرس عقل"\n`;
         s += `- "تنظيف" / "تنظيف أسنان" / "تلميع" → "تنظيف أسنان"\n`;
