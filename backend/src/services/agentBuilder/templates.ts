@@ -911,19 +911,7 @@ export const aiCustomizationTemplate: FlowTemplate = {
     },
 
     // ── Business Rules ──
-    {
-      id: 'inst-rule-1',
-      type: NodeType.INSTRUCTION,
-      position: { x: 700, y: 220 },
-      data: {
-        label: 'Business Rule: Insurance',
-        labelAr: 'قاعدة: التأمين',
-        instructionCategory: 'business_rule',
-        instructionText: 'Always ask the patient about their insurance provider before proceeding with booking.',
-        instructionTextAr: 'اسأل المريض دائماً عن شركة التأمين قبل المتابعة في الحجز.',
-        instructionPriority: 9,
-      },
-    },
+    // Example rule. Clinics can replace/extend this in the Agent Builder UI.
     {
       id: 'inst-rule-2',
       type: NodeType.INSTRUCTION,
