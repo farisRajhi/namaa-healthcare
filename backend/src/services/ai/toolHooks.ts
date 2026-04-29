@@ -99,9 +99,11 @@ function createPermissionHook(): ToolHook {
 }
 
 /**
- * CancellationPolicyHook (pre): Block cancellations within a configurable window.
+ * CancellationPolicyHook (pre): Block cancellations within a per-clinic
+ * configurable window. Reads `cancellationHours` from the appointment's
+ * facility config (FacilityConfig.cancellationHours), falling back to 2h.
  */
-function createCancellationPolicyHook(prisma: PrismaClient, minHoursBefore = 2): ToolHook {
+function createCancellationPolicyHook(prisma: PrismaClient, fallbackHours = 2): ToolHook {
   return {
     name: 'cancellation_policy',
     phase: 'pre',
@@ -111,17 +113,34 @@ function createCancellationPolicyHook(prisma: PrismaClient, minHoursBefore = 2):
       if (!appointmentId) return { allow: true };
 
       const appointment = await prisma.appointment.findFirst({
-        where: { appointmentId },
-        select: { startTs: true },
+        where: { appointmentId, orgId: ctx.orgId },
+        select: { startTs: true, facilityId: true },
       });
 
       if (!appointment) return { allow: true }; // Let the tool handler deal with "not found"
+
+      // Pull per-clinic cancellation window from FacilityConfig if present.
+      // Uses $queryRaw because the cancellation_hours column is read via raw
+      // SQL — keeps this layer working even if the Prisma client hasn't been
+      // regenerated yet against the new column.
+      let minHoursBefore = fallbackHours;
+      if (appointment.facilityId) {
+        try {
+          const rows = await prisma.$queryRaw<Array<{ cancellation_hours: number | null }>>`
+            SELECT cancellation_hours FROM facility_configs WHERE facility_id = ${appointment.facilityId}::uuid LIMIT 1
+          `;
+          const v = rows?.[0]?.cancellation_hours;
+          if (typeof v === 'number' && v > 0) minHoursBefore = v;
+        } catch {
+          // Column may not exist yet on legacy DBs — fall back silently.
+        }
+      }
 
       const hoursUntil = (appointment.startTs.getTime() - Date.now()) / (1000 * 60 * 60);
       if (hoursUntil < minHoursBefore && hoursUntil > 0) {
         return {
           allow: false,
-          reason: `لا يمكن إلغاء الموعد قبل أقل من ${minHoursBefore} ساعات. يرجى الاتصال بالعيادة مباشرة. Cannot cancel within ${minHoursBefore} hours of appointment. Please call the clinic directly.`,
+          reason: `ما نقدر نلغي الموعد قبل ${minHoursBefore} ساعة من وقته — لو تقدر تواصل مع العيادة مباشرة. Cannot cancel within ${minHoursBefore} hours of appointment.`,
         };
       }
       return { allow: true };

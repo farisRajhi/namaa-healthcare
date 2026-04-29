@@ -758,18 +758,19 @@ model Handoff {
 // ─── Facility Config ────────────────────────────────────────
 
 model FacilityConfig {
-  configId      String   @id @default(dbgenerated("gen_random_uuid()")) @map("config_id") @db.Uuid
-  facilityId    String   @unique @map("facility_id") @db.Uuid
-  greetingEn    String?  @map("greeting_en")
-  greetingAr    String?  @map("greeting_ar")
-  businessHours Json?    @map("business_hours")
-  languages     String[] @default(["ar", "en"])
-  aiEnabled     Boolean  @default(true) @map("ai_enabled")
-  maxWaitSec    Int      @default(30) @map("max_wait_sec")
-  afterHoursMsg String?  @map("after_hours_msg")
-  customFaqs    Json?    @map("custom_faqs")
-  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt     DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  configId          String   @id @default(dbgenerated("gen_random_uuid()")) @map("config_id") @db.Uuid
+  facilityId        String   @unique @map("facility_id") @db.Uuid
+  greetingEn        String?  @map("greeting_en")
+  greetingAr        String?  @map("greeting_ar")
+  businessHours     Json?    @map("business_hours")
+  languages         String[] @default(["ar", "en"])
+  aiEnabled         Boolean  @default(true) @map("ai_enabled")
+  maxWaitSec        Int      @default(30) @map("max_wait_sec")
+  afterHoursMsg     String?  @map("after_hours_msg")
+  customFaqs        Json?    @map("custom_faqs")
+  cancellationHours Int      @default(2) @map("cancellation_hours")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
 
   @@map("facility_configs")
 }

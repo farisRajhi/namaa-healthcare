@@ -373,15 +373,15 @@ function checkScopeViolations(response: string): GuardrailFlag[] {
 const SAFE_RESPONSES: Record<string, { en: string; ar: string }> = {
   medical_claim: {
     en: "I'm not qualified to provide medical advice. I'd be happy to schedule an appointment with a doctor who can help you with that. Would you like me to find an available appointment?",
-    ar: 'لا أستطيع تقديم استشارة طبية. يسعدني حجز موعد مع طبيب يمكنه مساعدتك. هل تريد أن أبحث عن موعد متاح؟',
+    ar: 'الاستشارات الطبية ترجع للدكتور — أنا أقدر أحجزلك موعد فقط. تبغى أشوف لك أقرب موعد متاح؟',
   },
   low_confidence: {
     en: "I'm not entirely sure about that. Let me connect you with someone who can give you a more accurate answer. One moment please.",
-    ar: 'لست متأكداً تماماً من ذلك. دعني أوصلك بشخص يمكنه إعطائك إجابة أدق. لحظة من فضلك.',
+    ar: 'ما أكدت من هالنقطة — خليني أحوّلك لأحد يساعدك أكثر، لحظة عليّ.',
   },
   hallucination: {
     en: "I want to make sure I give you accurate information. Let me verify that for you — could you hold for a moment?",
-    ar: 'أريد أن أتأكد من تقديم معلومات دقيقة لك. دعني أتحقق من ذلك — هل يمكنك الانتظار لحظة؟',
+    ar: 'أبغى أعطيك معلومة دقيقة، خليني أتأكد من المعلومة الأول — لحظة عليّ.',
   },
 };
 

@@ -411,12 +411,12 @@ export class BaileysManager extends EventEmitter {
 
             // Deterministic fallback messageId: when Baileys doesn't supply
             // msg.key.id, derive a stable hash from (orgId, jid, timestamp,
-            // truncated body). Using Date.now() would defeat idempotency on
-            // duplicate deliveries since each retry would produce a fresh ID.
-            const truncatedBody = (text || '').slice(0, 64);
+            // full body). SHA-256 handles arbitrary-length input — using the
+            // full body (not a 64-char prefix) avoids same-second collisions
+            // between two genuinely different messages that share a long prefix.
             const fallbackId = `baileys-${crypto
               .createHash('sha256')
-              .update(`${orgId}:${jid}:${msg.messageTimestamp}:${truncatedBody}`)
+              .update(`${orgId}:${jid}:${msg.messageTimestamp}:${text || ''}`)
               .digest('hex')
               .slice(0, 16)}`;
             const messageId = msg.key.id || fallbackId;

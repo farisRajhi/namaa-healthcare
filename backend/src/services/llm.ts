@@ -102,14 +102,26 @@ interface ToolLoopTracker {
 }
 
 /**
+ * Decide whether a tool execution failed. Used to gate the
+ * mutation-success tracker so we don't suppress fallbacks after a failed
+ * mutation. Treats empty results, "Error" / "error:" prefixes, and the ❌
+ * convention as failures. Anything else (including ✅) counts as success.
+ */
+function isToolFailure(result: string): boolean {
+  if (!result || !result.trim()) return true;
+  return /^(error|❌)/i.test(result.trim());
+}
+
+/**
  * Decide whether an LLM call should be retried on the fallback provider.
  * Covers rate-limiting (429), upstream outages (5xx), and network timeouts.
  */
 function isRetryableLLMError(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
   const msg = err.message || '';
-  // Gemini REST errors: "Gemini API 429: ..."
-  if (/\bGemini API (4(?:29)|5\d\d)\b/.test(msg)) return true;
+  // Gemini AI Studio REST errors: "Gemini API 429: ..."
+  // Vertex AI REST errors: "Vertex AI 429: ..."
+  if (/\b(?:Gemini API|Vertex AI) (?:429|5\d\d)\b/.test(msg)) return true;
   // OpenAI SDK errors include status on the error object
   const status = (err as any)?.status ?? (err as any)?.response?.status;
   if (status === 429 || (status >= 500 && status < 600)) return true;
@@ -383,7 +395,7 @@ export class LLMService {
         allToolCalls.push({ toolName, args, result, durationMs });
         // Track any successful mutation so the outer wrapper can avoid
         // double-charging the patient if the LLM call later fails.
-        if (tracker && MUTATION_TOOLS.has(toolName) && !result.startsWith('Error')) {
+        if (tracker && MUTATION_TOOLS.has(toolName) && !isToolFailure(result)) {
           tracker.mutationExecuted = true;
           tracker.mutationName = toolName;
         }
@@ -531,21 +543,44 @@ export class LLMService {
     const allToolCalls: ToolCallResult[] = [];
     const usage = zeroUsage();
 
-    // Convert OpenAI tool definitions to Gemini format
+    // Convert OpenAI tool definitions to Gemini format. Recursively preserves
+    // enum / format / nested object & array schemas (the previous flattening
+    // dropped these and shipped invalid schemas to Vertex for any tool that
+    // declared an enum or nested object).
+    const convertProp = (prop: Record<string, any>): Record<string, any> => {
+      const out: Record<string, any> = { type: (prop.type || 'STRING').toUpperCase() };
+      if (prop.description) out.description = prop.description;
+      if (prop.enum) out.enum = prop.enum;
+      if (prop.format) out.format = prop.format;
+      if (prop.items) out.items = convertProp(prop.items);
+      if (prop.properties && typeof prop.properties === 'object') {
+        out.properties = {};
+        for (const [k, v] of Object.entries(prop.properties as Record<string, any>)) {
+          out.properties[k] = convertProp(v);
+        }
+        if (Array.isArray(prop.required) && prop.required.length > 0) {
+          out.required = prop.required;
+        }
+      }
+      return out;
+    };
     const geminiTools = tools.length > 0 ? [{
       functionDeclarations: tools.map(t => {
         const fn = (t as any).function as { name: string; description?: string; parameters?: Record<string, unknown> };
         const params = fn.parameters as Record<string, unknown> | undefined;
-        const properties: Record<string, any> = {};
         const rawProps = (params?.properties as Record<string, any>) || {};
+        const properties: Record<string, any> = {};
         for (const [key, val] of Object.entries(rawProps)) {
-          properties[key] = { type: (val.type || 'STRING').toUpperCase(), description: val.description || '' };
+          properties[key] = convertProp(val);
         }
-        return {
+        const required = (params?.required as string[]) || [];
+        const decl: Record<string, any> = {
           name: fn.name,
           description: fn.description || '',
-          parameters: { type: 'OBJECT', properties, required: (params?.required as string[]) || [] },
+          parameters: { type: 'OBJECT', properties },
         };
+        if (required.length > 0) decl.parameters.required = required;
+        return decl;
       }),
     }] : undefined;
 
@@ -655,7 +690,7 @@ export class LLMService {
         const { result: toolResult, durationMs } = await this.executeToolSafe(executeTool, toolName, args);
         allToolCalls.push({ toolName, args, result: toolResult, durationMs });
         // Track successful mutations so the outer wrapper can avoid replay.
-        if (tracker && MUTATION_TOOLS.has(toolName) && !toolResult.startsWith('Error')) {
+        if (tracker && MUTATION_TOOLS.has(toolName) && !isToolFailure(toolResult)) {
           tracker.mutationExecuted = true;
           tracker.mutationName = toolName;
         }
