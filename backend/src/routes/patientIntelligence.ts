@@ -203,6 +203,7 @@ export default async function patientIntelligenceRoutes(app: FastifyInstance) {
           phone: true,
           lastVisitDate: true,
           lastService: true,
+          services: true,
           totalVisits: true,
           aiScore: true,
           aiReasoning: true,

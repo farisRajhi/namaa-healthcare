@@ -9,6 +9,7 @@ import LoadingSpinner from '../components/ui/LoadingSpinner'
 import StatCard from '../components/ui/StatCard'
 import SuggestionCard, { type Suggestion } from '../components/patientIntelligence/SuggestionCard'
 import ApprovalDialog from '../components/patientIntelligence/ApprovalDialog'
+import { mapPatientsResponse, type PatientsResponse } from '../lib/patientIntelligenceMappers'
 import {
   Upload,
   Brain,
@@ -41,23 +42,6 @@ interface Analysis {
   error: string | null
   createdAt: string
   completedAt: string | null
-}
-
-interface PatientRow {
-  id: string
-  name: string
-  nameAr: string | null
-  phone: string
-  lastVisit: string | null
-  matchedServices: string[]
-  riskScore: number | null
-}
-
-interface PatientsResponse {
-  patients: PatientRow[]
-  total: number
-  page: number
-  limit: number
 }
 
 /* ─── Step labels ─── */
@@ -161,7 +145,7 @@ export default function PatientIntelligence() {
       const res = await api.get(
         `/api/patient-intelligence/${orgId}/analyses/${currentAnalysis!.id}/patients?page=${patientsPage}&limit=20`
       )
-      return res.data?.data || res.data
+      return mapPatientsResponse(res.data)
     },
     enabled: !!currentAnalysis?.id && currentAnalysis?.status === 'completed' && showPatients,
     staleTime: 30_000,
@@ -252,16 +236,13 @@ export default function PatientIntelligence() {
   const handleUpload = useCallback(
     async (file: File) => {
       if (!orgId) return
-      const validTypes = [
-        'text/csv',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'application/vnd.ms-excel',
-      ]
-      if (!validTypes.includes(file.type) && !file.name.match(/\.(csv|xlsx|xls)$/i)) {
+      const validTypes = ['text/csv', 'text/plain', 'application/csv', 'application/vnd.ms-excel']
+      const hasCsvExtension = /\.csv$/i.test(file.name)
+      if (!hasCsvExtension || (file.type && !validTypes.includes(file.type))) {
         addToast({
           type: 'error',
           title: isAr ? 'صيغة غير مدعومة' : 'Unsupported format',
-          message: isAr ? 'يرجى رفع ملف CSV أو Excel' : 'Please upload a CSV or Excel file',
+          message: isAr ? 'يرجى رفع ملف CSV فقط' : 'Please upload a CSV file',
         })
         return
       }
@@ -397,7 +378,7 @@ export default function PatientIntelligence() {
         <input
           ref={fileInputRef}
           type="file"
-          accept=".csv,.xlsx,.xls"
+          accept=".csv,text/csv"
           onChange={onFileChange}
           className="hidden"
         />
@@ -431,8 +412,8 @@ export default function PatientIntelligence() {
               </h2>
               <p className="text-sm text-gray-500 max-w-md mx-auto mb-6 leading-relaxed">
                 {isAr
-                  ? 'ارفع ملف CSV أو Excel يحتوي على بيانات المرضى. سيقوم الذكاء الاصطناعي بتحليل البيانات واقتراح حملات تسويقية مخصصة لكل شريحة.'
-                  : 'Upload a CSV or Excel file with patient data. AI will analyze the data and suggest personalized campaigns for each segment.'}
+                  ? 'ارفع ملف CSV يحتوي على بيانات المرضى. سيقوم الذكاء الاصطناعي بتحليل البيانات واقتراح حملات تسويقية مخصصة لكل شريحة.'
+                  : 'Upload a CSV file with patient data. AI will analyze the data and suggest personalized campaigns for each segment.'}
               </p>
               <button
                 onClick={() => fileInputRef.current?.click()}
@@ -442,7 +423,7 @@ export default function PatientIntelligence() {
                 {isAr ? 'اختر ملف' : 'Choose File'}
               </button>
               <p className="text-xs text-gray-400 mt-3">
-                {isAr ? 'أو اسحب الملف وأفلته هنا — CSV, XLSX' : 'Or drag and drop here — CSV, XLSX'}
+                {isAr ? 'أو اسحب الملف وأفلته هنا — CSV' : 'Or drag and drop here — CSV'}
               </p>
             </>
           )}

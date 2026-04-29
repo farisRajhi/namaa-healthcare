@@ -86,13 +86,15 @@ export default async function baileysWhatsAppRoutes(app: FastifyInstance) {
 
       const response = await aiHandler.handleIncoming(msg.phone, messageText, msg.messageId, orgId, true, aiAutoReply);
 
-      // Stop typing and send the response (only if AI replied)
-      if (aiAutoReply && response) {
+      // Always stop typing once the handler returns — even if the response is
+      // empty (deduped/suppressed). Otherwise the typing indicator hangs forever.
+      if (aiAutoReply) {
         await manager.stopTyping(orgId, msg.jid).catch(() => {});
+      }
 
+      if (aiAutoReply && response) {
         // Re-check auto-reply right before sending — the LLM call can take 10–20s,
-        // and an admin may toggle AI off mid-flight from the dashboard. Without this
-        // last-mile check, the reply is sent even after AI is disabled.
+        // and an admin may toggle AI off mid-flight from the dashboard.
         const fresh = await app.prisma.org.findUnique({
           where: { orgId },
           select: { aiAutoReply: true },
@@ -107,7 +109,6 @@ export default async function baileysWhatsAppRoutes(app: FastifyInstance) {
               { sendErr, orgId },
               'Baileys send failed for AI response — message processed but not delivered',
             );
-            // Re-throw so the outer catch handles the user-facing fallback
             throw sendErr;
           }
         }
@@ -116,10 +117,7 @@ export default async function baileysWhatsAppRoutes(app: FastifyInstance) {
       app.log.error({ err, orgId }, 'Failed to handle Baileys incoming message');
       await manager.stopTyping(orgId, msg.jid).catch(() => {});
       try {
-        // Always send the generic Arabic fallback — never leak error details
-        // (stack frames, internal messages) to the patient over WhatsApp.
-        // Server-side debug context stays in app.log.error above.
-        const userMsg = 'عذراً، حدث خطأ في معالجة رسالتك. يرجى المحاولة مرة أخرى أو الاتصال بالعيادة مباشرة. 🏥';
+        const userMsg = 'آسف، صار خطأ بسيط من ناحيتنا. جرب ترسل رسالتك مرة ثانية، وإذا استمرت المشكلة تواصل مع العيادة مباشرة 🙏';
         await manager.sendMessage(orgId, msg.jid, userMsg);
       } catch (_) {}
     }

@@ -28,11 +28,13 @@ const RULES: RedactionRule[] = [
   },
   {
     // Saudi phone numbers: +966XXXXXXXXX or 05XXXXXXXX or 966XXXXXXXXX
+    // The 05XXXXXXXX form is anchored to exactly 10 digits so we don't
+    // redact appointment times like "05:30 PM" or short durations.
     name: 'phone_number',
     patterns: [
       /\+966\s?\d[\d\s\-]{7,10}/g,
       /\b966\s?\d[\d\s\-]{7,10}/g,
-      /\b05\d[\d\s\-]{7,8}\b/g,
+      /\b05[0-9]{8}\b/g,
       // Generic international phone
       /\+\d{1,3}\s?\d[\d\s\-]{8,14}/g,
     ],

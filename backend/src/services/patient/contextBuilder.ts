@@ -1,4 +1,5 @@
 import { PrismaClient } from '@prisma/client';
+import { RIYADH_TZ } from '../../utils/riyadhTime.js';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -36,18 +37,41 @@ const MONTHS_AR: Record<number, string> = {
   8: 'سبتمبر', 9: 'أكتوبر', 10: 'نوفمبر', 11: 'ديسمبر',
 };
 
+// Resolve a Date's day/month/hour/minute as Riyadh-local components, regardless
+// of the host server's timezone (UTC servers used to render the wrong day for
+// late-night Riyadh appointments).
+function riyadhParts(date: Date): { dow: number; day: number; month: number; hour: number; minute: number } {
+  const fmt = new Intl.DateTimeFormat('en-US', {
+    timeZone: RIYADH_TZ,
+    weekday: 'short', day: '2-digit', month: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  });
+  const parts = fmt.formatToParts(date);
+  const get = (t: string) => parts.find(p => p.type === t)?.value ?? '';
+  const wdMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+  let hour = parseInt(get('hour'), 10);
+  if (hour === 24) hour = 0;
+  return {
+    dow: wdMap[get('weekday')] ?? date.getDay(),
+    day: parseInt(get('day'), 10),
+    month: parseInt(get('month'), 10) - 1,
+    hour,
+    minute: parseInt(get('minute'), 10),
+  };
+}
+
 function formatDateAr(date: Date): string {
-  const day = DAYS_AR[date.getDay()];
-  const d = date.getDate();
-  const month = MONTHS_AR[date.getMonth()];
-  return `${day} ${d} ${month}`;
+  const p = riyadhParts(date);
+  const day = DAYS_AR[p.dow];
+  const month = MONTHS_AR[p.month];
+  return `${day} ${p.day} ${month}`;
 }
 
 function formatTimeAr(date: Date): string {
-  const h = date.getHours();
-  const m = String(date.getMinutes()).padStart(2, '0');
-  const period = h >= 12 ? 'مساءً' : 'صباحاً';
-  const hour12 = h > 12 ? h - 12 : h === 0 ? 12 : h;
+  const p = riyadhParts(date);
+  const m = String(p.minute).padStart(2, '0');
+  const period = p.hour >= 12 ? 'مساءً' : 'صباحاً';
+  const hour12 = p.hour > 12 ? p.hour - 12 : p.hour === 0 ? 12 : p.hour;
   return `${hour12}:${m} ${period}`;
 }
 
@@ -76,10 +100,13 @@ export class ContextBuilder {
       lastSummary,
       familyLinks,
     ] = await Promise.all([
-      // ذاكرة المريض (الفعالة فقط)
+      // ذاكرة المريض (الفعالة فقط) — capped to keep prompt size bounded for
+      // long-term patients with many stored memories. The most-recently-updated
+      // ones are kept.
       this.prisma.patientMemory.findMany({
         where: { patientId, isActive: true },
         orderBy: { updatedAt: 'desc' },
+        take: 20,
       }),
       // المواعيد القادمة (خلال 30 يوم)
       this.prisma.appointment.findMany({
@@ -118,7 +145,7 @@ export class ContextBuilder {
       // آخر ملخص محادثة
       this.prisma.conversationSummary.findFirst({
         where: {
-          conversation: { patientId },
+          conversation: { patientId, orgId },
         },
         orderBy: { createdAt: 'desc' },
       }),
@@ -280,31 +307,9 @@ export class ContextBuilder {
    * الحصول على ملخص ترحيبي للمريض
    */
   async getPatientSummary(patientId: string): Promise<PatientSummary> {
-    const [patient, lastAppointment, nextAppointment] = await Promise.all([
-      this.prisma.patient.findUnique({
-        where: { patientId },
-      }),
-      // آخر زيارة
-      this.prisma.appointment.findFirst({
-        where: {
-          patientId,
-          startTs: { lt: new Date() },
-          status: { in: ['completed', 'checked_in', 'in_progress'] },
-        },
-        include: { provider: true, service: true },
-        orderBy: { startTs: 'desc' },
-      }),
-      // أقرب موعد قادم
-      this.prisma.appointment.findFirst({
-        where: {
-          patientId,
-          startTs: { gte: new Date() },
-          status: { in: ['booked', 'confirmed'] },
-        },
-        include: { provider: true, service: true },
-        orderBy: { startTs: 'asc' },
-      }),
-    ]);
+    const patient = await this.prisma.patient.findUnique({
+      where: { patientId },
+    });
 
     if (!patient) {
       return {
@@ -318,6 +323,30 @@ export class ContextBuilder {
         nextAppointmentProvider: null,
       };
     }
+
+    const { orgId } = patient;
+    const [lastAppointment, nextAppointment] = await Promise.all([
+      this.prisma.appointment.findFirst({
+        where: {
+          patientId,
+          orgId,
+          startTs: { lt: new Date() },
+          status: { in: ['completed', 'checked_in', 'in_progress'] },
+        },
+        include: { provider: true, service: true },
+        orderBy: { startTs: 'desc' },
+      }),
+      this.prisma.appointment.findFirst({
+        where: {
+          patientId,
+          orgId,
+          startTs: { gte: new Date() },
+          status: { in: ['booked', 'confirmed'] },
+        },
+        include: { provider: true, service: true },
+        orderBy: { startTs: 'asc' },
+      }),
+    ]);
 
     const name = `${patient.firstName} ${patient.lastName}`;
     let greeting = `مرحباً ${patient.firstName}!`;

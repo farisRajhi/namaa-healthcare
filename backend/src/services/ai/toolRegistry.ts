@@ -4,6 +4,7 @@ import { ToolHookRunner, READ_ONLY_TOOLS } from './toolHooks.js';
 import type { HookContext } from './toolHooks.js';
 import { validateToolArgs } from './toolSchemas.js';
 import { riyadhNow, riyadhToUtc, riyadhMidnight, riyadhDateWithTime, riyadhDayOfWeek, utcToRiyadhDateStr, RIYADH_TZ } from '../../utils/riyadhTime.js';
+import { formatBookingDateAr } from '../../lib/hijriDate.js';
 import { validatePatientName } from '../security/nameValidator.js';
 
 // ─────────────────────────────────────────────────────────
@@ -1003,13 +1004,13 @@ export class ToolRegistry {
       }, { isolationLevel: 'Serializable' });
 
       const arBookedText =
-        `✅ تم حجز الموعد بنجاح!\n` +
+        `✅ تم حجز الموعد!\n` +
         `الطبيب: ${provider.displayName}\n` +
         `الخدمة: ${service.name}\n` +
-        `التاريخ: ${formatDateAr(startTs)}\n` +
-        `الوقت: ${formatTimeSlot(startTs)}\n` +
+        `${formatBookingDateAr(startTs)}\n` +
+        `الساعة: ${formatTimeSlot(startTs)}\n` +
         (appointment.facility ? `المكان: ${appointment.facility.name}` : '');
-      return this.formatResponse(arBookedText, `Appointment booked successfully! ID: ${appointment.appointmentId}`);
+      return this.formatResponse(arBookedText, 'Appointment booked.');
     } catch (err: unknown) {
       if (err instanceof Error && err.message === 'SLOT_CONFLICT') {
         return this.formatError('هذا الموعد محجوز بالفعل.', 'This time slot is already booked.');
@@ -1187,19 +1188,19 @@ export class ToolRegistry {
 
       const arGuestText =
         `✅ تم حجز الموعد بنجاح!\n` +
-        `مرحباً ${firstName} ${lastName} — تم تسجيلك كمريض جديد.\n` +
+        `أهلاً ${firstName} — تم تسجيلك وحجز موعدك.\n` +
         `الطبيب: ${provider.displayName}\n` +
         `الخدمة: ${service.name}\n` +
-        `التاريخ: ${formatDateAr(startTs)}\n` +
-        `الوقت: ${formatTimeSlot(startTs)}\n` +
+        `${formatBookingDateAr(startTs)}\n` +
+        `الساعة: ${formatTimeSlot(startTs)}\n` +
         (result.facilityName ? `المكان: ${result.facilityName}` : '');
-      return this.formatResponse(arGuestText, `Appointment booked for new patient ${firstName} ${lastName}! ID: ${result.appointment.appointmentId}`);
+      return this.formatResponse(arGuestText, `Appointment booked for new patient ${firstName} ${lastName}.`);
     } catch (err: unknown) {
       if (err instanceof Error && err.message === 'SLOT_CONFLICT') {
         return this.formatError('هذا الموعد محجوز بالفعل.', 'This time slot is already booked.');
       }
       if (err instanceof Error && err.message === 'PATIENT_OVERLAP') {
-        return 'Error: لديك موعد آخر في نفس الوقت. You already have another appointment at this time.';
+        return this.formatError('لديك موعد آخر في نفس الوقت.', 'You already have another appointment at this time.');
       }
       throw err;
     }
@@ -1215,6 +1216,7 @@ export class ToolRegistry {
 
     const appointments = await this.prisma.appointment.findMany({
       where: {
+        orgId: this.orgId,
         patientId: this.patientId,
         startTs: upcoming ? { gte: new Date() } : { lt: new Date() },
         status: upcoming
@@ -1760,18 +1762,18 @@ export class ToolRegistry {
       }, { isolationLevel: 'Serializable' });
 
       const arHoldText =
-        `⏳ تم حجز الموعد مؤقتاً لمدة 10 دقائق.\n` +
+        `⏳ تم حجز الموعد مؤقتاً لمدة 10 دقائق — أكّد لي عشان أثبته.\n` +
         `الطبيب: ${provider.displayName}\n` +
         `الخدمة: ${service.name}\n` +
-        `التاريخ: ${formatDateAr(startTs)} ${formatTimeSlot(startTs)}\n` +
-        `appointmentId: ${appointment.appointmentId}`;
+        `${formatBookingDateAr(startTs)} الساعة ${formatTimeSlot(startTs)}\n` +
+        `<!-- holdAppointmentId=${appointment.appointmentId} -->`;
       return this.formatResponse(arHoldText, 'Slot held for 10 minutes. Confirm or it will be released.');
     } catch (err: unknown) {
       if (err instanceof Error && err.message === 'SLOT_CONFLICT') {
         return this.formatError('هذا الموعد محجوز بالفعل.', 'This time slot is already taken.');
       }
       if (err instanceof Error && err.message === 'PATIENT_OVERLAP') {
-        return 'Error: لديك موعد آخر في نفس الوقت. You already have another appointment at this time.';
+        return this.formatError('لديك موعد آخر في نفس الوقت.', 'You already have another appointment at this time.');
       }
       throw err;
     }
@@ -1831,10 +1833,25 @@ export class ToolRegistry {
     }
 
     const newStartTs = riyadhToUtc(newDate, newTime);
-    if (isNaN(newStartTs.getTime())) return 'Error: تاريخ أو وقت غير صحيح. Invalid date/time.';
+    if (isNaN(newStartTs.getTime())) return this.formatError('تاريخ أو وقت غير صحيح.', 'Invalid date/time.');
     if (newStartTs < new Date()) return this.formatError('لا يمكن الحجز في الماضي.', 'Cannot reschedule to the past.');
 
     const newEndTs = new Date(newStartTs.getTime() + (appointment.service.durationMin || 30) * 60 * 1000);
+
+    // Check provider is not on time-off for the new date (parity with book_appointment)
+    const timeOff = await this.prisma.providerTimeOff.findFirst({
+      where: {
+        providerId: appointment.provider.providerId,
+        startTs: { lte: newEndTs },
+        endTs: { gte: newStartTs },
+      },
+    });
+    if (timeOff) {
+      return this.formatError(
+        `الطبيب ${appointment.provider.displayName} في إجازة في هذا التاريخ.`,
+        'Provider is on leave during the new time.',
+      );
+    }
 
     try {
       await this.prisma.$transaction(async (tx) => {
@@ -1893,18 +1910,18 @@ export class ToolRegistry {
       }, { isolationLevel: 'Serializable' });
 
       const arRescheduleText =
-        `✅ تم إعادة جدولة الموعد بنجاح!\n` +
+        `✅ تم تعديل الموعد!\n` +
         `الطبيب: ${appointment.provider.displayName}\n` +
         `الخدمة: ${appointment.service.name}\n` +
-        `الموعد الجديد: ${formatDateAr(newStartTs)} ${formatTimeSlot(newStartTs)}\n` +
+        `الموعد الجديد: ${formatBookingDateAr(newStartTs)} الساعة ${formatTimeSlot(newStartTs)}\n` +
         `(كان: ${formatDateAr(appointment.startTs)} ${formatTimeSlot(appointment.startTs)})`;
-      return this.formatResponse(arRescheduleText, 'Appointment rescheduled successfully!');
+      return this.formatResponse(arRescheduleText, 'Appointment rescheduled.');
     } catch (err: unknown) {
       if (err instanceof Error && err.message === 'SLOT_CONFLICT') {
         return this.formatError('الموعد الجديد محجوز بالفعل.', 'The new time slot is already booked.');
       }
       if (err instanceof Error && err.message === 'PATIENT_OVERLAP') {
-        return 'Error: لديك موعد آخر في نفس الوقت. You already have another appointment at this time.';
+        return this.formatError('لديك موعد آخر في نفس الوقت.', 'You already have another appointment at this time.');
       }
       throw err;
     }
@@ -2001,8 +2018,8 @@ export class ToolRegistry {
       return this.formatError('المريض غير محدد.', 'Patient not identified.');
     }
 
-    const patient = await this.prisma.patient.findUnique({
-      where: { patientId: this.patientId },
+    const patient = await this.prisma.patient.findFirst({
+      where: { patientId: this.patientId, orgId: this.orgId },
       include: {
         contacts: {
           where: { isPrimary: true },
@@ -2012,7 +2029,7 @@ export class ToolRegistry {
     });
 
     if (!patient) {
-      return 'Error: بيانات المريض غير موجودة. Patient record not found.';
+      return this.formatError('بيانات المريض غير موجودة.', 'Patient record not found.');
     }
 
     let info = `👤 ${patient.firstName} ${patient.lastName}\n`;
